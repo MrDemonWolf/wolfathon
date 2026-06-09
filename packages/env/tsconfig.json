@@ -1,0 +1,3 @@
+{
+  "extends": "@tmp-wolfathon/config/tsconfig.base.json"
+}
