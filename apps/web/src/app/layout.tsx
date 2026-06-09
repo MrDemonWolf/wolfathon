@@ -1,23 +1,26 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Montserrat, Roboto } from "next/font/google";
 
 import "../index.css";
-import Header from "@/components/header";
 import Providers from "@/components/providers";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Montserrat → headings, Roboto → body (MrDemonWolf brand).
+const montserrat = Montserrat({
+  variable: "--font-montserrat",
   subsets: ["latin"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const roboto = Roboto({
+  variable: "--font-roboto",
   subsets: ["latin"],
+  weight: ["400", "500", "700"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "tmp-wolfathon",
-  description: "tmp-wolfathon",
+  title: "Wolfathon",
+  description: "Subathon reward tracker by MrDemonWolf",
 };
 
 export default function RootLayout({
@@ -27,13 +30,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <Providers>
-          <div className="grid grid-rows-[auto_1fr] h-svh">
-            <Header />
-            {children}
-          </div>
-        </Providers>
+      {/*
+        The root layout adds no chrome — `/overlay` needs a bare, transparent
+        page for OBS. Panel routes add their own header/background.
+      */}
+      <body className={`${montserrat.variable} ${roboto.variable} antialiased`}>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

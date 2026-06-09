@@ -1,5 +1,5 @@
 {
-  "name": "@tmp-wolfathon/env",
+  "name": "@wolfathon/env",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -13,8 +13,8 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@tmp-wolfathon/config": "workspace:*",
-    "@tmp-wolfathon/infra": "workspace:*",
+    "@wolfathon/config": "workspace:*",
+    "@wolfathon/infra": "workspace:*",
     "@types/node": "^22.13.14",
     "typescript": "catalog:"
   }

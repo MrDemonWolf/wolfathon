@@ -13,8 +13,8 @@
   "iconLibrary": "lucide",
   "aliases": {
     "components": "@/components",
-    "utils": "@tmp-wolfathon/ui/lib/utils",
-    "ui": "@tmp-wolfathon/ui/components",
+    "utils": "@wolfathon/ui/lib/utils",
+    "ui": "@wolfathon/ui/components",
     "lib": "@/lib",
     "hooks": "@/hooks"
   },

@@ -1,14 +1,18 @@
 import type { MetadataRoute } from "next";
 
+/**
+ * PWA manifest. The installable surface is the control panel, so `start_url`
+ * opens `/control` (which sits behind Cloudflare Access).
+ */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "tmp-wolfathon",
-    short_name: "tmp-wolfathon",
-    description: "my pwa app",
-    start_url: "/new",
+    name: "Wolfathon Control",
+    short_name: "Wolfathon",
+    description: "Subathon reward tracker control panel",
+    start_url: "/control",
     display: "standalone",
-    background_color: "#ffffff",
-    theme_color: "#000000",
+    background_color: "#091533",
+    theme_color: "#091533",
     icons: [
       {
         src: "/favicon/web-app-manifest-192x192.png",

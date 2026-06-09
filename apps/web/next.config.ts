@@ -1,4 +1,4 @@
-import "@tmp-wolfathon/env/web";
+import "@wolfathon/env/web";
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 import type { NextConfig } from "next";
 

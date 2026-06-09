@@ -9,9 +9,9 @@
   },
   "dependencies": {
     "@hono/trpc-server": "^0.4.0",
-    "@tmp-wolfathon/api": "workspace:*",
-    "@tmp-wolfathon/db": "workspace:*",
-    "@tmp-wolfathon/env": "workspace:*",
+    "@wolfathon/api": "workspace:*",
+    "@wolfathon/db": "workspace:*",
+    "@wolfathon/env": "workspace:*",
     "@trpc/server": "catalog:",
     "dotenv": "catalog:",
     "hono": "catalog:",
@@ -19,7 +19,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "catalog:",
-    "@tmp-wolfathon/config": "workspace:*",
+    "@wolfathon/config": "workspace:*",
     "@types/node": "^22.13.14",
     "alchemy": "catalog:",
     "tsdown": "^0.21.9",
