@@ -8,7 +8,12 @@ config({ path: "./.env" });
 config({ path: "../../apps/web/.env" });
 config({ path: "../../apps/server/.env" });
 
-const app = await alchemy("wolfathon");
+// Run under Node (via tsx) rather than Bun — Bun 1.3.x segfaults executing this
+// Alchemy program. The deploy/destroy scripts in package.json use tsx; `--destroy`
+// selects the teardown phase, otherwise Alchemy auto-detects (deploy / dev).
+const app = await alchemy("wolfathon", {
+  phase: process.argv.includes("--destroy") ? "destroy" : undefined,
+});
 
 // Access bypass is allowed ONLY for local `alchemy dev` (app.local === true).
 // A real deploy ALWAYS enforces Cloudflare Access — it can never be disabled by

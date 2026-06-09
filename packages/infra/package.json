@@ -4,8 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "alchemy dev",
-    "deploy": "alchemy deploy",
-    "destroy": "alchemy destroy"
+    "deploy": "tsx alchemy.run.ts",
+    "destroy": "tsx alchemy.run.ts --destroy"
   },
   "dependencies": {
     "dotenv": "catalog:",
@@ -14,6 +14,7 @@
   "devDependencies": {
     "@wolfathon/config": "workspace:*",
     "alchemy": "catalog:",
+    "tsx": "^4.22.4",
     "typescript": "catalog:"
   }
 }
