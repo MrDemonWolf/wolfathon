@@ -1,6 +1,6 @@
 {
-  "name": "tmp-wolfathon",
-  "short_name": "tmp-wolfathon",
+  "name": "wolfathon",
+  "short_name": "wolfathon",
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",

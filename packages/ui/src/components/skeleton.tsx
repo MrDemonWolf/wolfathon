@@ -1,4 +1,4 @@
-import { cn } from "@tmp-wolfathon/ui/lib/utils";
+import { cn } from "@wolfathon/ui/lib/utils";
 
 function Skeleton({ className, ...props }: React.ComponentProps<"div">) {
   return (

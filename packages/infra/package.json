@@ -1,5 +1,5 @@
 {
-  "name": "@tmp-wolfathon/infra",
+  "name": "@wolfathon/infra",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,7 +12,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@tmp-wolfathon/config": "workspace:*",
+    "@wolfathon/config": "workspace:*",
     "alchemy": "catalog:",
     "typescript": "catalog:"
   }

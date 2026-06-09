@@ -1,4 +1,4 @@
-import { type server } from "@tmp-wolfathon/infra/alchemy.run";
+import { type server } from "@wolfathon/infra/alchemy.run";
 
 // This file infers types for the cloudflare:workers environment from your Alchemy Worker.
 // @see https://alchemy.run/concepts/bindings/#type-safe-bindings

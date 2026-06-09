@@ -1,11 +1,11 @@
 {
-  "extends": "@tmp-wolfathon/config/tsconfig.base.json",
+  "extends": "@wolfathon/config/tsconfig.base.json",
   "compilerOptions": {
     "jsx": "react-jsx",
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "types": [],
     "paths": {
-      "@tmp-wolfathon/ui/*": ["./src/*"]
+      "@wolfathon/ui/*": ["./src/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],

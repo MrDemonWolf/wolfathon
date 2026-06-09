@@ -1,5 +1,5 @@
 {
-  "name": "@tmp-wolfathon/api",
+  "name": "@wolfathon/api",
   "type": "module",
   "exports": {
     ".": {
@@ -11,16 +11,14 @@
   },
   "scripts": {},
   "dependencies": {
-    "@tmp-wolfathon/db": "workspace:*",
-    "@tmp-wolfathon/env": "workspace:*",
-    "@trpc/client": "catalog:",
+    "@wolfathon/db": "workspace:*",
     "@trpc/server": "catalog:",
-    "dotenv": "catalog:",
+    "drizzle-orm": "^0.45.1",
+    "jose": "^5.9.6",
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@tmp-wolfathon/config": "workspace:*",
-    "hono": "catalog:",
+    "@wolfathon/config": "workspace:*",
     "typescript": "catalog:"
   }
 }

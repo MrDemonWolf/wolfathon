@@ -1,4 +1,4 @@
-import { cn } from "@tmp-wolfathon/ui/lib/utils";
+import { cn } from "@wolfathon/ui/lib/utils";
 import * as React from "react";
 
 function Card({

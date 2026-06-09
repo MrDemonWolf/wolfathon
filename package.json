@@ -1,5 +1,5 @@
 {
-  "name": "tmp-wolfathon",
+  "name": "wolfathon",
   "private": true,
   "workspaces": {
     "packages": [
@@ -33,18 +33,18 @@
     "check-types": "turbo check-types",
     "dev:web": "turbo -F web dev",
     "dev:server": "turbo -F server dev",
-    "db:generate": "turbo -F @tmp-wolfathon/db db:generate",
-    "deploy": "turbo -F @tmp-wolfathon/infra deploy",
-    "destroy": "turbo -F @tmp-wolfathon/infra destroy"
+    "db:generate": "turbo -F @wolfathon/db db:generate",
+    "deploy": "turbo -F @wolfathon/infra deploy",
+    "destroy": "turbo -F @wolfathon/infra destroy"
   },
   "dependencies": {
-    "@tmp-wolfathon/env": "workspace:*",
+    "@wolfathon/env": "workspace:*",
     "dotenv": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "catalog:",
-    "@tmp-wolfathon/config": "workspace:*",
+    "@wolfathon/config": "workspace:*",
     "@types/node": "^22.13.14",
     "turbo": "^2.9.16",
     "typescript": "catalog:"

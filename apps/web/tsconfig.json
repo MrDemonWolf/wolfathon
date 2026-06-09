@@ -21,7 +21,7 @@
     ],
     "paths": {
       "@/*": ["./src/*"],
-      "@tmp-wolfathon/ui/*": ["../../packages/ui/src/*"]
+      "@wolfathon/ui/*": ["../../packages/ui/src/*"]
     },
     "types": ["@cloudflare/workers-types"]
   },
