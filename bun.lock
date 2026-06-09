@@ -134,6 +134,7 @@
       "devDependencies": {
         "@wolfathon/config": "workspace:*",
         "alchemy": "catalog:",
+        "tsx": "^4.22.4",
         "typescript": "catalog:",
       },
     },
