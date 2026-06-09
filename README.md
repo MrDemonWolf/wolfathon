@@ -218,9 +218,14 @@ database, and to apply migrations.
    bun run deploy
    ```
 
-   The command prints the web and server URLs. Note both. Set
-   `NEXT_PUBLIC_SERVER_URL` (web) to the server URL and `CORS_ORIGIN` (server)
-   to the web origin, then redeploy if you changed them.
+   The Worker names are fixed, so the deploy lands on:
+
+   - Web: `https://wolfathon.mrdemonwolf.workers.dev`
+   - API: `https://wolfathon-api.mrdemonwolf.workers.dev`
+
+   Infra wires the web app's `NEXT_PUBLIC_SERVER_URL` to the API Worker and
+   defaults the server's `CORS_ORIGIN` to the web URL automatically, so no
+   manual URL juggling is needed.
 
 ### Cloudflare Access (Zero Trust)
 
@@ -231,12 +236,12 @@ the `/control` page and the `/api/trpc` operator API. The overlay stays public.
 1. In the Cloudflare dashboard, open **Zero Trust**, then **Access**, then
    **Applications**, and add a **Self-hosted** application.
 
-2. Set the application paths to cover the control panel and its API on your web
+2. Set the application paths to cover the control panel and its API on the web
    domain:
 
-   - `your-web-domain.com/control`
-   - `your-web-domain.com/control/*`
-   - `your-web-domain.com/api/trpc/*`
+   - `wolfathon.mrdemonwolf.workers.dev/control`
+   - `wolfathon.mrdemonwolf.workers.dev/control/*`
+   - `wolfathon.mrdemonwolf.workers.dev/api/trpc/*`
 
 3. Add a policy that allows only your email (or your team).
 
