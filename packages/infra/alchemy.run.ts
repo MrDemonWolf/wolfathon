@@ -10,6 +10,11 @@ config({ path: "../../apps/server/.env" });
 
 const app = await alchemy("wolfathon");
 
+// Access bypass is allowed ONLY for local `alchemy dev` (app.local === true).
+// A real deploy ALWAYS enforces Cloudflare Access — it can never be disabled by
+// a stray .env, so the control panel can't ship unprotected.
+const ACCESS_DISABLED = app.local ? "true" : "false";
+
 // Fixed production hosts. Worker names below set their workers.dev subdomains:
 //   web    -> wolfathon.mrdemonwolf.workers.dev
 //   server -> wolfathon-api.mrdemonwolf.workers.dev
@@ -46,7 +51,7 @@ export const web = await Nextjs("wolfathon", {
     // Empty values fail closed (everything denied) unless ACCESS_DISABLED=true.
     CF_ACCESS_TEAM_DOMAIN: process.env.CF_ACCESS_TEAM_DOMAIN ?? "",
     CF_ACCESS_AUD: process.env.CF_ACCESS_AUD ?? "",
-    ACCESS_DISABLED: process.env.ACCESS_DISABLED ?? "false",
+    ACCESS_DISABLED,
   },
   dev: {
     env: {
