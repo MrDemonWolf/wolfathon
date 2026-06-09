@@ -54,10 +54,10 @@ Keep the rewards flowing. Keep your chat guessing.
    - Overlay (OBS source): `http://localhost:3001/overlay`
    - API (overlay data): `http://localhost:3000`
 
-   Local development bypasses Cloudflare Access by default
-   (`ACCESS_DISABLED=true` in `apps/web/.env`), so the control panel works
-   without Zero Trust on your machine. The database is seeded with a sample
-   goal list on first run.
+   Local development (`bun run dev`) bypasses Cloudflare Access automatically,
+   so the control panel works without Zero Trust on your machine. A real deploy
+   always enforces Access. The database is seeded with a sample goal list on
+   first run.
 
 ## Usage
 
@@ -250,12 +250,11 @@ the `/control` page and the `/api/trpc` operator API. The overlay stays public.
    - The **team domain**, for example `your-team.cloudflareaccess.com`
    - The application **Audience (AUD)** tag
 
-5. Put them in `packages/infra/.env` and make sure Access is enforced:
+5. Put them in `packages/infra/.env`:
 
    ```bash
    CF_ACCESS_TEAM_DOMAIN=your-team.cloudflareaccess.com
    CF_ACCESS_AUD=your-application-aud-tag
-   ACCESS_DISABLED=false
    ```
 
 6. Redeploy:
@@ -264,10 +263,12 @@ the `/control` page and the `/api/trpc` operator API. The overlay stays public.
    bun run deploy
    ```
 
-Now visiting `/control` requires a Cloudflare Access login, and every protected
-tRPC call verifies the `Cf-Access-Jwt-Assertion` header against your team's
-public keys with the matching audience. If the values are blank while
-`ACCESS_DISABLED` is false, the operator API fails closed and denies everything.
+Access enforcement is automatic: a real deploy always enforces it, local
+`alchemy dev` always bypasses it. After deploy, visiting `/control` requires a
+Cloudflare Access login, and every protected tRPC call verifies the
+`Cf-Access-Jwt-Assertion` header against your team's public keys with the
+matching audience. If `CF_ACCESS_TEAM_DOMAIN` / `CF_ACCESS_AUD` are blank on a
+deploy, the operator API fails closed and denies everything.
 
 ### Architecture note
 
