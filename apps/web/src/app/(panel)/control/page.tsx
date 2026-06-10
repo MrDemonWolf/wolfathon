@@ -4,10 +4,12 @@ import { useState } from "react";
 
 import { RewardsTab } from "@/components/control/rewards-tab";
 import { TimerTab } from "@/components/control/timer-tab";
+import { TwitchPanel } from "@/components/control/twitch-panel";
 
 const TABS = [
   { id: "rewards", label: "Rewards" },
   { id: "timer", label: "Timer" },
+  { id: "twitch", label: "Twitch" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -36,7 +38,13 @@ export default function ControlPage() {
         ))}
       </div>
 
-      {tab === "rewards" ? <RewardsTab /> : <TimerTab />}
+      {tab === "rewards" && <RewardsTab />}
+      {tab === "timer" && <TimerTab />}
+      {tab === "twitch" && (
+        <div className="max-w-2xl">
+          <TwitchPanel />
+        </div>
+      )}
     </div>
   );
 }

@@ -17,6 +17,7 @@ type WebEnv = {
   CF_ACCESS_TEAM_DOMAIN?: string;
   CF_ACCESS_AUD?: string;
   ACCESS_DISABLED?: string;
+  NEXT_PUBLIC_SERVER_URL?: string;
 };
 
 function handler(req: Request) {
@@ -36,6 +37,9 @@ function handler(req: Request) {
           aud: env.CF_ACCESS_AUD,
           disabled: env.ACCESS_DISABLED === "true",
         },
+        callbackUrl: env.NEXT_PUBLIC_SERVER_URL
+          ? `${env.NEXT_PUBLIC_SERVER_URL}/twitch/eventsub`
+          : undefined,
       }),
   });
 }
