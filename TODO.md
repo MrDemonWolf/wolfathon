@@ -58,6 +58,14 @@ Therefore a "save every N seconds" loop is intentionally **not** implemented: it
 would re-write the same value repeatedly and eat into the D1 write budget
 (Workers free tier = 100k writes/day). Writes only happen on real changes.
 
+### Possible feature: auto-pause when the stream goes offline
+
+The timer counts real wall-clock time, so a stream/PC outage burns subathon time.
+Cleanest fix uses the EventSub we already have: subscribe to `stream.offline`
+(auto-pause the timer) and `stream.online` (auto-resume, or leave it for a manual
+Resume). No extra scopes needed. Ask Claude to "add stream offline/online
+auto-pause" and pick auto-resume vs manual-resume. Not built yet.
+
 ### If you ever DO want a heartbeat (optional, later)
 
 Only worth it if you add an in-memory accumulator that isn't already persisted.
