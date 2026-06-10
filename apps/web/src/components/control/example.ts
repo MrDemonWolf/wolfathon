@@ -11,3 +11,10 @@ export const EXAMPLE_DOC = {
 };
 
 export const EXAMPLE_JSON = JSON.stringify(EXAMPLE_DOC, null, 2);
+
+export const REWARDS_SCHEMA_BULLETS = [
+  "Top-level `goals` is a non-empty array (max 50).",
+  "Each goal needs a non-empty `reward` string (max 80 chars).",
+  "`note` is optional and internal; unknown keys and any `id` are ignored.",
+  "On import every goal resets to locked and progress returns to the first goal.",
+];
