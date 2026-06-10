@@ -1,13 +1,10 @@
 import Link from "next/link";
 
-import { WolfMark } from "@/components/wolf-mark";
-
 /** Landing page — quick links to the two surfaces. */
 export default function Home() {
   return (
     <div className="grid gap-8">
       <section className="flex flex-col items-start gap-3">
-        <WolfMark className="size-14" />
         <h1 className="font-heading text-3xl font-extrabold tracking-tight">Wolfathon</h1>
         <p className="max-w-xl text-muted-foreground">
           A clean subathon toolkit: a reward tracker that unlocks reward names one at a
