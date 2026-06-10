@@ -30,9 +30,16 @@ const CORS_ORIGIN = process.env.CORS_ORIGIN ?? WEB_URL;
 
 const db = await D1Database("database", {
   migrationsDir: "../../packages/db/src/migrations",
+  // Adopt existing resources by name so CI/CD can deploy without sharing the
+  // local Alchemy state file (each run reconciles the live resource).
+  adopt: true,
 });
 
 export const server = await Worker("wolfathon-api", {
+  // Explicit script name → wolfathon-api.<subdomain>.workers.dev
+  // (without this, Alchemy prefixes app + stage onto the name).
+  name: "wolfathon-api",
+  adopt: true,
   cwd: "../../apps/server",
   entrypoint: "src/index.ts",
   compatibility: "node",
@@ -47,6 +54,9 @@ export const server = await Worker("wolfathon-api", {
 });
 
 export const web = await Nextjs("wolfathon", {
+  // Explicit script name → wolfathon.<subdomain>.workers.dev
+  name: "wolfathon",
+  adopt: true,
   cwd: "../../apps/web",
   bindings: {
     NEXT_PUBLIC_SERVER_URL: server.url!,

@@ -1,0 +1,71 @@
+name: Deploy
+
+# Runs after CI succeeds on main. Deploys web + server + D1 to Cloudflare via
+# Alchemy. Resources use `adopt: true`, so the runner reconciles the live
+# resources without sharing the local Alchemy state file.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    branches: [main]
+    types:
+      - completed
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+concurrency:
+  group: deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to Cloudflare
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2.1.3
+        with:
+          bun-version-file: package.json
+
+      - name: Cache bun install
+        uses: actions/cache@v5
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-${{ runner.os }}-
+
+      - name: Cache Next.js build
+        uses: actions/cache@v5
+        with:
+          path: apps/web/.next/cache
+          key: nextjs-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            nextjs-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Deploy (Alchemy → Cloudflare)
+        # `bun run deploy` runs `tsx alchemy.run.ts` under Node — Bun segfaults
+        # executing the Alchemy program, so it must not run under Bun.
+        run: bun run deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ALCHEMY_PASSWORD: ${{ secrets.ALCHEMY_PASSWORD }}
+          # Cloudflare Access — set these as repo secrets to enforce /control
+          # protection in production (empty = fails closed).
+          CF_ACCESS_TEAM_DOMAIN: ${{ secrets.CF_ACCESS_TEAM_DOMAIN }}
+          CF_ACCESS_AUD: ${{ secrets.CF_ACCESS_AUD }}
+
+      - name: Smoke test API
+        run: |
+          sleep 5
+          OUT=$(curl -sf https://wolfathon-api.mrdemonwolf.workers.dev/ || echo FAILED)
+          echo "API root: $OUT"
+          echo "$OUT" | grep -q "OK" || { echo "ERROR: API smoke test failed"; exit 1; }
