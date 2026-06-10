@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 
 import { type Data, recompute, sampleData } from "./state";
 import { type TimerDoc, defaultTimerDoc } from "./timer";
+import { type TwitchDoc, defaultTwitchDoc } from "./twitch";
 
 /**
  * The whole app is stored as a few singleton JSON rows in `tracker_state`,
@@ -13,6 +14,7 @@ import { type TimerDoc, defaultTimerDoc } from "./timer";
  */
 const STATE_ID = "default";
 const TIMER_ID = "timer";
+const TWITCH_ID = "twitch";
 
 /**
  * Generic doc read with lazy seeding. Returns the parsed JSON, or seeds (and
@@ -61,4 +63,14 @@ export async function readTimer(db: Db): Promise<TimerDoc> {
 
 export async function writeTimer(db: Db, doc: TimerDoc): Promise<TimerDoc> {
   return writeDoc(db, TIMER_ID, doc);
+}
+
+// ---- twitch (secret) ------------------------------------------------------
+
+export async function readTwitch(db: Db): Promise<TwitchDoc> {
+  return readDoc(db, TWITCH_ID, defaultTwitchDoc);
+}
+
+export async function writeTwitch(db: Db, doc: TwitchDoc): Promise<TwitchDoc> {
+  return writeDoc(db, TWITCH_ID, doc);
 }

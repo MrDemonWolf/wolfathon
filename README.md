@@ -1,29 +1,35 @@
-# Wolfathon - A Clean Subathon Reward Tracker for Twitch
+# Wolfathon - A Clean Subathon Toolkit for Twitch
 
-Wolfathon is a branded reward tracker for subathons. It shows your current
-reward goal as a name only, never a number, and unlocks goals one at a time
-as your event grows. There is no visible ceiling and no countdown timer, so a
-big gifter never sees a final target and you keep your own timer running
-separately. It ships as a transparent OBS overlay plus a private control
-panel, deployed on Cloudflare.
+Wolfathon is a branded subathon toolkit for Twitch streamers. It pairs a
+reward tracker that shows your current goal as a name only, never a number,
+with a countdown timer that auto-adds time from subs, gifts, bits, and channel
+points via Twitch EventSub. It ships as transparent OBS overlays plus a private
+control panel, deployed on Cloudflare.
 
-Keep the rewards flowing. Keep your chat guessing.
+Keep the rewards flowing. Keep the clock ticking.
 
 ## Features
 
-- **Reward names only** - The overlay shows the current reward name and
+- **Subathon timer** - A timestamp-driven countdown that auto-adds time from
+  Twitch subs (per tier), gifted subs, bits, and channel-point redemptions.
+  Every amount is configurable; the overlay counts down to the frame and
+  survives an OBS refresh.
+- **Twitch auto-time (EventSub)** - Connect once with the OAuth Device Flow.
+  Events arrive at the server Worker as HMAC-verified webhooks, so there is no
+  bot to babysit and no browser that has to stay open.
+- **Reward names only** - The rewards overlay shows the current reward name and
   already-unlocked names. Amounts, totals, and future goals are never sent to
   the browser.
-- **One-at-a-time unlocks** - Goals unlock top to bottom. Unlocking plays a
-  short glow-and-scale celebration (no audio), then settles on the next reward.
-- **No ceiling, no timer** - Future goals stay hidden, so there is no visible
-  "top". Run your countdown in a separate tool.
+- **One-at-a-time unlocks** - Goals unlock top to bottom with a short
+  glow-and-scale celebration (no audio), then settle on the next reward.
 - **Private notes** - Each goal has an internal `note` (for example, "10 subs")
   that is stripped server-side and never reaches the overlay.
-- **Fast JSON import/export** - Paste or upload a goal list, validate it, then
-  replace everything in one click. Export the live state, edit it, re-import.
+- **Claude-friendly import/export** - For both rewards and the timer config:
+  paste or upload JSON, validate, replace in one click, export, and copy a
+  ready-made prompt so you can have Claude generate a new config to paste back.
 - **Cloudflare Access security** - The control panel and its API sit behind
-  Cloudflare Zero Trust. The public overlay stays open.
+  Cloudflare Zero Trust; the public overlays stay open. Twitch secrets never
+  reach a public response.
 - **Installable PWA** - The control panel installs as a standalone app.
 - **Brand-ready** - MrDemonWolf navy and cyan, Montserrat and Roboto, with
   macOS-style rounded panels.
@@ -51,96 +57,136 @@ Keep the rewards flowing. Keep your chat guessing.
 4. Open the surfaces:
 
    - Control panel: `http://localhost:3001/control`
-   - Overlay (OBS source): `http://localhost:3001/overlay`
-   - API (overlay data): `http://localhost:3000`
+   - Overlay chooser: `http://localhost:3001/overlay`
+   - Timer overlay: `http://localhost:3001/overlay/timer`
+   - Rewards overlay: `http://localhost:3001/overlay/rewards`
+   - API (overlay data + Twitch webhook): `http://localhost:3000`
 
    Local development (`bun run dev`) bypasses Cloudflare Access automatically,
    so the control panel works without Zero Trust on your machine. A real deploy
-   always enforces Access. The database is seeded with a sample goal list on
-   first run.
+   always enforces Access. The database seeds sample goals and a default timer
+   on first run.
 
 ## Usage
 
-### OBS browser source
+### OBS browser sources
 
-Add the overlay as a browser source in OBS:
+Open `/overlay` (the chooser) and copy each source URL straight into OBS. Add
+each as a **Browser** source at width `1920`, height `1080`, with a transparent
+background — the overlays paint only floating panels, nothing full-screen.
 
-1. Sources, then add a **Browser** source.
-2. URL: your deployed overlay URL, or `http://localhost:3001/overlay` in dev.
-3. Width `1920`, Height `1080`.
-4. Leave the background transparent. The overlay paints only its floating
-   panels, nothing full-screen, so it composites cleanly over your scene.
+| Source  | URL              | Shows                                          |
+| ------- | ---------------- | ---------------------------------------------- |
+| Timer   | `/overlay/timer` | Big HH:MM:SS countdown with a "+Xm" add flash  |
+| Rewards | `/overlay/rewards` | Current reward name + unlock celebration     |
 
-The overlay polls for updates every 2 seconds, so edits in the control panel
-appear on stream within about 2 seconds.
+Both poll every 2 seconds, so control-panel edits and Twitch events appear on
+stream within about 2 seconds (the timer keeps counting smoothly between polls).
 
-### Adding your logo
+### Subathon timer
 
-Drop your wolf mark at `apps/web/public/wolf_mark.png` and it is used
-automatically across the overlay and panel. If the file is missing, a built-in
-brand SVG mark is shown instead, so nothing ever renders broken.
+The control panel's **Timer** tab has two halves:
 
-### JSON import and export
+- **Controls** - Start / Pause / Reset, quick add buttons (+1, +5, +10, +30,
+  -5 minutes) and a custom amount, plus "simulate event" buttons (Sub T1/T2/T3,
+  Gift, 100 bits) that apply the configured minutes for testing.
+- **Time rules** - Edit every amount: starting time, cap (0 = no cap), minutes
+  per sub tier (T1/T2/T3/Prime), per gifted sub, per 100 bits, and a list of
+  channel-point reward rules (match by title, or by id once redeemed).
 
-The control panel has an Import / Export panel for reconfiguring goals fast.
+### Twitch setup (auto-time)
 
-- **Validate** - Checks your pasted or uploaded JSON without writing anything.
-  Shows the parsed goal count and reward names, or a list of row errors.
-- **Import (replace all)** - Validates, then asks you to confirm. On confirm it
-  wipes the current goals, loads the new set, and resets progress to the first
-  goal. Nothing is written unless validation passes.
-- **Export** - Downloads the full current state (including notes), pretty
-  printed, as `wolfathon-goals-YYYYMMDD-HHMM.json`.
-- **Copy current JSON** - Copies that same document to your clipboard.
-- **Copy schema** - Copies an import-ready example so an AI assistant can
-  produce a valid goal list in one shot.
+Auto-time uses Twitch EventSub, which needs a Twitch app and a one-time
+authorization. The **Twitch** tab walks you through it:
 
-Accepted import shape (the minimal form):
+1. Create an application at [dev.twitch.tv/console/apps](https://dev.twitch.tv/console/apps).
+   Set any OAuth Redirect URL (Device Flow ignores it). Copy the **Client ID**
+   and generate a **Client Secret**.
+2. In the control panel **Twitch** tab, paste the Client ID and Secret and save.
+3. Click **Connect Twitch**. A code appears - open `twitch.tv/activate`, enter
+   the code, and approve. The panel polls until it is connected.
+4. On connect, the server creates EventSub webhook subscriptions for
+   `channel.subscribe`, `channel.subscription.message`,
+   `channel.subscription.gift`, `channel.cheer`, and
+   `channel.channel_points_custom_reward_redemption.add`.
+
+Scopes requested: `channel:read:subscriptions`, `bits:read`,
+`channel:read:redemptions`. The EventSub callback is your API Worker at
+`/twitch/eventsub`; every event is HMAC-verified, deduplicated, and rejected if
+the signature is wrong or older than 10 minutes. Twitch credentials and tokens
+are stored encrypted in D1 and never appear in any public response.
+
+### JSON import and export (rewards and timer)
+
+Each tab has an Import / Export panel:
+
+- **Validate** - Checks pasted/uploaded JSON without writing. Shows a preview or
+  a list of human-readable errors.
+- **Import (replace)** - Validates, asks you to confirm, then replaces. Nothing
+  is written unless validation passes (no partial writes).
+- **Export** / **Copy current JSON** - Download or copy the current config,
+  pretty-printed (`wolfathon-goals-…json` / `wolfathon-timer-…json`).
+- **Copy Claude prompt** - Copies a ready prompt (schema + your current config)
+  to paste into claude.ai. Ask for the change you want, paste the JSON it
+  returns back into the box, and import.
+
+Rewards import shape (minimal form):
 
 ```json
 {
   "goals": [
     { "reward": "Q&A", "note": "1 sub" },
-    { "reward": "Phasmophobia", "note": "5 subs" },
     { "reward": "Onesie reveal", "note": "10 subs" },
-    { "reward": "Cake on cam", "note": "15 subs" },
-    { "reward": "Confetti chaos", "note": "25 subs" },
     { "reward": "Stretch goal", "note": "dream" }
   ]
 }
 ```
 
-Rules: `goals` is a non-empty array (max 50). Each goal needs a non-empty
-`reward` string (max 80 characters). `note` is optional and internal only.
-Any `id` and unknown keys are ignored, and ids are generated server-side. A
-full export document (the object produced by Export) is also accepted and
-normalized the same way.
+Timer config shape:
 
-### What the overlay shows
+```json
+{
+  "startMinutes": 60,
+  "maxMinutes": 0,
+  "sub": { "t1": 5, "t2": 10, "t3": 25, "prime": 5 },
+  "giftSubMinutes": 5,
+  "bitsPer100Minutes": 1,
+  "channelPoints": [{ "rewardTitle": "Add 5 minutes", "minutes": 5 }]
+}
+```
 
-| Element             | Shown on stream                                    |
-| ------------------- | -------------------------------------------------- |
-| Current reward      | The next locked goal's `reward` name, prominently  |
-| Unlocked rewards    | A dimmed row of already-unlocked `reward` names     |
-| Unlock event        | A short "Unlocked: <reward>" glow-and-scale flash   |
-| Future goals        | Hidden entirely                                     |
-| Numbers / amounts   | Never shown                                         |
-| `note` field        | Never sent to the browser                           |
+### What the rewards overlay shows
+
+| Element           | Shown on stream                                   |
+| ----------------- | ------------------------------------------------- |
+| Current reward    | The next locked goal's `reward` name, prominently |
+| Unlocked rewards  | A dimmed row of already-unlocked `reward` names   |
+| Future goals      | Hidden entirely                                   |
+| Numbers / amounts | Never shown                                       |
+| `note` field      | Never sent to the browser                         |
+
+### Adding your logo
+
+Drop your wolf mark at `apps/web/public/wolf_mark.png` and it is used
+automatically across the overlays and panel. If the file is missing, a built-in
+brand SVG mark is shown instead, so nothing ever renders broken.
 
 ## Tech Stack
 
-| Layer        | Technology                                  |
-| ------------ | ------------------------------------------- |
-| Monorepo     | Turborepo                                   |
-| Web          | Next.js (overlay, control panel, PWA)       |
-| Server       | Hono on Cloudflare Workers                  |
-| API          | tRPC                                        |
-| Database     | Cloudflare D1 (SQLite)                      |
-| ORM          | Drizzle ORM                                 |
-| Auth         | Cloudflare Access (Zero Trust)              |
-| Styling      | Tailwind CSS, Montserrat and Roboto         |
-| Deploy       | Alchemy (Cloudflare Workers and D1)         |
-| Runtime      | Bun                                         |
+| Layer    | Technology                                |
+| -------- | ----------------------------------------- |
+| Monorepo | Turborepo                                 |
+| Web      | Next.js (overlays, control panel, PWA)    |
+| Server   | Hono on Cloudflare Workers                |
+| API      | tRPC                                      |
+| Database | Cloudflare D1 (SQLite)                    |
+| ORM      | Drizzle ORM                               |
+| Auth     | Cloudflare Access (Zero Trust)            |
+| Twitch   | EventSub webhooks + OAuth Device Flow     |
+| Styling  | Tailwind CSS, Montserrat and Roboto       |
+| Deploy   | Alchemy (Cloudflare Workers and D1)       |
+| CI/CD    | GitHub Actions                            |
+| Runtime  | Bun (deploy runs under Node via tsx)      |
 
 ## Development
 
@@ -148,7 +194,8 @@ normalized the same way.
 
 - Bun 1.3 or newer
 - A Cloudflare account (for deployment)
-- The Cloudflare Wrangler CLI authenticated, or a scoped API token
+- The Cloudflare Wrangler CLI authenticated, or a scoped API token (Workers +
+  D1 edit)
 
 ### Setup
 
@@ -193,26 +240,26 @@ normalized the same way.
 
 - End-to-end TypeScript with strict settings.
 - Shared design tokens and components in `packages/ui`.
-- Domain logic and validation centralized in `packages/api` and reused by both
-  the overlay and the control panel.
+- Domain logic and validation centralized in `packages/api` and reused by the
+  overlays, the control panel, and the Twitch webhook.
 
 ## Deploying to Cloudflare
 
-Deployment uses Alchemy to provision the Worker, the Next app, and the D1
-database, and to apply migrations.
+Deployment uses Alchemy to provision the Workers, the Next app, and the D1
+database, and to apply migrations. The deploy runs under Node via `tsx` (Bun
+segfaults executing the Alchemy program), which `bun run deploy` handles for you.
 
-1. Authenticate Cloudflare (either is fine):
+1. Authenticate Cloudflare with a scoped API token (Alchemy uses its own auth,
+   not Wrangler's). Create a token with **Workers** and **D1** edit permissions,
+   then set it in `packages/infra/.env`:
 
    ```bash
-   bunx wrangler login
+   CLOUDFLARE_API_TOKEN=your-token
+   CLOUDFLARE_ACCOUNT_ID=your-account-id
+   ALCHEMY_PASSWORD=a-strong-secret
    ```
 
-   Or set `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in
-   `packages/infra/.env`.
-
-2. Set a strong `ALCHEMY_PASSWORD` in `packages/infra/.env`.
-
-3. Deploy:
+2. Deploy:
 
    ```bash
    bun run deploy
@@ -224,20 +271,34 @@ database, and to apply migrations.
    - API: `https://wolfathon-api.mrdemonwolf.workers.dev`
 
    Infra wires the web app's `NEXT_PUBLIC_SERVER_URL` to the API Worker and
-   defaults the server's `CORS_ORIGIN` to the web URL automatically, so no
-   manual URL juggling is needed.
+   defaults the server's `CORS_ORIGIN` to the web URL automatically.
+
+### Continuous deployment (GitHub Actions)
+
+Two workflows in `.github/workflows` deploy on every push to `main`:
+
+- **CI** (`ci.yml`) - type-checks and builds on pull requests and pushes.
+- **Deploy** (`deploy.yml`) - after CI succeeds on `main`, runs `bun run deploy`
+  and smoke-tests the API.
+
+Set these as repository secrets (Settings → Secrets and variables → Actions):
+`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `ALCHEMY_PASSWORD`, and
+(optionally) `CF_ACCESS_TEAM_DOMAIN` / `CF_ACCESS_AUD`. All Cloudflare resources
+use `adopt: true` so the runner reconciles the live resources without sharing
+local Alchemy state. (Turbo strict env mode requires these to be declared as
+`passThroughEnv` in `turbo.json` — already configured.)
 
 ### Cloudflare Access (Zero Trust)
 
 The app itself has no login. Security is enforced at the edge by Cloudflare
-Access, plus a server-side JWT check. You protect two things on the web app:
-the `/control` page and the `/api/trpc` operator API. The overlay stays public.
+Access plus a server-side JWT check. You protect the `/control` page and the
+`/api/trpc` operator API on the web app; the overlays and the Twitch webhook
+stay public.
 
-1. In the Cloudflare dashboard, open **Zero Trust**, then **Access**, then
-   **Applications**, and add a **Self-hosted** application.
+1. In the Cloudflare dashboard, open **Zero Trust → Access → Applications** and
+   add a **Self-hosted** application.
 
-2. Set the application paths to cover the control panel and its API on the web
-   domain:
+2. Set the application paths on the web domain:
 
    - `wolfathon.mrdemonwolf.workers.dev/control`
    - `wolfathon.mrdemonwolf.workers.dev/control/*`
@@ -245,53 +306,47 @@ the `/control` page and the `/api/trpc` operator API. The overlay stays public.
 
 3. Add a policy that allows only your email (or your team).
 
-4. After saving, open the application's settings and copy two values:
+4. Copy the **team domain** (for example `your-team.cloudflareaccess.com`) and
+   the application **Audience (AUD)** tag.
 
-   - The **team domain**, for example `your-team.cloudflareaccess.com`
-   - The application **Audience (AUD)** tag
-
-5. Put them in `packages/infra/.env`:
+5. Put them in `packages/infra/.env` (and the repo secrets for CI):
 
    ```bash
    CF_ACCESS_TEAM_DOMAIN=your-team.cloudflareaccess.com
    CF_ACCESS_AUD=your-application-aud-tag
    ```
 
-6. Redeploy:
-
-   ```bash
-   bun run deploy
-   ```
+6. Redeploy with `bun run deploy`.
 
 Access enforcement is automatic: a real deploy always enforces it, local
-`alchemy dev` always bypasses it. After deploy, visiting `/control` requires a
-Cloudflare Access login, and every protected tRPC call verifies the
-`Cf-Access-Jwt-Assertion` header against your team's public keys with the
-matching audience. If `CF_ACCESS_TEAM_DOMAIN` / `CF_ACCESS_AUD` are blank on a
-deploy, the operator API fails closed and denies everything.
+`alchemy dev` always bypasses it. If `CF_ACCESS_TEAM_DOMAIN` / `CF_ACCESS_AUD`
+are blank on a deploy, the operator API fails closed and denies everything.
 
 ### Architecture note
 
-The overlay polls `state.getPublic` on the public server Worker every 2 seconds.
+Overlays poll the public server Worker (`state.getPublic`, `timer.getPublic`).
 The control panel calls protected procedures on the same-origin `/api/trpc`
-route in the web app, which is where Cloudflare Access injects the verified
-identity. Both backends share one D1 database. For instant push instead of
-polling, a Durable Object plus WebSocket can replace the 2-second refetch later.
+route in the web app, where Cloudflare Access injects the verified identity.
+Twitch posts EventSub webhooks to the public server Worker, which verifies the
+HMAC and adds time. All three share one D1 database (rewards, timer, and Twitch
+secrets live in separate rows). For instant push instead of polling, a Durable
+Object plus WebSocket can replace the 2-second refetch later.
 
 ## Project Structure
 
 ```
 wolfathon/
 ├── apps/
-│   ├── web/         # Next.js: /overlay (OBS), /control (operator), /api/trpc
-│   └── server/      # Hono on Cloudflare Workers: public overlay tRPC API
+│   ├── web/         # Next.js: /overlay/{timer,rewards} (OBS), /control, /api/trpc
+│   └── server/      # Hono on Cloudflare Workers: public API + Twitch EventSub webhook
 ├── packages/
-│   ├── api/         # tRPC routers, domain logic, Cloudflare Access verification
+│   ├── api/         # tRPC routers, timer + Twitch domain, Access verification
 │   ├── db/          # Drizzle schema, D1 client, migrations
 │   ├── env/         # Typed environment access
 │   ├── ui/          # Shared design system (brand tokens, components)
 │   ├── infra/       # Alchemy deploy config (Workers, D1, bindings)
 │   └── config/      # Shared TypeScript config
+├── .github/workflows/  # CI + Deploy
 ├── turbo.json
 └── package.json
 ```

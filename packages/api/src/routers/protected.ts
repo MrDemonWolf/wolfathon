@@ -5,6 +5,7 @@ import { protectedProcedure, router } from "../index";
 import { type Data, type Goal, MAX_GOALS, MAX_REWARD_LENGTH, validateImport } from "../state";
 import { readState, writeState } from "../store";
 import { timerRouter } from "./timer";
+import { twitchRouter } from "./twitch";
 
 const rewardSchema = z.string().trim().min(1, "Reward must not be empty.").max(MAX_REWARD_LENGTH);
 
@@ -123,6 +124,7 @@ export const protectedRouter = router({
   }),
 
   timer: timerRouter,
+  twitch: twitchRouter,
 });
 
 export type ProtectedRouter = typeof protectedRouter;

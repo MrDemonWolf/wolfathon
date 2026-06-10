@@ -9,6 +9,8 @@ export type CreateContextInput = {
   headers: Headers;
   /** Access configuration for verifying the operator. */
   access: AccessConfig;
+  /** Public EventSub webhook callback URL (server Worker), for Twitch setup. */
+  callbackUrl?: string;
 };
 
 /**
@@ -18,9 +20,10 @@ export type CreateContextInput = {
 export async function createContext(input: CreateContextInput): Promise<{
   db: Db;
   user: AccessUser | null;
+  callbackUrl?: string;
 }> {
   const user = await verifyAccess(input.headers, input.access);
-  return { db: input.db, user };
+  return { db: input.db, user, callbackUrl: input.callbackUrl };
 }
 
 export type Context = Awaited<ReturnType<typeof createContext>>;
