@@ -6,8 +6,15 @@ import { createTRPCOptionsProxy } from "@trpc/tanstack-react-query";
 import { toast } from "sonner";
 
 export const queryClient = new QueryClient({
+  defaultOptions: {
+    // Avoid hammering protected endpoints when Access isn't configured yet.
+    queries: { retry: 1, refetchOnWindowFocus: false },
+  },
   queryCache: new QueryCache({
     onError: (error, query) => {
+      // "Cloudflare Access required" is expected until Access is set up — don't
+      // toast it (it would spam the public pages too).
+      if (error.message.includes("Cloudflare Access")) return;
       toast.error(error.message, {
         action: {
           label: "retry",
