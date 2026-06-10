@@ -5,25 +5,25 @@ import { useState } from "react";
 /**
  * The Wolfathon mark.
  *
- * Prefers your real logo at `public/wolf_mark.png` (drop it in and it's used
+ * Prefers your real logo at `public/logo.svg` (drop it in and it's used
  * everywhere automatically). If that file is missing, it falls back to a
  * built-in brand SVG so nothing ever renders broken — handy on the OBS overlay.
  *
  * Size is controlled entirely by `className` (e.g. `size-8` or `size-[4cqw]`).
  */
 export function WolfMark({ className }: { className?: string }) {
-  const [usePng, setUsePng] = useState(true);
+  const [useLogo, setUseLogo] = useState(true);
 
   return (
     <span className={className} role="img" aria-label="Wolfathon">
-      {usePng ? (
+      {useLogo ? (
         // Plain <img> (not next/image) so a missing file degrades gracefully.
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src="/wolf_mark.png"
+          src="/logo.svg"
           alt=""
           className="h-full w-full object-contain"
-          onError={() => setUsePng(false)}
+          onError={() => setUseLogo(false)}
         />
       ) : (
         <WolfMarkSvg />

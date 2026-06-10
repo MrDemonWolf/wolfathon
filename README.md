@@ -167,9 +167,11 @@ Timer config shape:
 
 ### Adding your logo
 
-Drop your wolf mark at `apps/web/public/wolf_mark.png` and it is used
-automatically across the overlays and panel. If the file is missing, a built-in
-brand SVG mark is shown instead, so nothing ever renders broken.
+Drop your wolf mark (head only) at `apps/web/public/logo.svg` and it is used
+automatically across the overlays and panel. Put your favicon at
+`apps/web/src/app/favicon.ico` (Next serves it automatically). If `logo.svg` is
+missing, a built-in brand SVG mark is shown instead, so nothing ever renders
+broken.
 
 ## Tech Stack
 
