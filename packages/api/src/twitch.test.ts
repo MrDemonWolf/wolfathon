@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-import { parseEvent } from "./twitch";
+import { buildAuthorizeUrl, parseEvent, TWITCH_SCOPES } from "./twitch";
 
 test("a gifted recipient's subscribe is ignored (counted via the gift event)", () => {
   expect(parseEvent("channel.subscribe", { is_gift: true, tier: "1000" })).toBeNull();
@@ -27,4 +27,16 @@ test("a cheer carries the bit count", () => {
 
 test("unknown events are ignored", () => {
   expect(parseEvent("channel.follow", {})).toBeNull();
+});
+
+test("the authorize URL carries the code flow params, scopes, and state", () => {
+  const url = new URL(
+    buildAuthorizeUrl({ clientId: "abc", redirectUri: "https://x.dev/api/twitch/callback", state: "s123" }),
+  );
+  expect(url.origin + url.pathname).toBe("https://id.twitch.tv/oauth2/authorize");
+  expect(url.searchParams.get("response_type")).toBe("code");
+  expect(url.searchParams.get("client_id")).toBe("abc");
+  expect(url.searchParams.get("redirect_uri")).toBe("https://x.dev/api/twitch/callback");
+  expect(url.searchParams.get("state")).toBe("s123");
+  expect(url.searchParams.get("scope")).toBe(TWITCH_SCOPES.join(" "));
 });

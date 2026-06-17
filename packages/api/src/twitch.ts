@@ -2,14 +2,17 @@
  * Twitch integration for the subathon timer.
  *
  * Auth model (see README):
- *  - One confidential Twitch app (client_id + client_secret).
- *  - The broadcaster authorizes scopes ONCE via the OAuth Device Code Flow.
+ *  - One confidential Twitch app. `client_id` + `client_secret` come from the
+ *    web Worker's env (`TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET`), NOT the DB.
+ *  - The broadcaster authorizes scopes ONCE via the OAuth Authorization Code
+ *    (redirect) flow: control panel → Twitch consent → `/api/twitch/callback`.
  *  - EventSub uses **webhook** transport (Twitch POSTs to the public server
  *    Worker), so no persistent connection / Durable Object is needed.
  *  - The Worker manages subscriptions with an **app access token**
  *    (client_credentials) and verifies every event by HMAC.
  *
- * All secrets live in the `twitch` D1 row and never reach a public response.
+ * Only the resulting tokens live in the `twitch` D1 row, and never reach a
+ * public response.
  */
 
 import type { TimerEvent } from "./timer";
@@ -31,13 +34,11 @@ const SUBSCRIPTIONS: { type: string; version: string }[] = [
 
 /** Persisted Twitch state (secret — never public). */
 export type TwitchDoc = {
-  clientId?: string;
-  clientSecret?: string;
   broadcasterId?: string;
   broadcasterLogin?: string;
-  /** Transient device-flow code, set by startDeviceAuth, cleared on success. */
-  deviceCode?: string;
-  accessToken?: string; // user token from device flow (proves the grant)
+  /** Transient CSRF token for the redirect flow; set on startAuth, cleared on callback. */
+  oauthState?: string;
+  accessToken?: string; // user token from the auth-code flow (proves the grant)
   refreshToken?: string;
   expiresAt?: number;
   webhookSecret?: string;
@@ -59,9 +60,10 @@ export type TwitchStatus = {
   subscriptionCount: number;
 };
 
-export function toStatus(doc: TwitchDoc): TwitchStatus {
+/** `hasCredentials` reflects the env-provided app creds, not the DB. */
+export function toStatus(doc: TwitchDoc, hasCredentials: boolean): TwitchStatus {
   return {
-    hasCredentials: Boolean(doc.clientId && doc.clientSecret),
+    hasCredentials,
     connected: Boolean(doc.connected),
     broadcasterLogin: doc.broadcasterLogin,
     subscriptionCount: doc.subscriptionIds?.length ?? 0,
@@ -71,45 +73,53 @@ export function toStatus(doc: TwitchDoc): TwitchStatus {
 const ID = "https://id.twitch.tv/oauth2";
 const HELIX = "https://api.twitch.tv/helix";
 
-// ---- OAuth ----------------------------------------------------------------
+// ---- OAuth (Authorization Code / redirect flow) ---------------------------
 
-export type DeviceStart = {
-  device_code: string;
-  user_code: string;
-  verification_uri: string;
-  expires_in: number;
-  interval: number;
-};
-
-/** Begin the Device Code Flow — returns the code the broadcaster enters. */
-export async function startDeviceFlow(clientId: string): Promise<DeviceStart> {
-  const res = await fetch(`${ID}/device`, {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ client_id: clientId, scopes: TWITCH_SCOPES.join(" ") }),
+/**
+ * Build the Twitch consent URL the broadcaster is redirected to. `state` is an
+ * opaque CSRF token the caller persists and re-checks on the callback.
+ */
+export function buildAuthorizeUrl(args: {
+  clientId: string;
+  redirectUri: string;
+  state: string;
+}): string {
+  const params = new URLSearchParams({
+    response_type: "code",
+    client_id: args.clientId,
+    redirect_uri: args.redirectUri,
+    scope: TWITCH_SCOPES.join(" "),
+    state: args.state,
   });
-  if (!res.ok) throw new Error(`device start failed: ${res.status} ${await res.text()}`);
-  return (await res.json()) as DeviceStart;
+  return `${ID}/authorize?${params.toString()}`;
 }
 
-export type DevicePoll =
-  | { status: "pending" }
-  | { status: "ok"; accessToken: string; refreshToken: string; expiresIn: number; scopes: string[] };
+export type TokenSet = {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+  scopes: string[];
+};
 
-/** Poll once for the device-flow token. Returns "pending" until authorized. */
-export async function pollDeviceFlow(clientId: string, deviceCode: string): Promise<DevicePoll> {
+/** Exchange an authorization `code` for user tokens. `redirectUri` must match. */
+export async function exchangeCode(args: {
+  clientId: string;
+  clientSecret: string;
+  code: string;
+  redirectUri: string;
+}): Promise<TokenSet> {
   const res = await fetch(`${ID}/token`, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
-      client_id: clientId,
-      scopes: TWITCH_SCOPES.join(" "),
-      device_code: deviceCode,
-      grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+      client_id: args.clientId,
+      client_secret: args.clientSecret,
+      code: args.code,
+      grant_type: "authorization_code",
+      redirect_uri: args.redirectUri,
     }),
   });
-  if (res.status === 400) return { status: "pending" };
-  if (!res.ok) throw new Error(`device poll failed: ${res.status} ${await res.text()}`);
+  if (!res.ok) throw new Error(`code exchange failed: ${res.status} ${await res.text()}`);
   const json = (await res.json()) as {
     access_token: string;
     refresh_token: string;
@@ -117,7 +127,6 @@ export async function pollDeviceFlow(clientId: string, deviceCode: string): Prom
     scope?: string[];
   };
   return {
-    status: "ok",
     accessToken: json.access_token,
     refreshToken: json.refresh_token,
     expiresIn: json.expires_in,
@@ -153,6 +162,65 @@ export async function getBroadcaster(
   const user = data.data[0];
   if (!user) throw new Error("no user for token");
   return { id: user.id, login: user.login };
+}
+
+/**
+ * Given a fresh user token, do all the post-consent work and return the new
+ * {@link TwitchDoc} to persist: resolve the broadcaster, mint an app token, drop
+ * any stale subscriptions, and (re)create the EventSub webhook subscriptions.
+ * Pure of DB access — the caller reads `prev` and writes the result.
+ */
+export async function finalizeConnection(args: {
+  clientId: string;
+  clientSecret: string;
+  prev: TwitchDoc;
+  tokens: TokenSet;
+  eventsubCallback: string;
+  /**
+   * Persist the partial doc (tokens + broadcaster + webhook secret) to D1 BEFORE
+   * the EventSub subscriptions are created. Twitch verifies the webhook with a
+   * synchronous challenge during creation, and the server Worker reads the
+   * secret from D1 to answer it — so on a first connect the secret must already
+   * be stored, or verification 404s and the subscription is dropped forever.
+   */
+  persist: (doc: TwitchDoc) => Promise<void>;
+}): Promise<{ doc: TwitchDoc; errors: string[] }> {
+  const { clientId, clientSecret, prev, tokens } = args;
+  const broadcaster = await getBroadcaster(clientId, tokens.accessToken);
+  const webhookSecret = prev.webhookSecret ?? crypto.randomUUID().replace(/-/g, "");
+
+  const base: TwitchDoc = {
+    ...prev,
+    oauthState: undefined,
+    accessToken: tokens.accessToken,
+    refreshToken: tokens.refreshToken,
+    expiresAt: Date.now() + tokens.expiresIn * 1000,
+    broadcasterId: broadcaster.id,
+    broadcasterLogin: broadcaster.login,
+    webhookSecret,
+  };
+  await args.persist(base);
+
+  const appToken = await getAppToken(clientId, clientSecret);
+  // Reconcile against ALL of the app's live subscriptions, not just the ones we
+  // tracked — clears orphans left by an earlier partial failure so re-create
+  // can't 409. ponytail: one page (~5 subs); add cursor paging only if this app
+  // ever holds >100 subscriptions.
+  const existing = await listSubscriptions(clientId, appToken);
+  if (existing.length) await deleteSubscriptions(clientId, appToken, existing);
+
+  const { ids, errors } = await createSubscriptions({
+    clientId,
+    appToken,
+    broadcasterId: broadcaster.id,
+    callback: args.eventsubCallback,
+    secret: webhookSecret,
+  });
+
+  return {
+    doc: { ...base, subscriptionIds: ids, connected: ids.length > 0 },
+    errors,
+  };
 }
 
 // ---- EventSub management --------------------------------------------------

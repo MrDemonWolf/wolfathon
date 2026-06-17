@@ -1,110 +1,73 @@
 import { TRPCError } from "@trpc/server";
-import { z } from "zod";
 
 import { protectedProcedure, router } from "../index";
 import { readTwitch, writeTwitch } from "../store";
-import {
-  createSubscriptions,
-  deleteSubscriptions,
-  getAppToken,
-  getBroadcaster,
-  pollDeviceFlow,
-  startDeviceFlow,
-  toStatus,
-} from "../twitch";
+import { buildAuthorizeUrl, deleteSubscriptions, getAppToken, toStatus } from "../twitch";
+
+/** App credentials come from the web Worker env, surfaced via ctx.twitch. */
+function requireCreds(ctx: { twitch?: { clientId?: string; clientSecret?: string } }) {
+  const clientId = ctx.twitch?.clientId;
+  const clientSecret = ctx.twitch?.clientSecret;
+  if (!clientId || !clientSecret) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Set TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET in the environment, then redeploy.",
+    });
+  }
+  return { clientId, clientSecret };
+}
 
 /** Operator-only Twitch setup. Returns masked status — never secrets/tokens. */
 export const twitchRouter = router({
-  getStatus: protectedProcedure.query(async ({ ctx }) => toStatus(await readTwitch(ctx.db))),
-
-  setCredentials: protectedProcedure
-    .input(z.object({ clientId: z.string().trim().min(1), clientSecret: z.string().trim().min(1) }))
-    .mutation(async ({ ctx, input }) => {
-      const doc = await readTwitch(ctx.db);
-      await writeTwitch(ctx.db, { ...doc, clientId: input.clientId, clientSecret: input.clientSecret });
-      return toStatus(await readTwitch(ctx.db));
-    }),
-
-  /** Begin Device Code Flow; returns the code the broadcaster enters. */
-  startDeviceAuth: protectedProcedure.mutation(async ({ ctx }) => {
-    const doc = await readTwitch(ctx.db);
-    if (!doc.clientId) {
-      throw new TRPCError({ code: "BAD_REQUEST", message: "Set Twitch credentials first." });
-    }
-    const start = await startDeviceFlow(doc.clientId);
-    await writeTwitch(ctx.db, { ...doc, deviceCode: start.device_code });
-    return {
-      userCode: start.user_code,
-      verificationUri: start.verification_uri,
-      interval: start.interval,
-      expiresIn: start.expires_in,
-    };
-  }),
+  getStatus: protectedProcedure.query(async ({ ctx }) =>
+    toStatus(await readTwitch(ctx.db), Boolean(ctx.twitch?.clientId && ctx.twitch?.clientSecret)),
+  ),
 
   /**
-   * Poll for authorization. On success: store tokens, resolve the broadcaster,
-   * (re)create EventSub webhook subscriptions pointing at the server Worker.
+   * Begin the Authorization Code flow. Stores a CSRF `state` on the twitch row
+   * and returns the Twitch consent URL for the browser to navigate to.
    */
-  pollDeviceAuth: protectedProcedure.mutation(async ({ ctx }) => {
+  startAuth: protectedProcedure.mutation(async ({ ctx }) => {
+    const { clientId } = requireCreds(ctx);
+    if (!ctx.twitch?.redirectUri) {
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "OAuth redirect URI not configured." });
+    }
     const doc = await readTwitch(ctx.db);
-    if (!doc.clientId || !doc.clientSecret) {
-      throw new TRPCError({ code: "BAD_REQUEST", message: "Set Twitch credentials first." });
-    }
-    if (!doc.deviceCode) {
-      throw new TRPCError({ code: "BAD_REQUEST", message: "Start the device authorization first." });
-    }
-    if (!ctx.callbackUrl) {
-      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Server callback URL not configured." });
-    }
-
-    const poll = await pollDeviceFlow(doc.clientId, doc.deviceCode);
-    if (poll.status === "pending") return { status: "pending" as const };
-
-    const broadcaster = await getBroadcaster(doc.clientId, poll.accessToken);
-    const webhookSecret = doc.webhookSecret ?? crypto.randomUUID().replace(/-/g, "");
-    const appToken = await getAppToken(doc.clientId, doc.clientSecret);
-
-    // Drop any prior subscriptions of ours before recreating, to avoid dupes.
-    if (doc.subscriptionIds?.length) {
-      await deleteSubscriptions(doc.clientId, appToken, doc.subscriptionIds);
-    }
-    const { ids, errors } = await createSubscriptions({
-      clientId: doc.clientId,
-      appToken,
-      broadcasterId: broadcaster.id,
-      callback: ctx.callbackUrl,
-      secret: webhookSecret,
-    });
-
-    await writeTwitch(ctx.db, {
-      ...doc,
-      deviceCode: undefined,
-      accessToken: poll.accessToken,
-      refreshToken: poll.refreshToken,
-      expiresAt: Date.now() + poll.expiresIn * 1000,
-      broadcasterId: broadcaster.id,
-      broadcasterLogin: broadcaster.login,
-      webhookSecret,
-      subscriptionIds: ids,
-      connected: ids.length > 0,
-    });
-
-    return { status: "ok" as const, login: broadcaster.login, subscriptionCount: ids.length, errors };
+    const state = crypto.randomUUID().replace(/-/g, "");
+    await writeTwitch(ctx.db, { ...doc, oauthState: state });
+    return { url: buildAuthorizeUrl({ clientId, redirectUri: ctx.twitch.redirectUri, state }) };
   }),
 
   disconnect: protectedProcedure.mutation(async ({ ctx }) => {
     const doc = await readTwitch(ctx.db);
-    if (doc.clientId && doc.clientSecret && doc.subscriptionIds?.length) {
+    const clientId = ctx.twitch?.clientId;
+    const clientSecret = ctx.twitch?.clientSecret;
+    const hasCreds = Boolean(clientId && clientSecret);
+
+    let unsubscribed = true;
+    if (hasCreds && doc.subscriptionIds?.length) {
       try {
-        const appToken = await getAppToken(doc.clientId, doc.clientSecret);
-        await deleteSubscriptions(doc.clientId, appToken, doc.subscriptionIds);
+        const appToken = await getAppToken(clientId!, clientSecret!);
+        await deleteSubscriptions(clientId!, appToken, doc.subscriptionIds);
       } catch {
-        // best-effort cleanup
+        unsubscribed = false;
       }
     }
-    // Keep credentials, drop tokens + subscriptions.
-    await writeTwitch(ctx.db, { clientId: doc.clientId, clientSecret: doc.clientSecret });
-    return toStatus(await readTwitch(ctx.db));
+    // Clean unsubscribe → fully reset. If the Twitch-side delete failed, keep the
+    // subscription ids + webhook secret so the still-live subs keep verifying
+    // (no orphans) and the next connect/disconnect can reconcile them.
+    await writeTwitch(
+      ctx.db,
+      unsubscribed
+        ? {}
+        : {
+            broadcasterId: doc.broadcasterId,
+            broadcasterLogin: doc.broadcasterLogin,
+            webhookSecret: doc.webhookSecret,
+            subscriptionIds: doc.subscriptionIds,
+          },
+    );
+    return toStatus(await readTwitch(ctx.db), hasCreds);
   }),
 });
 

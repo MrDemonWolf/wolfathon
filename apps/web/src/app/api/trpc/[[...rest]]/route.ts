@@ -18,6 +18,8 @@ type WebEnv = {
   CF_ACCESS_AUD?: string;
   ACCESS_DISABLED?: string;
   NEXT_PUBLIC_SERVER_URL?: string;
+  TWITCH_CLIENT_ID?: string;
+  TWITCH_CLIENT_SECRET?: string;
 };
 
 function handler(req: Request) {
@@ -40,6 +42,12 @@ function handler(req: Request) {
         callbackUrl: env.NEXT_PUBLIC_SERVER_URL
           ? `${env.NEXT_PUBLIC_SERVER_URL}/twitch/eventsub`
           : undefined,
+        twitch: {
+          clientId: env.TWITCH_CLIENT_ID,
+          clientSecret: env.TWITCH_CLIENT_SECRET,
+          // Same-origin callback — must match the Twitch app's OAuth Redirect URL.
+          redirectUri: `${new URL(req.url).origin}/api/twitch/callback`,
+        },
       }),
   });
 }
