@@ -3,8 +3,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { env } from "@wolfathon/env/web";
 import { Button } from "@wolfathon/ui/components/button";
-import { Input } from "@wolfathon/ui/components/input";
-import { CheckCircle2, ExternalLink, Plug, Unplug } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ExternalLink, Plug, Unplug } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -12,38 +11,34 @@ import { controlTrpc, queryClient } from "@/utils/trpc";
 
 const SCOPES = "channel:read:subscriptions, bits:read, channel:read:redemptions";
 
-type Device = { userCode: string; verificationUri: string; interval: number };
-
 export function TwitchPanel() {
   const statusOptions = controlTrpc.twitch.getStatus.queryOptions();
   const { data: status } = useQuery(statusOptions);
   const invalidate = () => queryClient.invalidateQueries({ queryKey: statusOptions.queryKey });
 
-  const [clientId, setClientId] = useState("");
-  const [clientSecret, setClientSecret] = useState("");
-  const [device, setDevice] = useState<Device | null>(null);
-
-  const setCreds = useMutation(controlTrpc.twitch.setCredentials.mutationOptions({ onSuccess: invalidate }));
-  const startAuth = useMutation(controlTrpc.twitch.startDeviceAuth.mutationOptions());
-  const poll = useMutation(controlTrpc.twitch.pollDeviceAuth.mutationOptions());
+  const startAuth = useMutation(controlTrpc.twitch.startAuth.mutationOptions());
   const disconnect = useMutation(controlTrpc.twitch.disconnect.mutationOptions({ onSuccess: invalidate }));
 
-  // Auto-poll while waiting for the broadcaster to authorize.
+  // Same-origin OAuth redirect URL the user registers in the Twitch app.
+  const [redirectUrl, setRedirectUrl] = useState("");
+  useEffect(() => setRedirectUrl(`${window.location.origin}/api/twitch/callback`), []);
+
+  // Surface the result of the redirect round-trip (set by /api/twitch/callback).
   useEffect(() => {
-    if (!device) return;
-    const ms = Math.max(3, device.interval) * 1000;
-    const t = setInterval(async () => {
-      const res = await poll.mutateAsync().catch(() => null);
-      if (res?.status === "ok") {
-        setDevice(null);
-        invalidate();
-        toast.success(`Connected as ${res.login} — ${res.subscriptionCount} subscriptions`);
-        if (res.errors.length) toast.error(`Some subscriptions failed: ${res.errors[0]}`);
-      }
-    }, ms);
-    return () => clearInterval(t);
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get("twitch");
+    if (!result) return;
+    if (result === "connected") toast.success("Twitch connected");
+    else if (result === "partial")
+      toast.error("Connected, but some EventSub subscriptions failed — try reconnecting");
+    else if (result === "no_subs") toast.error("Connected, but no EventSub subscriptions were created");
+    else if (result === "state_error") toast.error("Authorization expired — try Connect again");
+    else toast.error("Twitch authorization failed");
+    invalidate();
+    // Strip the query param so a refresh doesn't re-toast.
+    window.history.replaceState(null, "", window.location.pathname);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [device]);
+  }, []);
 
   const callback = `${env.NEXT_PUBLIC_SERVER_URL}/twitch/eventsub`;
 
@@ -72,60 +67,50 @@ export function TwitchPanel() {
         </div>
       ) : (
         <div className="mt-4 flex flex-col gap-4">
-          {/* 1. credentials */}
+          {/* 1. credentials (from env) */}
           <div>
-            <div className="text-xs font-medium text-muted-foreground">
-              1. Twitch app credentials
-              {status?.hasCredentials && <span className="ml-2 text-primary">saved ✓</span>}
-            </div>
-            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-              <Input className="h-10 flex-1 rounded-lg" placeholder="Client ID" value={clientId} onChange={(e) => setClientId(e.target.value)} />
-              <Input className="h-10 flex-1 rounded-lg" type="password" placeholder="Client Secret" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} />
-              <Button
-                className="h-10 rounded-lg px-4"
-                onClick={() => setCreds.mutate({ clientId: clientId.trim(), clientSecret: clientSecret.trim() })}
-                disabled={!clientId.trim() || !clientSecret.trim() || setCreds.isPending}
-              >
-                Save
-              </Button>
-            </div>
+            <div className="text-xs font-medium text-muted-foreground">1. Twitch app credentials</div>
+            {status?.hasCredentials ? (
+              <div className="mt-2 flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+                <CheckCircle2 className="size-4 text-primary" />
+                Loaded from environment
+              </div>
+            ) : (
+              <div className="mt-2 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
+                <AlertTriangle className="mt-0.5 size-4 text-destructive" />
+                <span>
+                  Set <code className="font-mono">TWITCH_CLIENT_ID</code> and{" "}
+                  <code className="font-mono">TWITCH_CLIENT_SECRET</code> in the environment, then redeploy.
+                </span>
+              </div>
+            )}
             <p className="mt-1 text-xs text-muted-foreground">
-              Create an app at dev.twitch.tv → set the OAuth redirect to anything (Device Flow
-              ignores it). Scopes requested: {SCOPES}.
+              Create an app at dev.twitch.tv. Set its OAuth Redirect URL to{" "}
+              <code className="font-mono">{redirectUrl}</code>. Scopes requested: {SCOPES}.
             </p>
           </div>
 
           {/* 2. connect */}
           <div>
             <div className="text-xs font-medium text-muted-foreground">2. Authorize</div>
-            {device ? (
-              <div className="mt-2 rounded-xl border border-primary/30 bg-primary/5 p-4">
-                <div className="text-sm">
-                  Go to{" "}
-                  <a className="font-medium text-primary underline" href={device.verificationUri} target="_blank" rel="noreferrer">
-                    {device.verificationUri}
-                  </a>{" "}
-                  and enter this code:
-                </div>
-                <div className="mt-2 font-heading text-3xl font-extrabold tracking-[0.3em] text-primary">
-                  {device.userCode}
-                </div>
-                <div className="mt-2 text-xs text-muted-foreground">Waiting for authorization…</div>
-              </div>
-            ) : (
-              <Button
-                className="mt-2 h-10 rounded-lg px-4"
-                disabled={!status?.hasCredentials || startAuth.isPending}
-                onClick={() =>
-                  startAuth.mutate(undefined, {
-                    onSuccess: (d) => setDevice({ userCode: d.userCode, verificationUri: d.verificationUri, interval: d.interval }),
-                  })
-                }
-              >
-                <Plug className="size-4" />
-                Connect Twitch
-              </Button>
-            )}
+            <Button
+              className="mt-2 h-10 rounded-lg px-4"
+              disabled={!status?.hasCredentials || startAuth.isPending}
+              onClick={() =>
+                startAuth.mutate(undefined, {
+                  onSuccess: (d) => {
+                    window.location.href = d.url;
+                  },
+                  onError: (e) => toast.error(e.message),
+                })
+              }
+            >
+              <Plug className="size-4" />
+              Connect Twitch
+            </Button>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Sends you to Twitch to approve, then back here.
+            </p>
           </div>
         </div>
       )}

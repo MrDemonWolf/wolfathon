@@ -67,6 +67,9 @@ export const web = await Nextjs("wolfathon", {
     CF_ACCESS_TEAM_DOMAIN: process.env.CF_ACCESS_TEAM_DOMAIN ?? "",
     CF_ACCESS_AUD: process.env.CF_ACCESS_AUD ?? "",
     ACCESS_DISABLED,
+    // Twitch app credentials for the OAuth redirect flow (server-side only).
+    TWITCH_CLIENT_ID: process.env.TWITCH_CLIENT_ID ?? "",
+    TWITCH_CLIENT_SECRET: process.env.TWITCH_CLIENT_SECRET ?? "",
   },
   dev: {
     env: {

@@ -11,6 +11,8 @@ export type CreateContextInput = {
   access: AccessConfig;
   /** Public EventSub webhook callback URL (server Worker), for Twitch setup. */
   callbackUrl?: string;
+  /** Twitch app credentials (env) + OAuth redirect URI, for the redirect flow. */
+  twitch?: { clientId?: string; clientSecret?: string; redirectUri?: string };
 };
 
 /**
@@ -21,9 +23,10 @@ export async function createContext(input: CreateContextInput): Promise<{
   db: Db;
   user: AccessUser | null;
   callbackUrl?: string;
+  twitch?: { clientId?: string; clientSecret?: string; redirectUri?: string };
 }> {
   const user = await verifyAccess(input.headers, input.access);
-  return { db: input.db, user, callbackUrl: input.callbackUrl };
+  return { db: input.db, user, callbackUrl: input.callbackUrl, twitch: input.twitch };
 }
 
 export type Context = Awaited<ReturnType<typeof createContext>>;

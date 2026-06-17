@@ -71,8 +71,9 @@ automatically. Yes — you create one Twitch "app" to get a Client ID + Secret.
 3. Click **Register Your Application**. ☐
 4. Fill in:
    - **Name:** `Wolfathon` (must be unique; add a word if taken)
-   - **OAuth Redirect URLs:** `https://localhost` (anything — Device Flow
-     ignores it)
+   - **OAuth Redirect URLs:**
+     `https://wolfathon.mrdemonwolf.workers.dev/api/twitch/callback`
+     (must match **exactly** — the Twitch tab shows you the right value) ☐
    - **Category:** `Broadcasting Suite`
    - **Client Type:** `Confidential` ☐
 5. Click **Create**. ☐
@@ -80,13 +81,26 @@ automatically. Yes — you create one Twitch "app" to get a Client ID + Secret.
 7. Click **New Secret** → copy the **Client Secret** (you only see it once —
    copy it now). ☐
 
-### B. Connect it in Wolfathon
+### B. Add the credentials to the environment (one time)
 
-1. Open the control panel → **Twitch** tab. ☐
-2. Paste **Client ID** and **Client Secret** → **Save**. ☐
-3. Click **Connect Twitch**. A code appears. ☐
-4. Go to **https://twitch.tv/activate**, enter the code, **Authorize**. ☐
-5. Back in the panel, wait a few seconds — it flips to **Connected**. ☐
+The Client ID + Secret live in the **environment**, not the control panel.
+
+1. Set them as GitHub repo secrets (or your local `apps/web/.env`):
+   - `gh secret set TWITCH_CLIENT_ID` ☐
+   - `gh secret set TWITCH_CLIENT_SECRET` ☐
+2. **Redeploy** so the Worker picks them up (push to `main`, or re-run the
+   Deploy workflow). ☐
+
+> Heads-up: keep the `/api/twitch/callback` path **out** of the Cloudflare
+> Access app. Access should only cover `/control` and `/api/trpc` — Twitch needs
+> to reach the callback without an Access login.
+
+### C. Connect it in Wolfathon
+
+1. Open the control panel → **Twitch** tab. It should say
+   **"Loaded from environment ✓"**. ☐
+2. Click **Connect Twitch** → you're sent to Twitch → **Authorize**. ☐
+3. Twitch sends you back; the panel flips to **Connected**. ☐
 
 **You'll know it worked when:** the Twitch tab says "Connected as <you>" with a
 subscription count. Test it: **Timer** tab → click **Sub T1** — the clock jumps
@@ -100,7 +114,7 @@ up by your configured minutes.
 | --- | --- |
 | Cloudflare Zero Trust | https://one.dash.cloudflare.com |
 | Twitch apps | https://dev.twitch.tv/console/apps |
-| Authorize a device code | https://twitch.tv/activate |
+| OAuth Redirect URL | https://wolfathon.mrdemonwolf.workers.dev/api/twitch/callback |
 | Your panel | https://wolfathon.mrdemonwolf.workers.dev/control |
 | Timer overlay (OBS) | https://wolfathon.mrdemonwolf.workers.dev/overlay/timer |
 | Rewards overlay (OBS) | https://wolfathon.mrdemonwolf.workers.dev/overlay/rewards |

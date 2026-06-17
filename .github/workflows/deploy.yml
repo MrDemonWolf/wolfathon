@@ -66,6 +66,9 @@ jobs:
           # protection in production (empty = fails closed).
           CF_ACCESS_TEAM_DOMAIN: ${{ secrets.CF_ACCESS_TEAM_DOMAIN }}
           CF_ACCESS_AUD: ${{ secrets.CF_ACCESS_AUD }}
+          # Twitch app credentials for the OAuth redirect flow.
+          TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
+          TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
 
       - name: Smoke test API
         run: |
