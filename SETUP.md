@@ -19,20 +19,22 @@ secret lives. This puts a login in front of it.
    `mrdemonwolf`). Write down what you pick — your team domain becomes
    `THAT-NAME.cloudflareaccess.com`. ☐
 3. Left sidebar → **Access** → **Applications** → **Add an application**. ☐
-4. Choose **Self-hosted**. ☐
+4. Tab **Self-hosted and private** → click **Public DNS** → **Continue with
+   Self-hosted and private**. (Public DNS = gate a public hostname like
+   `*.workers.dev`.) ☐
 5. **Application name:** `Wolfathon Control`. ☐
-6. **Application domain / paths** — add these three (same domain
-   `wolfathon.mrdemonwolf.workers.dev`, three path rows):
-   - `wolfathon.mrdemonwolf.workers.dev` path `control`
-   - `wolfathon.mrdemonwolf.workers.dev` path `control/*`
-   - `wolfathon.mrdemonwolf.workers.dev` path `api/trpc/*`
+6. **Add public hostname / destination** — add three (same hostname
+   `wolfathon.mrdemonwolf.workers.dev`, different path each):
+   - hostname `wolfathon.mrdemonwolf.workers.dev`, path `/control`
+   - hostname `wolfathon.mrdemonwolf.workers.dev`, path `/control/*`
+   - hostname `wolfathon.mrdemonwolf.workers.dev`, path `/api/trpc/*`
    ☐
-7. Click **Next**. Add a policy:
+7. **Next** / **Add a policy**:
    - **Policy name:** `Just me`
    - **Action:** Allow
-   - **Include** → **Emails** → type **your email**. ☐
-8. Click **Next** → **Add application**. ☐
-9. Open the app you just made → **Overview** tab → copy two values:
+   - **Add a rule** → **Selector: Emails** → **Value:** your email. ☐
+8. **Next** → **Save** / **Add application**. ☐
+9. Open the app → **Overview** tab → copy two values:
    - **Team domain** (e.g. `mrdemonwolf.cloudflareaccess.com`)
    - **Application Audience (AUD) Tag** (a long hex string) ☐
 
