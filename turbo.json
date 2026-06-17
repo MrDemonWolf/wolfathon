@@ -33,6 +33,8 @@
         "ALCHEMY_CI_STATE_STORE_CHECK",
         "CF_ACCESS_TEAM_DOMAIN",
         "CF_ACCESS_AUD",
+        "TWITCH_CLIENT_ID",
+        "TWITCH_CLIENT_SECRET",
         "CORS_ORIGIN",
         "WEB_URL"
       ]

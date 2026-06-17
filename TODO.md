@@ -7,8 +7,8 @@ notes on a few design decisions.
 
 ### 1. Lock down the control panel with Cloudflare Access (security)
 
-Right now `/control` loads for anyone with the URL, and it stores your Twitch
-**client secret**. Writes already fail closed, but the page itself is open. Fix:
+Right now `/control` loads for anyone with the URL. Writes already fail closed,
+but the page itself is open. Fix:
 
 1. Cloudflare dashboard → **Zero Trust → Access → Applications** → **Add a
    self-hosted application**.
@@ -31,10 +31,19 @@ Right now `/control` loads for anyone with the URL, and it stores your Twitch
 
 ### 2. Connect Twitch (turn on auto-time)
 
-1. Create an app at https://dev.twitch.tv/console/apps (any redirect URL; Device
-   Flow ignores it). Copy the **Client ID** and generate a **Client Secret**.
-2. Control panel → **Twitch** tab → paste Client ID + Secret → Save.
-3. Click **Connect Twitch** → open `twitch.tv/activate`, enter the code, approve.
+1. Create an app at https://dev.twitch.tv/console/apps. **Client Type:
+   Confidential.** Set the **OAuth Redirect URL** to exactly
+   `https://wolfathon.mrdemonwolf.workers.dev/api/twitch/callback`. Copy the
+   **Client ID** and generate a **Client Secret**.
+2. Set them as repo secrets, then redeploy (the Worker reads them from env):
+   ```bash
+   printf '%s' 'your-client-id'     | gh secret set TWITCH_CLIENT_ID --repo MrDemonWolf/wolfathon
+   printf '%s' 'your-client-secret' | gh secret set TWITCH_CLIENT_SECRET --repo MrDemonWolf/wolfathon
+   ```
+   (Also put them in `apps/web/.env` for local `bun run dev`.) Keep
+   `/api/twitch/callback` **out** of the Cloudflare Access app.
+3. Control panel → **Twitch** tab (shows "Loaded from environment ✓") → click
+   **Connect Twitch** → approve on Twitch → you're redirected back, Connected.
 4. It auto-creates the EventSub subscriptions. Fire a test sub from the Timer tab
    to confirm time is added.
 

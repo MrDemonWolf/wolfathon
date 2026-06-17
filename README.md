@@ -14,7 +14,7 @@ Keep the rewards flowing. Keep the clock ticking.
   Twitch subs (per tier), gifted subs, bits, and channel-point redemptions.
   Every amount is configurable; the overlay counts down to the frame and
   survives an OBS refresh.
-- **Twitch auto-time (EventSub)** - Connect once with the OAuth Device Flow.
+- **Twitch auto-time (EventSub)** - Connect once with the OAuth redirect flow.
   Events arrive at the server Worker as HMAC-verified webhooks, so there is no
   bot to babysit and no browser that has to stay open.
 - **Reward names only** - The rewards overlay shows the current reward name and
@@ -100,11 +100,15 @@ Auto-time uses Twitch EventSub, which needs a Twitch app and a one-time
 authorization. The **Twitch** tab walks you through it:
 
 1. Create an application at [dev.twitch.tv/console/apps](https://dev.twitch.tv/console/apps).
-   Set any OAuth Redirect URL (Device Flow ignores it). Copy the **Client ID**
-   and generate a **Client Secret**.
-2. In the control panel **Twitch** tab, paste the Client ID and Secret and save.
-3. Click **Connect Twitch**. A code appears - open `twitch.tv/activate`, enter
-   the code, and approve. The panel polls until it is connected.
+   Set the **OAuth Redirect URL** to `<web origin>/api/twitch/callback`
+   (the **Twitch** tab shows the exact value). Client Type **Confidential**.
+   Copy the **Client ID** and generate a **Client Secret**.
+2. Put them in the environment as `TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET`
+   (repo secrets or `apps/web/.env`) and redeploy. Keep `/api/twitch/callback`
+   outside the Cloudflare Access app (Access covers only `/control` + `/api/trpc`).
+3. In the control panel **Twitch** tab (it shows "Loaded from environment ✓"),
+   click **Connect Twitch**. You're redirected to Twitch to approve, then back —
+   the panel flips to **Connected**.
 4. On connect, the server creates EventSub webhook subscriptions for
    `channel.subscribe`, `channel.subscription.message`,
    `channel.subscription.gift`, `channel.cheer`, and
@@ -113,8 +117,9 @@ authorization. The **Twitch** tab walks you through it:
 Scopes requested: `channel:read:subscriptions`, `bits:read`,
 `channel:read:redemptions`. The EventSub callback is your API Worker at
 `/twitch/eventsub`; every event is HMAC-verified, deduplicated, and rejected if
-the signature is wrong or older than 10 minutes. Twitch credentials and tokens
-are stored encrypted in D1 and never appear in any public response.
+the signature is wrong or older than 10 minutes. The app credentials come from
+the Worker env (`TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET`); only the resulting
+OAuth tokens are stored in D1, and none of it appears in any public response.
 
 ### JSON import and export (rewards and timer)
 
@@ -184,7 +189,7 @@ broken.
 | Database | Cloudflare D1 (SQLite)                    |
 | ORM      | Drizzle ORM                               |
 | Auth     | Cloudflare Access (Zero Trust)            |
-| Twitch   | EventSub webhooks + OAuth Device Flow     |
+| Twitch   | EventSub webhooks + OAuth redirect flow   |
 | Styling  | Tailwind CSS, Montserrat and Roboto       |
 | Deploy   | Alchemy (Cloudflare Workers and D1)       |
 | CI/CD    | GitHub Actions                            |
@@ -284,8 +289,9 @@ Two workflows in `.github/workflows` deploy on every push to `main`:
   and smoke-tests the API.
 
 Set these as repository secrets (Settings → Secrets and variables → Actions):
-`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `ALCHEMY_PASSWORD`, and
-(optionally) `CF_ACCESS_TEAM_DOMAIN` / `CF_ACCESS_AUD`. All Cloudflare resources
+`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `ALCHEMY_PASSWORD`,
+(optionally) `CF_ACCESS_TEAM_DOMAIN` / `CF_ACCESS_AUD`, and — for Twitch —
+`TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET`. All Cloudflare resources
 use `adopt: true` so the runner reconciles the live resources without sharing
 local Alchemy state. (Turbo strict env mode requires these to be declared as
 `passThroughEnv` in `turbo.json` — already configured.)
@@ -305,6 +311,9 @@ stay public.
    - `wolfathon.mrdemonwolf.workers.dev/control`
    - `wolfathon.mrdemonwolf.workers.dev/control/*`
    - `wolfathon.mrdemonwolf.workers.dev/api/trpc/*`
+
+   Do **not** add `/api/twitch/callback` here — Twitch must reach it without an
+   Access login (it is protected by a CSRF `state` token instead).
 
 3. Add a policy that allows only your email (or your team).
 
