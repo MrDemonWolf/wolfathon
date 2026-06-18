@@ -48,7 +48,7 @@ export default function ControlPage() {
 				role="tablist"
 				aria-label="Control sections"
 				onKeyDown={onTabKeyDown}
-				className="inline-flex w-fit rounded-xl panel-card p-1"
+				className="segmented inline-flex w-fit gap-1 rounded-[0.95rem] p-1"
 			>
 				{TABS.map((t) => (
 					<button
@@ -63,10 +63,10 @@ export default function ControlPage() {
 							tabRefs.current[t.id] = el;
 						}}
 						onClick={() => setTab(t.id)}
-						className={`rounded-lg px-4 py-1.5 text-sm font-medium transition-all ${
+						className={`rounded-[0.7rem] px-4 py-1.5 text-sm font-medium transition-all ${
 							tab === t.id
-								? "bg-primary text-primary-foreground shadow-[0_0_18px_rgba(0,172,237,0.35)]"
-								: "text-muted-foreground hover:text-foreground"
+								? "segmented-on text-primary-foreground"
+								: "text-muted-foreground hover:bg-white/5 hover:text-foreground"
 						}`}
 					>
 						{t.label}

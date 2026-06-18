@@ -52,7 +52,7 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
           tracker never broadcasts a false "All Rewards Unlocked". */}
 			{hasGoals && (
 				<div className="absolute bottom-[4cqw] left-[4cqw] max-w-[48cqw]">
-					<div className="relative overflow-hidden rounded-[1.8cqw] border border-[#00aced]/40 bg-gradient-to-br from-[#0b1a3d]/90 to-[#06102a]/90 shadow-[0_0.6cqw_5cqw_rgba(0,0,0,0.45),0_0_3cqw_rgba(0,172,237,0.22)] backdrop-blur-md">
+					<div className="relative overflow-hidden rounded-[2cqw] border border-[#00aced]/35 bg-gradient-to-br from-[#0b1a3d]/88 to-[#06102a]/88 shadow-[inset_0_0.12cqw_0_rgba(255,255,255,0.16),0_0.6cqw_5cqw_rgba(0,0,0,0.45),0_0_3cqw_rgba(0,172,237,0.22)] backdrop-blur-xl">
 						{/* Glowing accent rail down the left edge. */}
 						<div className="absolute inset-y-0 left-0 w-[0.45cqw] bg-gradient-to-b from-[#5bc8f0] via-[#00aced] to-[#00aced]/0 shadow-[0_0_1.6cqw_rgba(0,172,237,0.8)]" />
 						{/* Slow sheen sweep. */}
@@ -119,7 +119,7 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 			{/* Unlock celebration — opaque backing keeps the peak moment legible. */}
 			{celebrate && (
 				<div className="absolute inset-0 flex items-center justify-center">
-					<div className="animate-wolf-pop rounded-[2.4cqw] border border-[#00aced]/30 bg-[#091533]/85 px-[5cqw] py-[3.4cqw] text-center shadow-[0_0_6cqw_rgba(0,172,237,0.3)] backdrop-blur-md">
+					<div className="animate-wolf-pop rounded-[2.6cqw] border border-[#00aced]/30 bg-[#091533]/85 px-[5cqw] py-[3.4cqw] text-center shadow-[inset_0_0.12cqw_0_rgba(255,255,255,0.18),0_0_6cqw_rgba(0,172,237,0.3)] backdrop-blur-xl">
 						<div className="font-heading text-[2cqw] font-semibold tracking-[0.3em] text-[#5bc8f0] uppercase">
 							Unlocked
 						</div>

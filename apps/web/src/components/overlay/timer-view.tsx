@@ -70,7 +70,7 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 					key={`label-${flash.id}`}
 					className="animate-wolf-rise absolute bottom-full left-1/2 mb-[3cqh] -translate-x-1/2"
 				>
-					<div className="rounded-full border border-[#00aced]/40 bg-[#091533]/90 px-[5cqh] py-[1.5cqh] font-heading text-[22cqh] font-extrabold whitespace-nowrap text-[#5bc8f0] shadow-[0_0_3cqh_rgba(0,172,237,0.45)] backdrop-blur-md">
+					<div className="rounded-full border border-[#00aced]/40 bg-[#091533]/90 px-[5cqh] py-[1.5cqh] font-heading text-[22cqh] font-extrabold whitespace-nowrap text-[#5bc8f0] shadow-[inset_0_0.12cqh_0_rgba(255,255,255,0.2),0_0_3cqh_rgba(0,172,237,0.45)] backdrop-blur-xl">
 						+{flash.minutes}m
 					</div>
 				</div>
@@ -79,14 +79,14 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 			<div className="relative h-full w-full">
 				{/* animated gradient glow ring behind the bar */}
 				<div
-					className={`absolute -inset-[2cqh] rounded-full bg-[conic-gradient(from_0deg,#00aced,#5bc8f0,#7c4dff,#00aced)] opacity-50 blur-[2cqh] ${live ? "animate-spin-slow" : ""}`}
+					className={`absolute -inset-[2cqh] rounded-full bg-[conic-gradient(from_0deg,#00aced,#5bc8f0,#3a86c9,#00aced)] opacity-50 blur-[2cqh] ${live ? "animate-spin-slow" : ""}`}
 				/>
 
 				{/* the pill — overflow-hidden so the emote flood is clipped inside */}
-				<div className="relative flex h-full w-full items-center gap-[4cqh] overflow-hidden rounded-full border border-[#5bc8f0]/40 bg-[#091533]/88 pr-[6cqh] pl-[3cqh] shadow-[0_0_4cqh_rgba(0,172,237,0.25)] backdrop-blur-md">
+				<div className="relative flex h-full w-full items-center gap-[4cqh] overflow-hidden rounded-full border border-[#5bc8f0]/40 bg-[#091533]/88 pr-[6cqh] pl-[3cqh] shadow-[inset_0_0.12cqh_0_rgba(255,255,255,0.18),0_0_4cqh_rgba(0,172,237,0.25)] backdrop-blur-xl">
 					{/* top hairline + inner sheen */}
 					<div className="pointer-events-none absolute inset-x-[8cqh] top-0 h-px bg-gradient-to-r from-transparent via-[#5bc8f0] to-transparent" />
-					<div className="pointer-events-none absolute inset-0 rounded-full bg-gradient-to-b from-white/[0.06] to-transparent" />
+					<div className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(80%_140%_at_0%_0%,rgba(255,255,255,0.08),transparent_55%)]" />
 
 					{/* cyan flood wash on a time-add event */}
 					{flash && (
