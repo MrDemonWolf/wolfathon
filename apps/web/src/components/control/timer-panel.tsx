@@ -111,6 +111,7 @@ export function TimerPanel({
 					<Input
 						className="h-9 w-20 rounded-lg"
 						type="number"
+						aria-label="Custom minutes to add"
 						value={custom}
 						onChange={(e) => setCustom(e.target.value)}
 					/>

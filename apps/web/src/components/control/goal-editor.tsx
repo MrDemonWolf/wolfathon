@@ -144,6 +144,7 @@ export function GoalEditor({ data, onChanged }: { data: Data | undefined; onChan
 			<form onSubmit={submitAdd} className="mt-4 flex flex-col gap-2 sm:flex-row">
 				<Input
 					className="h-10 flex-1 rounded-lg"
+					aria-label="Reward name (shown on stream)"
 					placeholder="Reward (shown on stream)"
 					value={reward}
 					maxLength={80}
@@ -151,6 +152,7 @@ export function GoalEditor({ data, onChanged }: { data: Data | undefined; onChan
 				/>
 				<Input
 					className="h-10 flex-1 rounded-lg"
+					aria-label="Internal note"
 					placeholder="Note (internal, e.g. 10 subs)"
 					value={note}
 					onChange={(e) => setNote(e.target.value)}
