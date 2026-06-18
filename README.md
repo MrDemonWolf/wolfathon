@@ -75,10 +75,10 @@ Open `/overlay` (the chooser) and copy each source URL straight into OBS. Add
 each as a **Browser** source at width `1920`, height `1080`, with a transparent
 background — the overlays paint only floating panels, nothing full-screen.
 
-| Source  | URL              | Shows                                          |
-| ------- | ---------------- | ---------------------------------------------- |
-| Timer   | `/overlay/timer` | Big HH:MM:SS countdown with a "+Xm" add flash  |
-| Rewards | `/overlay/rewards` | Current reward name + unlock celebration     |
+| Source  | URL                | Shows                                         |
+| ------- | ------------------ | --------------------------------------------- |
+| Timer   | `/overlay/timer`   | Big HH:MM:SS countdown with a "+Xm" add flash |
+| Rewards | `/overlay/rewards` | Current reward name + unlock celebration      |
 
 Both poll every 2 seconds, so control-panel edits and Twitch events appear on
 stream within about 2 seconds (the timer keeps counting smoothly between polls).
@@ -139,11 +139,11 @@ Rewards import shape (minimal form):
 
 ```json
 {
-  "goals": [
-    { "reward": "Q&A", "note": "1 sub" },
-    { "reward": "Onesie reveal", "note": "10 subs" },
-    { "reward": "Stretch goal", "note": "dream" }
-  ]
+	"goals": [
+		{ "reward": "Q&A", "note": "1 sub" },
+		{ "reward": "Onesie reveal", "note": "10 subs" },
+		{ "reward": "Stretch goal", "note": "dream" }
+	]
 }
 ```
 
@@ -151,12 +151,12 @@ Timer config shape:
 
 ```json
 {
-  "startMinutes": 60,
-  "maxMinutes": 0,
-  "sub": { "t1": 5, "t2": 10, "t3": 25, "prime": 5 },
-  "giftSubMinutes": 5,
-  "bitsPer100Minutes": 1,
-  "channelPoints": [{ "rewardTitle": "Add 5 minutes", "minutes": 5 }]
+	"startMinutes": 60,
+	"maxMinutes": 0,
+	"sub": { "t1": 5, "t2": 10, "t3": 25, "prime": 5 },
+	"giftSubMinutes": 5,
+	"bitsPer100Minutes": 1,
+	"channelPoints": [{ "rewardTitle": "Add 5 minutes", "minutes": 5 }]
 }
 ```
 
@@ -180,20 +180,20 @@ broken.
 
 ## Tech Stack
 
-| Layer    | Technology                                |
-| -------- | ----------------------------------------- |
-| Monorepo | Turborepo                                 |
-| Web      | Next.js (overlays, control panel, PWA)    |
-| Server   | Hono on Cloudflare Workers                |
-| API      | tRPC                                      |
-| Database | Cloudflare D1 (SQLite)                    |
-| ORM      | Drizzle ORM                               |
-| Auth     | Cloudflare Access (Zero Trust)            |
-| Twitch   | EventSub webhooks + OAuth redirect flow   |
-| Styling  | Tailwind CSS, Montserrat and Roboto       |
-| Deploy   | Alchemy (Cloudflare Workers and D1)       |
-| CI/CD    | GitHub Actions                            |
-| Runtime  | Bun (deploy runs under Node via tsx)      |
+| Layer    | Technology                              |
+| -------- | --------------------------------------- |
+| Monorepo | Turborepo                               |
+| Web      | Next.js (overlays, control panel, PWA)  |
+| Server   | Hono on Cloudflare Workers              |
+| API      | tRPC                                    |
+| Database | Cloudflare D1 (SQLite)                  |
+| ORM      | Drizzle ORM                             |
+| Auth     | Cloudflare Access (Zero Trust)          |
+| Twitch   | EventSub webhooks + OAuth redirect flow |
+| Styling  | Tailwind CSS, Montserrat and Roboto     |
+| Deploy   | Alchemy (Cloudflare Workers and D1)     |
+| CI/CD    | GitHub Actions                          |
+| Runtime  | Bun (deploy runs under Node via tsx)    |
 
 ## Development
 

@@ -16,258 +16,259 @@
  * Wolfathon ships a single dark, navy theme — there is no light mode.
  */
 :root {
-  --background: #091533;
-  --foreground: #ffffff;
-  --card: #0c1b40;
-  --card-foreground: #ffffff;
-  --popover: #0c1b40;
-  --popover-foreground: #ffffff;
-  --primary: #00aced;
-  --primary-foreground: #04122b;
-  --secondary: #13244d;
-  --secondary-foreground: #ffffff;
-  --muted: #122247;
-  --muted-foreground: #9db4d8;
-  --accent: #5bc8f0;
-  --accent-foreground: #04122b;
-  --destructive: #f0556a;
-  --border: #21345f;
-  --input: #21345f;
-  --ring: #00aced;
-  --chart-1: #00aced;
-  --chart-2: #5bc8f0;
-  --chart-3: #3a86c9;
-  --chart-4: #6f7fd6;
-  --chart-5: #2b3f73;
-  --radius: 0.9rem;
-  --sidebar: #0c1b40;
-  --sidebar-foreground: #ffffff;
-  --sidebar-primary: #00aced;
-  --sidebar-primary-foreground: #04122b;
-  --sidebar-accent: #13244d;
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #21345f;
-  --sidebar-ring: #00aced;
+	--background: #091533;
+	--foreground: #ffffff;
+	--card: #0c1b40;
+	--card-foreground: #ffffff;
+	--popover: #0c1b40;
+	--popover-foreground: #ffffff;
+	--primary: #00aced;
+	--primary-foreground: #04122b;
+	--secondary: #13244d;
+	--secondary-foreground: #ffffff;
+	--muted: #122247;
+	--muted-foreground: #9db4d8;
+	--accent: #5bc8f0;
+	--accent-foreground: #04122b;
+	--destructive: #f0556a;
+	--border: #21345f;
+	--input: #21345f;
+	--ring: #00aced;
+	--chart-1: #00aced;
+	--chart-2: #5bc8f0;
+	--chart-3: #3a86c9;
+	--chart-4: #6f7fd6;
+	--chart-5: #2b3f73;
+	--radius: 0.9rem;
+	--sidebar: #0c1b40;
+	--sidebar-foreground: #ffffff;
+	--sidebar-primary: #00aced;
+	--sidebar-primary-foreground: #04122b;
+	--sidebar-accent: #13244d;
+	--sidebar-accent-foreground: #ffffff;
+	--sidebar-border: #21345f;
+	--sidebar-ring: #00aced;
 }
 
 /* Keep `.dark` identical so next-themes can't desync the brand look. */
 .dark {
-  --background: #091533;
-  --foreground: #ffffff;
-  --card: #0c1b40;
-  --card-foreground: #ffffff;
-  --popover: #0c1b40;
-  --popover-foreground: #ffffff;
-  --primary: #00aced;
-  --primary-foreground: #04122b;
-  --secondary: #13244d;
-  --secondary-foreground: #ffffff;
-  --muted: #122247;
-  --muted-foreground: #9db4d8;
-  --accent: #5bc8f0;
-  --accent-foreground: #04122b;
-  --destructive: #f0556a;
-  --border: #21345f;
-  --input: #21345f;
-  --ring: #00aced;
-  --sidebar: #0c1b40;
-  --sidebar-foreground: #ffffff;
-  --sidebar-primary: #00aced;
-  --sidebar-primary-foreground: #04122b;
-  --sidebar-accent: #13244d;
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #21345f;
-  --sidebar-ring: #00aced;
+	--background: #091533;
+	--foreground: #ffffff;
+	--card: #0c1b40;
+	--card-foreground: #ffffff;
+	--popover: #0c1b40;
+	--popover-foreground: #ffffff;
+	--primary: #00aced;
+	--primary-foreground: #04122b;
+	--secondary: #13244d;
+	--secondary-foreground: #ffffff;
+	--muted: #122247;
+	--muted-foreground: #9db4d8;
+	--accent: #5bc8f0;
+	--accent-foreground: #04122b;
+	--destructive: #f0556a;
+	--border: #21345f;
+	--input: #21345f;
+	--ring: #00aced;
+	--sidebar: #0c1b40;
+	--sidebar-foreground: #ffffff;
+	--sidebar-primary: #00aced;
+	--sidebar-primary-foreground: #04122b;
+	--sidebar-accent: #13244d;
+	--sidebar-accent-foreground: #ffffff;
+	--sidebar-border: #21345f;
+	--sidebar-ring: #00aced;
 }
 
 @theme inline {
-  --font-sans: var(--font-roboto), ui-sans-serif, system-ui, sans-serif;
-  --font-heading: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
-  --color-foreground: var(--foreground);
-  --color-background: var(--background);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-  --radius-2xl: calc(var(--radius) + 8px);
-  --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
+	--font-sans: var(--font-roboto), ui-sans-serif, system-ui, sans-serif;
+	--font-heading: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
+	--color-sidebar-ring: var(--sidebar-ring);
+	--color-sidebar-border: var(--sidebar-border);
+	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+	--color-sidebar-accent: var(--sidebar-accent);
+	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+	--color-sidebar-primary: var(--sidebar-primary);
+	--color-sidebar-foreground: var(--sidebar-foreground);
+	--color-sidebar: var(--sidebar);
+	--color-chart-5: var(--chart-5);
+	--color-chart-4: var(--chart-4);
+	--color-chart-3: var(--chart-3);
+	--color-chart-2: var(--chart-2);
+	--color-chart-1: var(--chart-1);
+	--color-ring: var(--ring);
+	--color-input: var(--input);
+	--color-border: var(--border);
+	--color-destructive: var(--destructive);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-accent: var(--accent);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-muted: var(--muted);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-secondary: var(--secondary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-primary: var(--primary);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-popover: var(--popover);
+	--color-card-foreground: var(--card-foreground);
+	--color-card: var(--card);
+	--color-foreground: var(--foreground);
+	--color-background: var(--background);
+	--radius-sm: calc(var(--radius) - 4px);
+	--radius-md: calc(var(--radius) - 2px);
+	--radius-lg: var(--radius);
+	--radius-xl: calc(var(--radius) + 4px);
+	--radius-2xl: calc(var(--radius) + 8px);
+	--radius-3xl: calc(var(--radius) + 12px);
+	--radius-4xl: calc(var(--radius) + 16px);
 }
 
 @layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  /*
+	* {
+		@apply border-border outline-ring/50;
+	}
+	/*
    * The body itself is transparent so the /overlay route is clean over an OBS
    * source. The panel routes paint their own navy background (see the panel
    * layout), and the overlay only renders its floating cards.
    */
-  body {
-    @apply text-foreground font-sans;
-    background: transparent;
-  }
-  html {
-    @apply font-sans;
-  }
+	body {
+		@apply text-foreground font-sans;
+		background: transparent;
+	}
+	html {
+		@apply font-sans;
+	}
 }
 
 /* Overlay unlock celebration: glow + scale, no audio. */
 @keyframes wolf-pop {
-  0% {
-    transform: scale(0.6);
-    opacity: 0;
-  }
-  60% {
-    transform: scale(1.12);
-    opacity: 1;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
+	0% {
+		transform: scale(0.6);
+		opacity: 0;
+	}
+	60% {
+		transform: scale(1.12);
+		opacity: 1;
+	}
+	100% {
+		transform: scale(1);
+		opacity: 1;
+	}
 }
 
 @keyframes wolf-glow {
-  0%,
-  100% {
-    text-shadow: 0 0 16px rgba(0, 172, 237, 0.45);
-  }
-  50% {
-    text-shadow: 0 0 34px rgba(91, 200, 240, 0.9);
-  }
+	0%,
+	100% {
+		text-shadow: 0 0 16px rgba(0, 172, 237, 0.45);
+	}
+	50% {
+		text-shadow: 0 0 34px rgba(91, 200, 240, 0.9);
+	}
 }
 
 @keyframes wolf-rise {
-  0% {
-    transform: translateY(10px);
-    opacity: 0;
-  }
-  100% {
-    transform: translateY(0);
-    opacity: 1;
-  }
+	0% {
+		transform: translateY(10px);
+		opacity: 0;
+	}
+	100% {
+		transform: translateY(0);
+		opacity: 1;
+	}
 }
 
 .animate-wolf-pop {
-  animation: wolf-pop 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+	animation: wolf-pop 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
 .animate-wolf-rise {
-  animation: wolf-rise 0.4s ease-out both;
+	animation: wolf-rise 0.4s ease-out both;
 }
 
 .wolf-glow {
-  animation: wolf-glow 2.4s ease-in-out infinite;
+	animation: wolf-glow 2.4s ease-in-out infinite;
 }
 
 /* Ambient emoji drifting up the overlay behind the timer. Vertical distance,
    sway, spin and timing are driven by per-element CSS vars set in JS. */
 @keyframes wolf-drift {
-  0% {
-    transform: translateY(0) translateX(0) rotate(0deg);
-    opacity: 0;
-  }
-  10% {
-    opacity: var(--drift-opacity, 0.5);
-  }
-  50% {
-    transform: translateY(-55cqh) translateX(var(--drift-sway, 4cqw)) rotate(var(--drift-spin, 20deg));
-  }
-  90% {
-    opacity: var(--drift-opacity, 0.5);
-  }
-  100% {
-    transform: translateY(-110cqh) translateX(0) rotate(0deg);
-    opacity: 0;
-  }
+	0% {
+		transform: translateY(0) translateX(0) rotate(0deg);
+		opacity: 0;
+	}
+	10% {
+		opacity: var(--drift-opacity, 0.5);
+	}
+	50% {
+		transform: translateY(-55cqh) translateX(var(--drift-sway, 4cqw))
+			rotate(var(--drift-spin, 20deg));
+	}
+	90% {
+		opacity: var(--drift-opacity, 0.5);
+	}
+	100% {
+		transform: translateY(-110cqh) translateX(0) rotate(0deg);
+		opacity: 0;
+	}
 }
 
 /* Emoji blasting outward from the timer when time is added. */
 @keyframes wolf-burst {
-  0% {
-    transform: translate(0, 0) scale(0.3) rotate(0deg);
-    opacity: 0;
-  }
-  15% {
-    opacity: 1;
-  }
-  100% {
-    transform: translate(var(--burst-x, 0), var(--burst-y, -30cqh)) scale(1.15)
-      rotate(var(--burst-spin, 90deg));
-    opacity: 0;
-  }
+	0% {
+		transform: translate(0, 0) scale(0.3) rotate(0deg);
+		opacity: 0;
+	}
+	15% {
+		opacity: 1;
+	}
+	100% {
+		transform: translate(var(--burst-x, 0), var(--burst-y, -30cqh)) scale(1.15)
+			rotate(var(--burst-spin, 90deg));
+		opacity: 0;
+	}
 }
 
 .animate-wolf-drift {
-  animation: wolf-drift var(--drift-duration, 9s) linear infinite;
-  animation-delay: var(--drift-delay, 0s);
+	animation: wolf-drift var(--drift-duration, 9s) linear infinite;
+	animation-delay: var(--drift-delay, 0s);
 }
 
 .animate-wolf-burst {
-  animation: wolf-burst 1.6s cubic-bezier(0.15, 0.6, 0.25, 1) both;
+	animation: wolf-burst 1.6s cubic-bezier(0.15, 0.6, 0.25, 1) both;
 }
 
 @keyframes spin-slow {
-  to {
-    transform: rotate(360deg);
-  }
+	to {
+		transform: rotate(360deg);
+	}
 }
 
 .animate-spin-slow {
-  animation: spin-slow 14s linear infinite;
+	animation: spin-slow 14s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-wolf-drift,
-  .animate-wolf-burst {
-    animation: none;
-    opacity: 0;
-  }
-  .animate-spin-slow {
-    animation: none;
-  }
+	.animate-wolf-drift,
+	.animate-wolf-burst {
+		animation: none;
+		opacity: 0;
+	}
+	.animate-spin-slow {
+		animation: none;
+	}
 }
 
 /* Slow sheen sweeping across the reward card — subtle "live" motion. */
 @keyframes wolf-sheen {
-  0% {
-    transform: translateX(-120%);
-  }
-  100% {
-    transform: translateX(220%);
-  }
+	0% {
+		transform: translateX(-120%);
+	}
+	100% {
+		transform: translateX(220%);
+	}
 }
 
 .wolf-sheen {
-  animation: wolf-sheen 6s ease-in-out infinite;
+	animation: wolf-sheen 6s ease-in-out infinite;
 }
