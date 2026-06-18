@@ -60,7 +60,7 @@ function NavLink({
 	active,
 	children,
 }: {
-	href: string;
+	href: React.ComponentProps<typeof Link>["href"];
 	active: boolean;
 	children: React.ReactNode;
 }) {
