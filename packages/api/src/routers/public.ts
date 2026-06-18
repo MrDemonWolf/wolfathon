@@ -9,15 +9,15 @@ import { toPublicTimer } from "../timer";
  * server.
  */
 export const publicRouter = router({
-  state: router({
-    getPublic: publicProcedure.query(async ({ ctx }) => stripNotes(await readState(ctx.db))),
-  }),
-  timer: router({
-    getPublic: publicProcedure.query(async ({ ctx }) => {
-      const doc = await readTimer(ctx.db);
-      return toPublicTimer(doc, Date.now());
-    }),
-  }),
+	state: router({
+		getPublic: publicProcedure.query(async ({ ctx }) => stripNotes(await readState(ctx.db))),
+	}),
+	timer: router({
+		getPublic: publicProcedure.query(async ({ ctx }) => {
+			const doc = await readTimer(ctx.db);
+			return toPublicTimer(doc, Date.now());
+		}),
+	}),
 });
 
 export type PublicRouter = typeof publicRouter;

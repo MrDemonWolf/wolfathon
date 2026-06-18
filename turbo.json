@@ -1,56 +1,56 @@
 {
-  "$schema": "https://turbo.build/schema.json",
-  "ui": "tui",
-  "tasks": {
-    "build": {
-      "dependsOn": ["^build"],
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
-    },
-    "lint": {
-      "dependsOn": ["^lint"]
-    },
-    "check-types": {
-      "dependsOn": ["^check-types"]
-    },
-    "dev": {
-      "cache": false,
-      "persistent": true
-    },
-    "db:generate": {
-      "cache": false
-    },
-    "deploy": {
-      "cache": false,
-      "passThroughEnv": [
-        "CI",
-        "CLOUDFLARE_API_TOKEN",
-        "CLOUDFLARE_ACCOUNT_ID",
-        "CLOUDFLARE_EMAIL",
-        "CLOUDFLARE_API_KEY",
-        "ALCHEMY_PASSWORD",
-        "ALCHEMY_STATE_TOKEN",
-        "ALCHEMY_CI_STATE_STORE_CHECK",
-        "CF_ACCESS_TEAM_DOMAIN",
-        "CF_ACCESS_AUD",
-        "TWITCH_CLIENT_ID",
-        "TWITCH_CLIENT_SECRET",
-        "CORS_ORIGIN",
-        "WEB_URL"
-      ]
-    },
-    "destroy": {
-      "cache": false,
-      "passThroughEnv": [
-        "CI",
-        "CLOUDFLARE_API_TOKEN",
-        "CLOUDFLARE_ACCOUNT_ID",
-        "CLOUDFLARE_EMAIL",
-        "CLOUDFLARE_API_KEY",
-        "ALCHEMY_PASSWORD",
-        "ALCHEMY_STATE_TOKEN",
-        "ALCHEMY_CI_STATE_STORE_CHECK"
-      ]
-    }
-  }
+	"$schema": "https://turbo.build/schema.json",
+	"ui": "tui",
+	"tasks": {
+		"build": {
+			"dependsOn": ["^build"],
+			"inputs": ["$TURBO_DEFAULT$", ".env*"],
+			"outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+		},
+		"lint": {
+			"dependsOn": ["^lint"]
+		},
+		"check-types": {
+			"dependsOn": ["^check-types"]
+		},
+		"dev": {
+			"cache": false,
+			"persistent": true
+		},
+		"db:generate": {
+			"cache": false
+		},
+		"deploy": {
+			"cache": false,
+			"passThroughEnv": [
+				"CI",
+				"CLOUDFLARE_API_TOKEN",
+				"CLOUDFLARE_ACCOUNT_ID",
+				"CLOUDFLARE_EMAIL",
+				"CLOUDFLARE_API_KEY",
+				"ALCHEMY_PASSWORD",
+				"ALCHEMY_STATE_TOKEN",
+				"ALCHEMY_CI_STATE_STORE_CHECK",
+				"CF_ACCESS_TEAM_DOMAIN",
+				"CF_ACCESS_AUD",
+				"TWITCH_CLIENT_ID",
+				"TWITCH_CLIENT_SECRET",
+				"CORS_ORIGIN",
+				"WEB_URL"
+			]
+		},
+		"destroy": {
+			"cache": false,
+			"passThroughEnv": [
+				"CI",
+				"CLOUDFLARE_API_TOKEN",
+				"CLOUDFLARE_ACCOUNT_ID",
+				"CLOUDFLARE_EMAIL",
+				"CLOUDFLARE_API_KEY",
+				"ALCHEMY_PASSWORD",
+				"ALCHEMY_STATE_TOKEN",
+				"ALCHEMY_CI_STATE_STORE_CHECK"
+			]
+		}
+	}
 }

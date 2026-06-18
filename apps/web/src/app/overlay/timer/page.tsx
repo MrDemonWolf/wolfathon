@@ -10,15 +10,15 @@ import { publicTrpc } from "@/utils/trpc";
  * timer every 2s; the overlay itself counts down to the frame between polls.
  */
 export default function TimerOverlayPage() {
-  const { data } = useQuery({
-    ...publicTrpc.timer.getPublic.queryOptions(),
-    refetchInterval: 2000,
-    refetchIntervalInBackground: true,
-  });
+	const { data } = useQuery({
+		...publicTrpc.timer.getPublic.queryOptions(),
+		refetchInterval: 2000,
+		refetchIntervalInBackground: true,
+	});
 
-  return (
-    <div className="@container fixed inset-0 overflow-hidden bg-transparent">
-      <TimerView data={data} />
-    </div>
-  );
+	return (
+		<div className="@container fixed inset-0 overflow-hidden bg-transparent">
+			<TimerView data={data} />
+		</div>
+	);
 }

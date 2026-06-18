@@ -11,10 +11,10 @@ import { queryClient } from "@/utils/trpc";
  * so it's harmless on the transparent overlay route.
  */
 export default function Providers({ children }: { children: React.ReactNode }) {
-  return (
-    <QueryClientProvider client={queryClient}>
-      {children}
-      <Toaster richColors position="top-center" />
-    </QueryClientProvider>
-  );
+	return (
+		<QueryClientProvider client={queryClient}>
+			{children}
+			<Toaster richColors position="top-center" />
+		</QueryClientProvider>
+	);
 }

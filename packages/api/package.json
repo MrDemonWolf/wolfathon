@@ -1,24 +1,24 @@
 {
-  "name": "@wolfathon/api",
-  "type": "module",
-  "exports": {
-    ".": {
-      "default": "./src/index.ts"
-    },
-    "./*": {
-      "default": "./src/*.ts"
-    }
-  },
-  "scripts": {},
-  "dependencies": {
-    "@wolfathon/db": "workspace:*",
-    "@trpc/server": "catalog:",
-    "drizzle-orm": "^0.45.1",
-    "jose": "^5.9.6",
-    "zod": "catalog:"
-  },
-  "devDependencies": {
-    "@wolfathon/config": "workspace:*",
-    "typescript": "catalog:"
-  }
+	"name": "@wolfathon/api",
+	"type": "module",
+	"exports": {
+		".": {
+			"default": "./src/index.ts"
+		},
+		"./*": {
+			"default": "./src/*.ts"
+		}
+	},
+	"scripts": {},
+	"dependencies": {
+		"@wolfathon/db": "workspace:*",
+		"@trpc/server": "catalog:",
+		"drizzle-orm": "^0.45.1",
+		"jose": "^5.9.6",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@wolfathon/config": "workspace:*",
+		"typescript": "catalog:"
+	}
 }

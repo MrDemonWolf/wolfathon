@@ -9,11 +9,11 @@ import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
  * is defined and validated in `@wolfathon/api` (see `state.ts`).
  */
 export const trackerState = sqliteTable("tracker_state", {
-  id: text("id").primaryKey(),
-  data: text("data").notNull(),
-  updatedAt: integer("updated_at")
-    .notNull()
-    .default(sql`(unixepoch())`),
+	id: text("id").primaryKey(),
+	data: text("data").notNull(),
+	updatedAt: integer("updated_at")
+		.notNull()
+		.default(sql`(unixepoch())`),
 });
 
 export type TrackerStateRow = typeof trackerState.$inferSelect;
