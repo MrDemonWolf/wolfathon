@@ -6,6 +6,7 @@ import {
   buildAuthorizeUrl,
   deleteSubscriptions,
   getAppToken,
+  getChannelEmotes,
   sendTestNotification,
   toStatus,
 } from "../twitch";
@@ -42,6 +43,17 @@ export const twitchRouter = router({
     const state = crypto.randomUUID().replace(/-/g, "");
     await writeTwitch(ctx.db, { ...doc, oauthState: state });
     return { url: buildAuthorizeUrl({ clientId, redirectUri: ctx.twitch.redirectUri, state }) };
+  }),
+
+  /** Channel emotes for the overlay emoji picker. Needs a connected broadcaster. */
+  listEmotes: protectedProcedure.query(async ({ ctx }) => {
+    const { clientId, clientSecret } = requireCreds(ctx);
+    const doc = await readTwitch(ctx.db);
+    if (!doc.broadcasterId) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "Connect Twitch first." });
+    }
+    const appToken = await getAppToken(clientId, clientSecret);
+    return getChannelEmotes(clientId, appToken, doc.broadcasterId);
   }),
 
   /**

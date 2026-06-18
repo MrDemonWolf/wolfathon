@@ -30,6 +30,8 @@ export type TimerConfig = {
   /** Minutes added per 100 bits (fractional bits prorated). */
   bitsPer100Minutes: number;
   channelPoints: ChannelPointRule[];
+  /** Emoji that drift behind the overlay + burst when time is added. */
+  emojis: string[];
 };
 
 export type TimerState = {
@@ -51,6 +53,8 @@ export type PublicTimer = {
   remainingMs: number;
   /** Server clock so the overlay can correct browser-clock skew. */
   serverNow: number;
+  /** Emoji the overlay animates (drift + add-time burst). */
+  emojis: string[];
 };
 
 export type TimerEvent =
@@ -69,6 +73,12 @@ const MIN = 60_000;
 export const MAX_CHANNEL_POINT_RULES = 50;
 /** Sanity ceiling so a typo can't set a 10-year timer. */
 export const MAX_MINUTES_LIMIT = 525_600; // one year
+export const MAX_EMOJIS = 24;
+/** Longest single entry: fits a unicode emoji OR a Twitch emote CDN URL. */
+const MAX_EMOJI_LEN = 300;
+
+/** Wolf-themed drift set, used when a config has none (incl. old saved rows). */
+export const DEFAULT_TIMER_EMOJIS = ["🐺", "🌙", "⚡", "💙", "🔥", "✨", "🎮", "🏆"];
 
 export function defaultTimerConfig(): TimerConfig {
   return {
@@ -78,6 +88,7 @@ export function defaultTimerConfig(): TimerConfig {
     giftSubMinutes: 5,
     bitsPer100Minutes: 1,
     channelPoints: [],
+    emojis: [...DEFAULT_TIMER_EMOJIS],
   };
 }
 
@@ -173,12 +184,14 @@ export function applyEvent(
   return { state: addMs(config, state, ms, now), addedMs: ms };
 }
 
-export function toPublicTimer(state: TimerState, now: number): PublicTimer {
+export function toPublicTimer(doc: TimerDoc, now: number): PublicTimer {
+  const emojis = doc.config.emojis?.length ? doc.config.emojis : DEFAULT_TIMER_EMOJIS;
   return {
-    running: state.running,
-    endsAt: state.endsAt,
-    remainingMs: currentRemainingMs(state, now),
+    running: doc.state.running,
+    endsAt: doc.state.endsAt,
+    remainingMs: currentRemainingMs(doc.state, now),
     serverNow: now,
+    emojis,
   };
 }
 
@@ -235,7 +248,29 @@ export function validateTimerConfig(input: unknown): TimerConfigResult {
     giftSubMinutes: num(errors, "giftSubMinutes", r.giftSubMinutes),
     bitsPer100Minutes: num(errors, "bitsPer100Minutes", r.bitsPer100Minutes),
     channelPoints: [],
+    emojis: [...DEFAULT_TIMER_EMOJIS],
   };
+
+  // Emoji are optional; absent → keep the wolf default set.
+  const em = r.emojis;
+  if (em !== undefined) {
+    if (!Array.isArray(em)) {
+      errors.push({ path: "emojis", message: "must be an array" });
+    } else if (em.length > MAX_EMOJIS) {
+      errors.push({ path: "emojis", message: `max ${MAX_EMOJIS} emoji` });
+    } else {
+      const cleaned: string[] = [];
+      em.forEach((item, i) => {
+        if (typeof item !== "string") {
+          errors.push({ path: `emojis[${i}]`, message: "must be a string" });
+          return;
+        }
+        const v = item.trim();
+        if (v && v.length <= MAX_EMOJI_LEN) cleaned.push(v);
+      });
+      config.emojis = cleaned;
+    }
+  }
 
   const cp = r.channelPoints;
   if (cp !== undefined) {
