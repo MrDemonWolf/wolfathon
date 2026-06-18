@@ -48,7 +48,7 @@ export function GoalEditor({ data, onChanged }: { data: Data | undefined; onChan
 	}
 
 	return (
-		<div className="rounded-2xl border border-border bg-card p-5">
+		<div className="rounded-2xl panel-card p-5">
 			<h2 className="font-heading text-lg font-bold">Goals</h2>
 			<p className="mt-1 text-sm text-muted-foreground">
 				Goals unlock top to bottom. Only the <span className="text-foreground">reward</span> name is

@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import { WolfMark } from "@/components/wolf-mark";
 
@@ -7,30 +10,71 @@ import { WolfMark } from "@/components/wolf-mark";
  * route lives outside this group and stays bare/transparent for OBS.
  */
 export default function PanelLayout({ children }: { children: React.ReactNode }) {
+	const pathname = usePathname();
+
 	return (
-		<div className="min-h-svh bg-background text-foreground">
-			<header className="border-b border-border bg-card/40">
+		<div className="app-bg flex min-h-svh flex-col text-foreground">
+			<header className="sticky top-0 z-30 border-b border-[#00aced]/15 bg-[#091533]/80 backdrop-blur-md">
 				<div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-					<Link href="/" className="flex items-center gap-2">
-						<WolfMark className="size-8" />
-						<span className="font-heading text-lg font-bold">Wolfathon</span>
+					<Link href="/" className="group flex items-center gap-2.5">
+						<WolfMark className="size-8 transition-transform group-hover:scale-110" />
+						<span className="font-heading text-lg font-extrabold tracking-tight">Wolfathon</span>
 					</Link>
-					<nav className="flex items-center gap-5 text-sm text-muted-foreground">
-						<Link href="/control" className="transition-colors hover:text-foreground">
+					<nav className="flex items-center gap-1 text-sm">
+						<NavLink href="/control" active={pathname === "/control"}>
 							Control
-						</Link>
+						</NavLink>
 						<a
 							href="/overlay"
 							target="_blank"
 							rel="noreferrer"
-							className="transition-colors hover:text-foreground"
+							className="rounded-lg px-3 py-1.5 text-muted-foreground transition-colors hover:bg-[#13244d]/60 hover:text-foreground"
 						>
-							Overlay ↗
+							Overlays ↗
 						</a>
 					</nav>
 				</div>
 			</header>
-			<main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
+
+			<main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
+
+			<footer className="border-t border-[#00aced]/10 px-4 py-6">
+				<p className="mx-auto max-w-6xl text-center text-sm text-muted-foreground">
+					© {new Date().getFullYear()} Wolfathon by{" "}
+					<a
+						href="https://mrdemonwolf.com"
+						target="_blank"
+						rel="noopener noreferrer"
+						className="text-foreground transition-colors hover:text-primary"
+					>
+						MrDemonWolf, Inc.
+					</a>
+				</p>
+			</footer>
 		</div>
+	);
+}
+
+function NavLink({
+	href,
+	active,
+	children,
+}: {
+	href: React.ComponentProps<typeof Link>["href"];
+	active: boolean;
+	children: React.ReactNode;
+}) {
+	return (
+		<Link
+			href={href}
+			aria-current={active ? "page" : undefined}
+			className={`rounded-lg px-3 py-1.5 transition-colors ${
+				active
+					? "bg-[#00aced]/15 font-medium text-foreground"
+					: "text-muted-foreground hover:bg-[#13244d]/60 hover:text-foreground"
+			}`}
+		>
+			{children}
+		</Link>
 	);
 }

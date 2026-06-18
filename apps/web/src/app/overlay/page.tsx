@@ -13,11 +13,12 @@ import { WolfMark } from "@/components/wolf-mark";
  */
 export default function OverlayChooser() {
 	return (
-		<div className="min-h-svh bg-background text-foreground">
+		<div className="app-bg min-h-svh text-foreground">
 			<div className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-12">
 				<header className="flex flex-col items-start gap-3">
 					<WolfMark className="size-14" />
-					<h1 className="font-heading text-3xl font-extrabold tracking-tight">Overlays</h1>
+					<span className="eyebrow text-xs">OBS browser sources</span>
+					<h1 className="font-heading text-4xl font-extrabold tracking-tight">Overlays</h1>
 					<p className="text-muted-foreground">
 						Add each as an OBS <span className="text-foreground">Browser</span> source at 1920×1080
 						with a transparent background.
@@ -65,7 +66,7 @@ function SourceCard({
 	}
 
 	return (
-		<div className="rounded-2xl border border-border bg-card p-5">
+		<div className="rounded-2xl panel-card p-5">
 			<div className="flex items-center gap-2">
 				{icon}
 				<h2 className="font-heading text-lg font-bold">{title}</h2>

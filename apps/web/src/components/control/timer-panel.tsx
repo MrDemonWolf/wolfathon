@@ -44,7 +44,7 @@ export function TimerPanel({
 	const remaining = doc ? currentRemainingMs(doc.state, Date.now()) : 0;
 
 	return (
-		<div className="rounded-2xl border border-border bg-card p-5">
+		<div className="rounded-2xl panel-card p-5">
 			<h2 className="font-heading text-lg font-bold">Timer</h2>
 
 			{/* status */}

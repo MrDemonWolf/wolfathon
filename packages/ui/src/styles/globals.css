@@ -272,3 +272,59 @@
 .wolf-sheen {
 	animation: wolf-sheen 6s ease-in-out infinite;
 }
+
+/*
+ * Operator-surface kit. The /overlay routes stay bare and transparent for OBS;
+ * these classes give the landing/control/chooser pages the same navy-and-cyan
+ * depth the overlays have, instead of flat cards on flat navy.
+ */
+
+/* Atmospheric page background: cyan glow from the top + a faint blueprint grid. */
+.app-bg {
+	background-color: var(--background);
+	background-image:
+		radial-gradient(62% 48% at 50% -12%, rgba(0, 172, 237, 0.13), transparent 70%),
+		radial-gradient(40% 36% at 100% 0%, rgba(91, 200, 240, 0.07), transparent 70%),
+		linear-gradient(rgba(0, 172, 237, 0.035) 1px, transparent 1px),
+		linear-gradient(90deg, rgba(0, 172, 237, 0.035) 1px, transparent 1px);
+	background-size:
+		auto,
+		auto,
+		46px 46px,
+		46px 46px;
+	background-attachment: fixed, fixed, scroll, scroll;
+}
+
+/* The brand surface: gradient navy, cyan-tinted hairline, lifted shadow. Pair
+   with a Tailwind radius/padding in markup (e.g. `rounded-2xl panel-card p-5`). */
+.panel-card {
+	border: 1px solid rgba(0, 172, 237, 0.16);
+	background: linear-gradient(158deg, #0c1b40 0%, #081530 100%);
+	box-shadow:
+		inset 0 1px 0 rgba(255, 255, 255, 0.04),
+		0 20px 44px -30px rgba(0, 0, 0, 0.85);
+}
+
+/* Same surface, plus a glowing cyan accent rail down the left edge — for the
+   one or two "hero" cards that should pull the eye. */
+.panel-card-rail {
+	position: relative;
+	overflow: hidden;
+}
+.panel-card-rail::before {
+	content: "";
+	position: absolute;
+	inset: 0 auto 0 0;
+	width: 3px;
+	background: linear-gradient(to bottom, #5bc8f0, #00aced 55%, rgba(0, 172, 237, 0));
+	box-shadow: 0 0 14px rgba(0, 172, 237, 0.7);
+}
+
+/* Uppercase tracked label used as a section eyebrow, matching the overlays. */
+.eyebrow {
+	font-family: var(--font-heading);
+	text-transform: uppercase;
+	letter-spacing: 0.26em;
+	font-weight: 700;
+	color: #5bc8f0;
+}
