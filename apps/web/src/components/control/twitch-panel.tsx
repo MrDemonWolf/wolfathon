@@ -3,13 +3,36 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { env } from "@wolfathon/env/web";
 import { Button } from "@wolfathon/ui/components/button";
-import { AlertTriangle, CheckCircle2, ExternalLink, Plug, Unplug, Zap } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Copy, ExternalLink, Loader2, Plug, Unplug, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { controlTrpc, queryClient } from "@/utils/trpc";
 
 const SCOPES = "channel:read:subscriptions, bits:read, channel:read:redemptions";
+
+/** Full, selectable URL with a one-click copy — the values must be transcribed exactly. */
+function CopyUrl({ value, label }: { value: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    if (!value) return;
+    await navigator.clipboard.writeText(value);
+    setCopied(true);
+    toast.success(`${label} copied`);
+    setTimeout(() => setCopied(false), 1500);
+  }
+  return (
+    <div className="flex items-center gap-2">
+      <code className="min-w-0 flex-1 rounded-lg border border-border bg-background/60 px-3 py-2 font-mono text-xs break-all">
+        {value || "…"}
+      </code>
+      <Button variant="outline" size="sm" className="h-9 shrink-0 rounded-lg" onClick={copy} disabled={!value}>
+        <Copy className="size-3.5" />
+        {copied ? "Copied" : "Copy"}
+      </Button>
+    </div>
+  );
+}
 
 export function TwitchPanel() {
   const statusOptions = controlTrpc.twitch.getStatus.queryOptions();
@@ -74,8 +97,8 @@ export function TwitchPanel() {
               </div>
             </div>
             <Button variant="destructive" className="rounded-lg" onClick={() => disconnect.mutate()} disabled={disconnect.isPending}>
-              <Unplug className="size-4" />
-              Disconnect
+              {disconnect.isPending ? <Loader2 className="size-4 animate-spin" /> : <Unplug className="size-4" />}
+              {disconnect.isPending ? "Disconnecting…" : "Disconnect"}
             </Button>
           </div>
 
@@ -119,10 +142,13 @@ export function TwitchPanel() {
                 </span>
               </div>
             )}
-            <p className="mt-1 text-xs text-muted-foreground">
-              Create an app at dev.twitch.tv. Set its OAuth Redirect URL to{" "}
-              <code className="font-mono">{redirectUrl}</code>. Scopes requested: {SCOPES}.
+            <p className="mt-2 text-xs text-muted-foreground">
+              Create an app at dev.twitch.tv (Confidential). Set its OAuth Redirect URL to this exact value:
             </p>
+            <div className="mt-1.5">
+              <CopyUrl value={redirectUrl} label="Redirect URL" />
+            </div>
+            <p className="mt-1.5 text-xs text-muted-foreground">Scopes requested: {SCOPES}.</p>
           </div>
 
           {/* 2. connect */}
@@ -140,12 +166,10 @@ export function TwitchPanel() {
                 })
               }
             >
-              <Plug className="size-4" />
-              Connect Twitch
+              {startAuth.isPending ? <Loader2 className="size-4 animate-spin" /> : <Plug className="size-4" />}
+              {startAuth.isPending ? "Connecting…" : "Connect Twitch"}
             </Button>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Sends you to Twitch to approve, then back here.
-            </p>
+            <p className="mt-1 text-xs text-muted-foreground">Sends you to Twitch to approve, then back here.</p>
           </div>
         </div>
       )}
@@ -153,8 +177,10 @@ export function TwitchPanel() {
       <div className="mt-4 border-t border-border pt-3">
         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <ExternalLink className="size-3.5" />
-          EventSub callback:
-          <code className="truncate font-mono">{callback}</code>
+          EventSub callback
+        </div>
+        <div className="mt-1.5">
+          <CopyUrl value={callback} label="EventSub callback" />
         </div>
       </div>
     </div>

@@ -46,10 +46,13 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 
   const unlocked = data.goals.filter((g) => g.unlocked);
   const current = data.goals[data.currentIndex]; // first locked goal = next reward
+  const hasGoals = data.goals.length > 0;
 
   return (
     <div className="pointer-events-none absolute inset-0 select-none">
-      {/* Floating reward card, anchored bottom-left. */}
+      {/* Floating reward card. Hidden until goals exist so an unconfigured
+          tracker never broadcasts a false "All Rewards Unlocked". */}
+      {hasGoals && (
       <div className="absolute bottom-[4cqw] left-[4cqw] max-w-[48cqw]">
         <div className="relative overflow-hidden rounded-[1.8cqw] border border-[#00aced]/40 bg-gradient-to-br from-[#0b1a3d]/90 to-[#06102a]/90 shadow-[0_0.6cqw_5cqw_rgba(0,0,0,0.45),0_0_3cqw_rgba(0,172,237,0.22)] backdrop-blur-md">
           {/* Glowing accent rail down the left edge. */}
@@ -114,11 +117,12 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
           </div>
         </div>
       </div>
+      )}
 
-      {/* Unlock celebration. */}
+      {/* Unlock celebration — opaque backing keeps the peak moment legible. */}
       {celebrate && (
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="animate-wolf-pop text-center">
+          <div className="animate-wolf-pop rounded-[2.4cqw] border border-[#00aced]/30 bg-[#091533]/85 px-[5cqw] py-[3.4cqw] text-center shadow-[0_0_6cqw_rgba(0,172,237,0.3)] backdrop-blur-md">
             <div className="font-heading text-[2cqw] font-semibold tracking-[0.3em] text-[#5bc8f0] uppercase">
               Unlocked
             </div>
