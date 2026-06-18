@@ -3,12 +3,12 @@
  * produce a new config JSON, then paste it back into the import box.
  */
 export function buildClaudePrompt(opts: {
-  kind: string;
-  schemaBullets: string[];
-  exampleJson: string;
-  currentJson: string;
+	kind: string;
+	schemaBullets: string[];
+	exampleJson: string;
+	currentJson: string;
 }): string {
-  return `You are editing my Wolfathon ${opts.kind}. Output ONLY valid JSON that matches the schema below — no prose, no markdown, no code fences.
+	return `You are editing my Wolfathon ${opts.kind}. Output ONLY valid JSON that matches the schema below — no prose, no markdown, no code fences.
 
 Schema:
 ${opts.schemaBullets.map((b) => `- ${b}`).join("\n")}

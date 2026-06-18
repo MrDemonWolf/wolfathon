@@ -3,16 +3,16 @@ import type { Db } from "@wolfathon/db";
 import { type AccessConfig, type AccessUser, verifyAccess } from "./access";
 
 export type CreateContextInput = {
-  /** Drizzle client bound to the request's D1 database. */
-  db: Db;
-  /** Incoming request headers (used to read Cloudflare Access assertions). */
-  headers: Headers;
-  /** Access configuration for verifying the operator. */
-  access: AccessConfig;
-  /** Public EventSub webhook callback URL (server Worker), for Twitch setup. */
-  callbackUrl?: string;
-  /** Twitch app credentials (env) + OAuth redirect URI, for the redirect flow. */
-  twitch?: { clientId?: string; clientSecret?: string; redirectUri?: string };
+	/** Drizzle client bound to the request's D1 database. */
+	db: Db;
+	/** Incoming request headers (used to read Cloudflare Access assertions). */
+	headers: Headers;
+	/** Access configuration for verifying the operator. */
+	access: AccessConfig;
+	/** Public EventSub webhook callback URL (server Worker), for Twitch setup. */
+	callbackUrl?: string;
+	/** Twitch app credentials (env) + OAuth redirect URI, for the redirect flow. */
+	twitch?: { clientId?: string; clientSecret?: string; redirectUri?: string };
 };
 
 /**
@@ -20,13 +20,13 @@ export type CreateContextInput = {
  * Access has authenticated the request; `protectedProcedure` enforces it.
  */
 export async function createContext(input: CreateContextInput): Promise<{
-  db: Db;
-  user: AccessUser | null;
-  callbackUrl?: string;
-  twitch?: { clientId?: string; clientSecret?: string; redirectUri?: string };
+	db: Db;
+	user: AccessUser | null;
+	callbackUrl?: string;
+	twitch?: { clientId?: string; clientSecret?: string; redirectUri?: string };
 }> {
-  const user = await verifyAccess(input.headers, input.access);
-  return { db: input.db, user, callbackUrl: input.callbackUrl, twitch: input.twitch };
+	const user = await verifyAccess(input.headers, input.access);
+	return { db: input.db, user, callbackUrl: input.callbackUrl, twitch: input.twitch };
 }
 
 export type Context = Awaited<ReturnType<typeof createContext>>;

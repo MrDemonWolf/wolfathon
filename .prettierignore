@@ -1,0 +1,13 @@
+node_modules/
+dist/
+build/
+.next/
+.turbo/
+.open-next/
+.wrangler/
+.alchemy/
+coverage/
+out/
+apps/web/src/routeTree.gen.ts
+bun.lock
+*.lock

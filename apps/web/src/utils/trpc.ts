@@ -6,25 +6,25 @@ import { createTRPCOptionsProxy } from "@trpc/tanstack-react-query";
 import { toast } from "sonner";
 
 export const queryClient = new QueryClient({
-  defaultOptions: {
-    // Avoid hammering protected endpoints when Access isn't configured yet.
-    queries: { retry: 1, refetchOnWindowFocus: false },
-  },
-  queryCache: new QueryCache({
-    onError: (error, query) => {
-      // "Cloudflare Access required" is expected until Access is set up — don't
-      // toast it (it would spam the public pages too).
-      if (error.message.includes("Cloudflare Access")) return;
-      toast.error(error.message, {
-        action: {
-          label: "retry",
-          onClick: () => {
-            query.invalidate();
-          },
-        },
-      });
-    },
-  }),
+	defaultOptions: {
+		// Avoid hammering protected endpoints when Access isn't configured yet.
+		queries: { retry: 1, refetchOnWindowFocus: false },
+	},
+	queryCache: new QueryCache({
+		onError: (error, query) => {
+			// "Cloudflare Access required" is expected until Access is set up — don't
+			// toast it (it would spam the public pages too).
+			if (error.message.includes("Cloudflare Access")) return;
+			toast.error(error.message, {
+				action: {
+					label: "retry",
+					onClick: () => {
+						query.invalidate();
+					},
+				},
+			});
+		},
+	}),
 });
 
 /**
@@ -32,12 +32,12 @@ export const queryClient = new QueryClient({
  * Used by `/overlay`.
  */
 const publicClient = createTRPCClient<PublicRouter>({
-  links: [httpBatchLink({ url: `${env.NEXT_PUBLIC_SERVER_URL}/trpc` })],
+	links: [httpBatchLink({ url: `${env.NEXT_PUBLIC_SERVER_URL}/trpc` })],
 });
 
 export const publicTrpc = createTRPCOptionsProxy<PublicRouter>({
-  client: publicClient,
-  queryClient,
+	client: publicClient,
+	queryClient,
 });
 
 /**
@@ -46,15 +46,15 @@ export const publicTrpc = createTRPCOptionsProxy<PublicRouter>({
  * Used by `/control`.
  */
 const controlClient = createTRPCClient<ProtectedRouter>({
-  links: [
-    httpBatchLink({
-      url: "/api/trpc",
-      fetch: (url, options) => fetch(url, { ...options, credentials: "include" }),
-    }),
-  ],
+	links: [
+		httpBatchLink({
+			url: "/api/trpc",
+			fetch: (url, options) => fetch(url, { ...options, credentials: "include" }),
+		}),
+	],
 });
 
 export const controlTrpc = createTRPCOptionsProxy<ProtectedRouter>({
-  client: controlClient,
-  queryClient,
+	client: controlClient,
+	queryClient,
 });

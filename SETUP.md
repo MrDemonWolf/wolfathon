@@ -28,7 +28,7 @@ secret lives. This puts a login in front of it.
    - hostname `wolfathon.mrdemonwolf.workers.dev`, path `/control`
    - hostname `wolfathon.mrdemonwolf.workers.dev`, path `/control/*`
    - hostname `wolfathon.mrdemonwolf.workers.dev`, path `/api/trpc/*`
-   ☐
+     ☐
 7. **Next** / **Add a policy**:
    - **Policy name:** `Just me`
    - **Action:** Allow
@@ -110,11 +110,11 @@ up by your configured minutes.
 
 ## Quick reference
 
-| Thing | Where |
-| --- | --- |
-| Cloudflare Zero Trust | https://one.dash.cloudflare.com |
-| Twitch apps | https://dev.twitch.tv/console/apps |
-| OAuth Redirect URL | https://wolfathon.mrdemonwolf.workers.dev/api/twitch/callback |
-| Your panel | https://wolfathon.mrdemonwolf.workers.dev/control |
-| Timer overlay (OBS) | https://wolfathon.mrdemonwolf.workers.dev/overlay/timer |
-| Rewards overlay (OBS) | https://wolfathon.mrdemonwolf.workers.dev/overlay/rewards |
+| Thing                 | Where                                                         |
+| --------------------- | ------------------------------------------------------------- |
+| Cloudflare Zero Trust | https://one.dash.cloudflare.com                               |
+| Twitch apps           | https://dev.twitch.tv/console/apps                            |
+| OAuth Redirect URL    | https://wolfathon.mrdemonwolf.workers.dev/api/twitch/callback |
+| Your panel            | https://wolfathon.mrdemonwolf.workers.dev/control             |
+| Timer overlay (OBS)   | https://wolfathon.mrdemonwolf.workers.dev/overlay/timer       |
+| Rewards overlay (OBS) | https://wolfathon.mrdemonwolf.workers.dev/overlay/rewards     |

@@ -1,20 +1,20 @@
 {
-  "name": "@wolfathon/infra",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "alchemy dev",
-    "deploy": "tsx alchemy.run.ts",
-    "destroy": "tsx alchemy.run.ts --destroy"
-  },
-  "dependencies": {
-    "dotenv": "catalog:",
-    "zod": "catalog:"
-  },
-  "devDependencies": {
-    "@wolfathon/config": "workspace:*",
-    "alchemy": "catalog:",
-    "tsx": "^4.22.4",
-    "typescript": "catalog:"
-  }
+	"name": "@wolfathon/infra",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "alchemy dev",
+		"deploy": "tsx alchemy.run.ts",
+		"destroy": "tsx alchemy.run.ts --destroy"
+	},
+	"dependencies": {
+		"dotenv": "catalog:",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@wolfathon/config": "workspace:*",
+		"alchemy": "catalog:",
+		"tsx": "^4.22.4",
+		"typescript": "catalog:"
+	}
 }

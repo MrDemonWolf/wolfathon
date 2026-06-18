@@ -14,8 +14,8 @@ export const publicProcedure = t.procedure;
  * non-null inside the resolver.
  */
 export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
-  if (!ctx.user) {
-    throw new TRPCError({ code: "UNAUTHORIZED", message: "Cloudflare Access required." });
-  }
-  return next({ ctx: { ...ctx, user: ctx.user } });
+	if (!ctx.user) {
+		throw new TRPCError({ code: "UNAUTHORIZED", message: "Cloudflare Access required." });
+	}
+	return next({ ctx: { ...ctx, user: ctx.user } });
 });

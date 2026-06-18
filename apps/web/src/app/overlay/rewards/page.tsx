@@ -10,15 +10,15 @@ import { publicTrpc } from "@/utils/trpc";
  * note-stripped state every 2s.
  */
 export default function RewardsOverlayPage() {
-  const { data } = useQuery({
-    ...publicTrpc.state.getPublic.queryOptions(),
-    refetchInterval: 2000,
-    refetchIntervalInBackground: true,
-  });
+	const { data } = useQuery({
+		...publicTrpc.state.getPublic.queryOptions(),
+		refetchInterval: 2000,
+		refetchIntervalInBackground: true,
+	});
 
-  return (
-    <div className="@container fixed inset-0 overflow-hidden bg-transparent">
-      <OverlayView data={data} />
-    </div>
-  );
+	return (
+		<div className="@container fixed inset-0 overflow-hidden bg-transparent">
+			<OverlayView data={data} />
+		</div>
+	);
 }

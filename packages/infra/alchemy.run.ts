@@ -12,7 +12,7 @@ config({ path: "../../apps/server/.env" });
 // Alchemy program. The deploy/destroy scripts in package.json use tsx; `--destroy`
 // selects the teardown phase, otherwise Alchemy auto-detects (deploy / dev).
 const app = await alchemy("wolfathon", {
-  phase: process.argv.includes("--destroy") ? "destroy" : undefined,
+	phase: process.argv.includes("--destroy") ? "destroy" : undefined,
 });
 
 // Access bypass is allowed ONLY for local `alchemy dev` (app.local === true).
@@ -29,53 +29,53 @@ const WEB_URL = process.env.WEB_URL ?? "https://wolfathon.mrdemonwolf.workers.de
 const CORS_ORIGIN = process.env.CORS_ORIGIN ?? WEB_URL;
 
 const db = await D1Database("database", {
-  migrationsDir: "../../packages/db/src/migrations",
-  // Adopt existing resources by name so CI/CD can deploy without sharing the
-  // local Alchemy state file (each run reconciles the live resource).
-  adopt: true,
+	migrationsDir: "../../packages/db/src/migrations",
+	// Adopt existing resources by name so CI/CD can deploy without sharing the
+	// local Alchemy state file (each run reconciles the live resource).
+	adopt: true,
 });
 
 export const server = await Worker("wolfathon-api", {
-  // Explicit script name → wolfathon-api.<subdomain>.workers.dev
-  // (without this, Alchemy prefixes app + stage onto the name).
-  name: "wolfathon-api",
-  adopt: true,
-  cwd: "../../apps/server",
-  entrypoint: "src/index.ts",
-  compatibility: "node",
-  url: true,
-  bindings: {
-    DB: db,
-    CORS_ORIGIN,
-  },
-  dev: {
-    port: 3000,
-  },
+	// Explicit script name → wolfathon-api.<subdomain>.workers.dev
+	// (without this, Alchemy prefixes app + stage onto the name).
+	name: "wolfathon-api",
+	adopt: true,
+	cwd: "../../apps/server",
+	entrypoint: "src/index.ts",
+	compatibility: "node",
+	url: true,
+	bindings: {
+		DB: db,
+		CORS_ORIGIN,
+	},
+	dev: {
+		port: 3000,
+	},
 });
 
 export const web = await Nextjs("wolfathon", {
-  // Explicit script name → wolfathon.<subdomain>.workers.dev
-  name: "wolfathon",
-  adopt: true,
-  cwd: "../../apps/web",
-  bindings: {
-    NEXT_PUBLIC_SERVER_URL: server.url!,
-    DB: db,
-    CORS_ORIGIN,
-    // Cloudflare Access — gates `/control` + `/api/trpc`. See README.
-    // Empty values fail closed (everything denied) unless ACCESS_DISABLED=true.
-    CF_ACCESS_TEAM_DOMAIN: process.env.CF_ACCESS_TEAM_DOMAIN ?? "",
-    CF_ACCESS_AUD: process.env.CF_ACCESS_AUD ?? "",
-    ACCESS_DISABLED,
-    // Twitch app credentials for the OAuth redirect flow (server-side only).
-    TWITCH_CLIENT_ID: process.env.TWITCH_CLIENT_ID ?? "",
-    TWITCH_CLIENT_SECRET: process.env.TWITCH_CLIENT_SECRET ?? "",
-  },
-  dev: {
-    env: {
-      PORT: "3001",
-    },
-  },
+	// Explicit script name → wolfathon.<subdomain>.workers.dev
+	name: "wolfathon",
+	adopt: true,
+	cwd: "../../apps/web",
+	bindings: {
+		NEXT_PUBLIC_SERVER_URL: server.url!,
+		DB: db,
+		CORS_ORIGIN,
+		// Cloudflare Access — gates `/control` + `/api/trpc`. See README.
+		// Empty values fail closed (everything denied) unless ACCESS_DISABLED=true.
+		CF_ACCESS_TEAM_DOMAIN: process.env.CF_ACCESS_TEAM_DOMAIN ?? "",
+		CF_ACCESS_AUD: process.env.CF_ACCESS_AUD ?? "",
+		ACCESS_DISABLED,
+		// Twitch app credentials for the OAuth redirect flow (server-side only).
+		TWITCH_CLIENT_ID: process.env.TWITCH_CLIENT_ID ?? "",
+		TWITCH_CLIENT_SECRET: process.env.TWITCH_CLIENT_SECRET ?? "",
+	},
+	dev: {
+		env: {
+			PORT: "3001",
+		},
+	},
 });
 
 console.log(`Web    -> ${web.url}`);
