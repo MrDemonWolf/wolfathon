@@ -51,9 +51,9 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
 							MrDemonWolf, Inc.
 						</a>
 					</p>
-					<span className="hidden text-[#00aced]/30 sm:inline">·</span>
+					<span className="hidden text-muted-foreground/50 sm:inline">·</span>
 					<span
-						className="hidden font-mono text-xs text-[#00aced]/40 sm:inline"
+						className="hidden font-mono text-xs text-muted-foreground sm:inline"
 						title={`Deployed commit: ${process.env.NEXT_PUBLIC_COMMIT_SHA}`}
 					>
 						{process.env.NEXT_PUBLIC_COMMIT_SHA}
