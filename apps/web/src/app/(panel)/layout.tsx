@@ -39,17 +39,26 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
 			<main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">{children}</main>
 
 			<footer className="border-t border-[#00aced]/10 px-4 py-6">
-				<p className="mx-auto max-w-6xl text-center text-sm text-muted-foreground">
-					© {new Date().getFullYear()} Wolfathon by{" "}
-					<a
-						href="https://mrdemonwolf.com"
-						target="_blank"
-						rel="noopener noreferrer"
-						className="text-foreground transition-colors hover:text-primary"
+				<div className="mx-auto flex max-w-6xl items-center justify-center gap-4 text-center text-sm text-muted-foreground">
+					<p>
+						© {new Date().getFullYear()} Wolfathon by{" "}
+						<a
+							href="https://mrdemonwolf.com"
+							target="_blank"
+							rel="noopener noreferrer"
+							className="text-foreground transition-colors hover:text-primary"
+						>
+							MrDemonWolf, Inc.
+						</a>
+					</p>
+					<span className="hidden text-[#00aced]/30 sm:inline">·</span>
+					<span
+						className="hidden font-mono text-xs text-[#00aced]/40 sm:inline"
+						title={`Deployed commit: ${process.env.NEXT_PUBLIC_COMMIT_SHA}`}
 					>
-						MrDemonWolf, Inc.
-					</a>
-				</p>
+						{process.env.NEXT_PUBLIC_COMMIT_SHA}
+					</span>
+				</div>
 			</footer>
 		</div>
 	);
