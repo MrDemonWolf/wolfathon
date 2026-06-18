@@ -4,8 +4,6 @@ import type { PublicData } from "@wolfathon/api/state";
 import { Check } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { WolfMark } from "@/components/wolf-mark";
-
 /**
  * The visual overlay. Pure presentation of a note-stripped {@link PublicData}.
  *
@@ -64,7 +62,6 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 
 						<div className="relative p-[2.2cqw] pl-[2.6cqw]">
 							<div className="flex items-center gap-[1cqw]">
-								<WolfMark className="size-[3.4cqw]" />
 								<span className="flex items-center gap-[0.7cqw] font-heading text-[1.5cqw] font-semibold tracking-[0.28em] text-[#5bc8f0] uppercase">
 									{current && (
 										<span className="relative flex size-[1cqw]">
