@@ -108,7 +108,8 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
                   LIVE
                 </span>
               ) : (
-                <span className="text-[1.05cqw] font-semibold tracking-widest text-white/40">
+                <span className="flex items-center gap-[0.5cqw] text-[1.05cqw] font-semibold tracking-widest text-[#f5b94d]">
+                  <span className="size-[0.85cqw] rounded-full bg-[#f5b94d]" />
                   {remaining > 0 ? "PAUSED" : "ENDED"}
                 </span>
               )}
@@ -129,11 +130,11 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
       {/* Added-time celebration: rising "+Xm" + an emoji burst from the timer. */}
       {flash && (
         <>
-          <div
-            key={`label-${flash.id}`}
-            className="animate-wolf-rise absolute top-[26%] left-1/2 -translate-x-1/2 font-heading text-[3.2cqw] font-extrabold text-[#5bc8f0] [text-shadow:0_0_2cqw_rgba(0,172,237,0.6)]"
-          >
-            +{flash.minutes}m
+          <div key={`label-${flash.id}`} className="animate-wolf-rise absolute top-[26%] left-1/2 -translate-x-1/2">
+            {/* Opaque pill so the "+Xm" beat stays legible over any stream scene. */}
+            <div className="rounded-full border border-[#00aced]/40 bg-[#091533]/85 px-[1.8cqw] py-[0.5cqw] font-heading text-[3.2cqw] font-extrabold text-[#5bc8f0] shadow-[0_0_3cqw_rgba(0,172,237,0.45)] backdrop-blur-md">
+              +{flash.minutes}m
+            </div>
           </div>
           <div className="absolute top-[12%] left-1/2 -translate-x-1/2">
             {burstParticles(emojis, flash.id).map((p) => (
@@ -179,7 +180,7 @@ function Segment({ value, unit }: { value: string; unit: string }) {
   return (
     <span className="relative inline-flex items-baseline">
       <span className="text-[7cqw] leading-none [text-shadow:0_0_2.4cqw_rgba(0,172,237,0.45)]">{value}</span>
-      <span className="ml-[0.25cqw] font-heading text-[1.4cqw] font-bold text-[#5bc8f0]/70">{unit}</span>
+      <span className="ml-[0.25cqw] font-heading text-[1.4cqw] font-bold text-[#5bc8f0]">{unit}</span>
     </span>
   );
 }
