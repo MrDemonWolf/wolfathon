@@ -39,13 +39,16 @@ export default function ControlPage() {
 
 	return (
 		<div className="flex flex-col gap-6">
-			<h1 className="sr-only">Wolfathon control panel</h1>
+			<div className="flex flex-col gap-1">
+				<span className="eyebrow text-[0.7rem]">Operator</span>
+				<h1 className="font-heading text-2xl font-extrabold tracking-tight">Control panel</h1>
+			</div>
 
 			<div
 				role="tablist"
 				aria-label="Control sections"
 				onKeyDown={onTabKeyDown}
-				className="inline-flex w-fit rounded-xl border border-border bg-card p-1"
+				className="inline-flex w-fit rounded-xl panel-card p-1"
 			>
 				{TABS.map((t) => (
 					<button
@@ -60,9 +63,9 @@ export default function ControlPage() {
 							tabRefs.current[t.id] = el;
 						}}
 						onClick={() => setTab(t.id)}
-						className={`rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${
+						className={`rounded-lg px-4 py-1.5 text-sm font-medium transition-all ${
 							tab === t.id
-								? "bg-primary text-primary-foreground"
+								? "bg-primary text-primary-foreground shadow-[0_0_18px_rgba(0,172,237,0.35)]"
 								: "text-muted-foreground hover:text-foreground"
 						}`}
 					>
