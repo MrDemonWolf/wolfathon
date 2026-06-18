@@ -72,13 +72,16 @@ Keep the rewards flowing. Keep the clock ticking.
 ### OBS browser sources
 
 Open `/overlay` (the chooser) and copy each source URL straight into OBS. Add
-each as a **Browser** source at width `1920`, height `1080`, with a transparent
-background — the overlays paint only floating panels, nothing full-screen.
+each as a **Browser** source with a transparent background, sized as noted
+below — the overlays paint only the panel, nothing else full-screen.
 
-| Source  | URL                | Shows                                         |
-| ------- | ------------------ | --------------------------------------------- |
-| Timer   | `/overlay/timer`   | Big HH:MM:SS countdown with a "+Xm" add flash |
-| Rewards | `/overlay/rewards` | Current reward name + unlock celebration      |
+| Source  | URL                | Size (W×H)  | Shows                                                        |
+| ------- | ------------------ | ----------- | ------------------------------------------------------------ |
+| Timer   | `/overlay/timer`   | `720×150`   | Compact countdown bar (D/H/M/S); emotes flood it on each add |
+| Rewards | `/overlay/rewards` | `1920×1080` | Current reward name + unlock celebration                     |
+
+The timer is a self-contained widget that fills its source, so resize the
+browser source itself to move or scale the bar — no full-screen canvas needed.
 
 Both poll every 2 seconds, so control-panel edits and Twitch events appear on
 stream within about 2 seconds (the timer keeps counting smoothly between polls).

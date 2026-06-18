@@ -20,8 +20,8 @@ export default function OverlayChooser() {
 					<span className="eyebrow text-xs">OBS browser sources</span>
 					<h1 className="font-heading text-4xl font-extrabold tracking-tight">Overlays</h1>
 					<p className="text-muted-foreground">
-						Add each as an OBS <span className="text-foreground">Browser</span> source at 1920×1080
-						with a transparent background.
+						Add each as an OBS <span className="text-foreground">Browser</span> source with a
+						transparent background, sized as noted on each card.
 					</p>
 				</header>
 
@@ -30,12 +30,14 @@ export default function OverlayChooser() {
 						icon={<Gauge className="size-5 text-primary" />}
 						title="Subathon timer"
 						path="/overlay/timer"
-						blurb="Big countdown that auto-adds time from subs, gifts, bits, and channel points."
+						size="720×150"
+						blurb="Compact countdown bar that fills its source — auto-adds time from subs, gifts, bits, and channel points; emotes flood the bar on each add."
 					/>
 					<SourceCard
 						icon={<Trophy className="size-5 text-primary" />}
 						title="Rewards"
 						path="/overlay/rewards"
+						size="1920×1080"
 						blurb="Current reward name with unlock celebration. Names only — no numbers."
 					/>
 				</div>
@@ -48,11 +50,13 @@ function SourceCard({
 	icon,
 	title,
 	path,
+	size,
 	blurb,
 }: {
 	icon: React.ReactNode;
 	title: string;
 	path: string;
+	size: string;
 	blurb: string;
 }) {
 	const [copied, setCopied] = useState(false);
@@ -70,6 +74,9 @@ function SourceCard({
 			<div className="flex items-center gap-2">
 				{icon}
 				<h2 className="font-heading text-lg font-bold">{title}</h2>
+				<span className="ml-auto rounded-full border border-border bg-background/60 px-2 py-0.5 font-mono text-xs text-muted-foreground">
+					{size}
+				</span>
 			</div>
 			<p className="mt-1 text-sm text-muted-foreground">{blurb}</p>
 			<div className="mt-3 flex items-center gap-2">
