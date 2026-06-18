@@ -190,6 +190,74 @@
   animation: wolf-glow 2.4s ease-in-out infinite;
 }
 
+/* Ambient emoji drifting up the overlay behind the timer. Vertical distance,
+   sway, spin and timing are driven by per-element CSS vars set in JS. */
+@keyframes wolf-drift {
+  0% {
+    transform: translateY(0) translateX(0) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: var(--drift-opacity, 0.5);
+  }
+  50% {
+    transform: translateY(-55cqh) translateX(var(--drift-sway, 4cqw)) rotate(var(--drift-spin, 20deg));
+  }
+  90% {
+    opacity: var(--drift-opacity, 0.5);
+  }
+  100% {
+    transform: translateY(-110cqh) translateX(0) rotate(0deg);
+    opacity: 0;
+  }
+}
+
+/* Emoji blasting outward from the timer when time is added. */
+@keyframes wolf-burst {
+  0% {
+    transform: translate(0, 0) scale(0.3) rotate(0deg);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--burst-x, 0), var(--burst-y, -30cqh)) scale(1.15)
+      rotate(var(--burst-spin, 90deg));
+    opacity: 0;
+  }
+}
+
+.animate-wolf-drift {
+  animation: wolf-drift var(--drift-duration, 9s) linear infinite;
+  animation-delay: var(--drift-delay, 0s);
+}
+
+.animate-wolf-burst {
+  animation: wolf-burst 1.6s cubic-bezier(0.15, 0.6, 0.25, 1) both;
+}
+
+@keyframes spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 14s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-wolf-drift,
+  .animate-wolf-burst {
+    animation: none;
+    opacity: 0;
+  }
+  .animate-spin-slow {
+    animation: none;
+  }
+}
+
 /* Slow sheen sweeping across the reward card — subtle "live" motion. */
 @keyframes wolf-sheen {
   0% {

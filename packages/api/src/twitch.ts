@@ -223,6 +223,40 @@ export async function finalizeConnection(args: {
   };
 }
 
+// ---- Channel emotes -------------------------------------------------------
+
+export type ChannelEmote = { id: string; name: string; url: string };
+
+/**
+ * Fetch the broadcaster's channel emotes for the overlay emoji picker. Works
+ * with an app access token (the endpoint isn't user-scoped). Builds a 3x dark
+ * URL from the response template, preferring the animated format when present.
+ */
+export async function getChannelEmotes(
+  clientId: string,
+  appToken: string,
+  broadcasterId: string,
+): Promise<ChannelEmote[]> {
+  const res = await fetch(
+    `${HELIX}/chat/emotes?broadcaster_id=${encodeURIComponent(broadcasterId)}`,
+    { headers: { "client-id": clientId, authorization: `Bearer ${appToken}` } },
+  );
+  if (!res.ok) throw new Error(`emotes lookup failed: ${res.status} ${await res.text()}`);
+  const json = (await res.json()) as {
+    data: { id: string; name: string; format?: string[] }[];
+    template: string;
+  };
+  return json.data.map((e) => {
+    const format = e.format?.includes("animated") ? "animated" : "static";
+    const url = json.template
+      .replace("{{id}}", e.id)
+      .replace("{{format}}", format)
+      .replace("{{theme_mode}}", "dark")
+      .replace("{{scale}}", "3.0");
+    return { id: e.id, name: e.name, url };
+  });
+}
+
 // ---- EventSub management --------------------------------------------------
 
 export async function listSubscriptions(clientId: string, appToken: string): Promise<string[]> {
