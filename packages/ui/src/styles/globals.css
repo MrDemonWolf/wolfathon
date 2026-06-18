@@ -257,3 +257,17 @@
     animation: none;
   }
 }
+
+/* Slow sheen sweeping across the reward card — subtle "live" motion. */
+@keyframes wolf-sheen {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(220%);
+  }
+}
+
+.wolf-sheen {
+  animation: wolf-sheen 6s ease-in-out infinite;
+}

@@ -1,12 +1,13 @@
 import { TRPCError } from "@trpc/server";
 
 import { protectedProcedure, router } from "../index";
-import { readTwitch, writeTwitch } from "../store";
+import { readTimer, readTwitch, writeTwitch } from "../store";
 import {
   buildAuthorizeUrl,
   deleteSubscriptions,
   getAppToken,
   getChannelEmotes,
+  sendTestNotification,
   toStatus,
 } from "../twitch";
 
@@ -53,6 +54,30 @@ export const twitchRouter = router({
     }
     const appToken = await getAppToken(clientId, clientSecret);
     return getChannelEmotes(clientId, appToken, doc.broadcasterId);
+  }),
+
+  /**
+   * Fire a real, signed EventSub notification at our own public webhook to prove
+   * the live chain works (signature + reachability + parse + timer). `addedMs`
+   * confirms the timer actually moved.
+   */
+  sendTestEvent: protectedProcedure.mutation(async ({ ctx }) => {
+    const doc = await readTwitch(ctx.db);
+    if (!doc.connected || !doc.webhookSecret || !doc.broadcasterId) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "Connect Twitch first." });
+    }
+    if (!ctx.callbackUrl) {
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Webhook URL not configured." });
+    }
+    const before = (await readTimer(ctx.db)).state.totalAddedMs;
+    const status = await sendTestNotification({
+      callbackUrl: ctx.callbackUrl,
+      secret: doc.webhookSecret,
+      broadcasterId: doc.broadcasterId,
+      broadcasterLogin: doc.broadcasterLogin,
+    });
+    const after = (await readTimer(ctx.db)).state.totalAddedMs;
+    return { status, ok: status >= 200 && status < 300, addedMs: Math.max(0, after - before) };
   }),
 
   disconnect: protectedProcedure.mutation(async ({ ctx }) => {

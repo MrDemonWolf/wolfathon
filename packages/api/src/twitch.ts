@@ -361,6 +361,62 @@ export async function verifyEventsubSignature(
   return timingSafeEqual(expected, sig);
 }
 
+/**
+ * Send a correctly-signed `channel.subscribe` notification to our own public
+ * webhook, byte-for-byte as Twitch would. Proves the whole live chain end to
+ * end: HMAC verification, the public Worker being reachable, event parsing, and
+ * the timer add. Returns the webhook's HTTP status (204 = accepted). Like a real
+ * sub, it adds T1 sub-time — so run it before going live, then reset the timer.
+ */
+export async function sendTestNotification(args: {
+  callbackUrl: string;
+  secret: string;
+  broadcasterId: string;
+  broadcasterLogin?: string;
+}): Promise<number> {
+  const messageId = crypto.randomUUID();
+  const timestamp = new Date().toISOString();
+  const login = args.broadcasterLogin ?? "broadcaster";
+  // Sign and send the IDENTICAL bytes — build the JSON once, never re-stringify.
+  const body = JSON.stringify({
+    subscription: {
+      id: crypto.randomUUID(),
+      type: "channel.subscribe",
+      version: "1",
+      status: "enabled",
+      cost: 0,
+      condition: { broadcaster_user_id: args.broadcasterId },
+      transport: { method: "webhook", callback: args.callbackUrl },
+      created_at: timestamp,
+    },
+    event: {
+      user_id: "00000000",
+      user_login: "wolfathon_test",
+      user_name: "wolfathon_test",
+      broadcaster_user_id: args.broadcasterId,
+      broadcaster_user_login: login,
+      broadcaster_user_name: login,
+      tier: "1000",
+      is_gift: false,
+    },
+  });
+  const signature = `sha256=${await hmacHex(args.secret, messageId + timestamp + body)}`;
+  const res = await fetch(args.callbackUrl, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "twitch-eventsub-message-id": messageId,
+      "twitch-eventsub-message-timestamp": timestamp,
+      "twitch-eventsub-message-signature": signature,
+      "twitch-eventsub-message-type": "notification",
+      "twitch-eventsub-subscription-type": "channel.subscribe",
+      "twitch-eventsub-subscription-version": "1",
+    },
+    body,
+  });
+  return res.status;
+}
+
 function planToTier(tier: unknown): "t1" | "t2" | "t3" {
   if (tier === "2000") return "t2";
   if (tier === "3000") return "t3";
