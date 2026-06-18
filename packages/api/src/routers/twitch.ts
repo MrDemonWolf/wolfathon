@@ -2,7 +2,13 @@ import { TRPCError } from "@trpc/server";
 
 import { protectedProcedure, router } from "../index";
 import { readTwitch, writeTwitch } from "../store";
-import { buildAuthorizeUrl, deleteSubscriptions, getAppToken, toStatus } from "../twitch";
+import {
+  buildAuthorizeUrl,
+  deleteSubscriptions,
+  getAppToken,
+  getChannelEmotes,
+  toStatus,
+} from "../twitch";
 
 /** App credentials come from the web Worker env, surfaced via ctx.twitch. */
 function requireCreds(ctx: { twitch?: { clientId?: string; clientSecret?: string } }) {
@@ -36,6 +42,17 @@ export const twitchRouter = router({
     const state = crypto.randomUUID().replace(/-/g, "");
     await writeTwitch(ctx.db, { ...doc, oauthState: state });
     return { url: buildAuthorizeUrl({ clientId, redirectUri: ctx.twitch.redirectUri, state }) };
+  }),
+
+  /** Channel emotes for the overlay emoji picker. Needs a connected broadcaster. */
+  listEmotes: protectedProcedure.query(async ({ ctx }) => {
+    const { clientId, clientSecret } = requireCreds(ctx);
+    const doc = await readTwitch(ctx.db);
+    if (!doc.broadcasterId) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "Connect Twitch first." });
+    }
+    const appToken = await getAppToken(clientId, clientSecret);
+    return getChannelEmotes(clientId, appToken, doc.broadcasterId);
   }),
 
   disconnect: protectedProcedure.mutation(async ({ ctx }) => {

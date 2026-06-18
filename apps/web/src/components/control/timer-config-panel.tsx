@@ -1,10 +1,10 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { DEFAULT_TIMER_EMOJIS, MAX_EMOJIS, type TimerConfig, type TimerDoc } from "@wolfathon/api/timer";
 import { Button } from "@wolfathon/ui/components/button";
 import { Input } from "@wolfathon/ui/components/input";
-import { Plus, RotateCcw, Save, X } from "lucide-react";
+import { Plus, RotateCcw, Save, Twitch, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -152,8 +152,25 @@ function ConfigForm({ config, onChanged }: { config: TimerConfig; onChanged: () 
   );
 }
 
+/** Render one entry: a Twitch emote image (https URL) or a unicode emoji. */
+function entryGlyph(e: string, sizeClass = "size-6") {
+  return e.startsWith("https://") ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={e} alt="" className={`${sizeClass} object-contain`} />
+  ) : (
+    <span>{e}</span>
+  );
+}
+
 function EmojiEditor({ emojis, onChange }: { emojis: string[]; onChange: (e: string[]) => void }) {
   const [draft, setDraft] = useState("");
+  const [showEmotes, setShowEmotes] = useState(false);
+  const emotes = useQuery({
+    ...controlTrpc.twitch.listEmotes.queryOptions(),
+    enabled: showEmotes,
+    retry: false,
+    staleTime: 5 * 60_000,
+  });
 
   function add(values: string[]) {
     const merged = [...emojis];
@@ -203,7 +220,7 @@ function EmojiEditor({ emojis, onChange }: { emojis: string[]; onChange: (e: str
             className="group inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-lg leading-none transition hover:border-destructive/60 hover:bg-destructive/10"
             onClick={() => onChange(emojis.filter((_, j) => j !== i))}
           >
-            <span>{e}</span>
+            {entryGlyph(e)}
             <X className="size-3 text-muted-foreground group-hover:text-destructive" />
           </button>
         ))}
@@ -255,6 +272,48 @@ function EmojiEditor({ emojis, onChange }: { emojis: string[]; onChange: (e: str
           <Plus className="size-3.5" />
           Add
         </Button>
+      </div>
+
+      {/* Twitch channel emotes */}
+      <div className="mt-3">
+        {!showEmotes ? (
+          <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setShowEmotes(true)}>
+            <Twitch className="size-3.5" />
+            Load my Twitch emotes
+          </Button>
+        ) : emotes.isLoading ? (
+          <p className="text-xs text-muted-foreground">Loading channel emotes…</p>
+        ) : emotes.isError ? (
+          <p className="text-xs text-destructive">
+            {emotes.error instanceof Error ? emotes.error.message : "Couldn't load emotes."} Connect
+            Twitch in the panel above, then retry.
+          </p>
+        ) : emotes.data && emotes.data.length > 0 ? (
+          <div className="max-h-44 overflow-y-auto rounded-lg border border-border bg-background/50 p-2">
+            <div className="flex flex-wrap gap-1.5">
+              {emotes.data.map((em) => {
+                const active = emojis.includes(em.url);
+                return (
+                  <button
+                    key={em.id}
+                    type="button"
+                    title={em.name}
+                    disabled={!active && emojis.length >= MAX_EMOJIS}
+                    className={`inline-flex size-10 items-center justify-center rounded-lg border p-1 transition disabled:opacity-40 ${
+                      active ? "border-primary/60 bg-primary/15" : "border-border hover:border-primary/40 hover:bg-accent"
+                    }`}
+                    onClick={() => (active ? onChange(emojis.filter((x) => x !== em.url)) : add([em.url]))}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={em.url} alt={em.name} className="size-full object-contain" />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">No channel emotes found.</p>
+        )}
       </div>
     </div>
   );

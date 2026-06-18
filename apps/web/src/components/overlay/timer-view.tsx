@@ -70,7 +70,6 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
             style={
               {
                 left: `${p.left}%`,
-                fontSize: `${p.size}cqw`,
                 filter: "drop-shadow(0 0 0.6cqw rgba(0,172,237,0.45))",
                 "--drift-duration": `${p.duration}s`,
                 "--drift-delay": `${p.delay}s`,
@@ -80,7 +79,7 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
               } as React.CSSProperties
             }
           >
-            {p.e}
+            <Glyph e={p.e} size={p.size} />
           </span>
         ))}
       </div>
@@ -143,7 +142,6 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
                 className="animate-wolf-burst absolute will-change-transform"
                 style={
                   {
-                    fontSize: `${p.size}cqw`,
                     filter: "drop-shadow(0 0 0.8cqw rgba(0,172,237,0.6))",
                     "--burst-x": `${p.x}cqw`,
                     "--burst-y": `${p.y}cqh`,
@@ -151,7 +149,7 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
                   } as React.CSSProperties
                 }
               >
-                {p.e}
+                <Glyph e={p.e} size={p.size} />
               </span>
             ))}
           </div>
@@ -159,6 +157,22 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
       )}
     </div>
   );
+}
+
+/** One drifter/burst glyph: a Twitch emote image (https URL) or a unicode emoji. */
+function Glyph({ e, size }: { e: string; size: number }) {
+  if (e.startsWith("https://")) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={e}
+        alt=""
+        className="block object-contain"
+        style={{ width: `${size}cqw`, height: `${size}cqw` }}
+      />
+    );
+  }
+  return <span style={{ fontSize: `${size}cqw` }}>{e}</span>;
 }
 
 function Segment({ value, unit }: { value: string; unit: string }) {

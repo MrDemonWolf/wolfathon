@@ -74,8 +74,8 @@ export const MAX_CHANNEL_POINT_RULES = 50;
 /** Sanity ceiling so a typo can't set a 10-year timer. */
 export const MAX_MINUTES_LIMIT = 525_600; // one year
 export const MAX_EMOJIS = 24;
-/** Longest single emoji entry we accept (ZWJ sequences run long). */
-const MAX_EMOJI_LEN = 16;
+/** Longest single entry: fits a unicode emoji OR a Twitch emote CDN URL. */
+const MAX_EMOJI_LEN = 300;
 
 /** Wolf-themed drift set, used when a config has none (incl. old saved rows). */
 export const DEFAULT_TIMER_EMOJIS = ["🐺", "🌙", "⚡", "💙", "🔥", "✨", "🎮", "🏆"];
