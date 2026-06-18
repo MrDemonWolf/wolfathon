@@ -3,8 +3,6 @@
 import type { PublicTimer } from "@wolfathon/api/timer";
 import { useEffect, useRef, useState } from "react";
 
-import { WolfMark } from "@/components/wolf-mark";
-
 /**
  * Subathon timer overlay. Timestamp-driven: it counts down locally from
  * `endsAt` (correcting browser-clock skew via `serverNow`) and only resyncs on
@@ -101,7 +99,6 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 
 						{/* eyebrow */}
 						<div className="relative flex items-center justify-center gap-[1cqw]">
-							<WolfMark className="size-[2.6cqw]" />
 							<span className="font-heading text-[1.35cqw] font-bold tracking-[0.5em] text-[#5bc8f0] uppercase">
 								Subathon
 							</span>
