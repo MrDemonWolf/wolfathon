@@ -15,7 +15,7 @@ export const publicRouter = router({
   timer: router({
     getPublic: publicProcedure.query(async ({ ctx }) => {
       const doc = await readTimer(ctx.db);
-      return toPublicTimer(doc.state, Date.now());
+      return toPublicTimer(doc, Date.now());
     }),
   }),
 });

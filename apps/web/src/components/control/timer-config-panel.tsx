@@ -1,12 +1,18 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import type { TimerConfig, TimerDoc } from "@wolfathon/api/timer";
+import { DEFAULT_TIMER_EMOJIS, MAX_EMOJIS, type TimerConfig, type TimerDoc } from "@wolfathon/api/timer";
 import { Button } from "@wolfathon/ui/components/button";
 import { Input } from "@wolfathon/ui/components/input";
-import { Plus, Save, X } from "lucide-react";
+import { Plus, RotateCcw, Save, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+
+/** Quick palette for one-tap adding — covers most subathon/stream vibes. */
+const EMOJI_PRESETS = [
+  "🐺", "🌙", "⚡", "💙", "🔥", "✨", "🎮", "🏆", "🎉", "🎊",
+  "💜", "💖", "⭐", "🚀", "👑", "💎", "🩵", "🐾", "🍕", "☕",
+];
 
 import { controlTrpc } from "@/utils/trpc";
 
@@ -23,7 +29,10 @@ export function TimerConfigPanel({ doc, onChanged }: { doc: TimerDoc | undefined
 }
 
 function ConfigForm({ config, onChanged }: { config: TimerConfig; onChanged: () => void }) {
-  const [form, setForm] = useState<TimerConfig>(config);
+  const [form, setForm] = useState<TimerConfig>({
+    ...config,
+    emojis: config.emojis ?? [...DEFAULT_TIMER_EMOJIS],
+  });
   const [errors, setErrors] = useState<{ path: string; message: string }[]>([]);
   const setConfig = useMutation(controlTrpc.timer.setConfig.mutationOptions());
 
@@ -124,6 +133,12 @@ function ConfigForm({ config, onChanged }: { config: TimerConfig; onChanged: () 
         </div>
       </div>
 
+      {/* overlay emoji */}
+      <EmojiEditor
+        emojis={form.emojis}
+        onChange={(emojis) => setForm({ ...form, emojis })}
+      />
+
       {errors.length > 0 && (
         <ul className="mt-4 space-y-1 rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
           {errors.map((e, i) => (
@@ -133,6 +148,114 @@ function ConfigForm({ config, onChanged }: { config: TimerConfig; onChanged: () 
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+function EmojiEditor({ emojis, onChange }: { emojis: string[]; onChange: (e: string[]) => void }) {
+  const [draft, setDraft] = useState("");
+
+  function add(values: string[]) {
+    const merged = [...emojis];
+    for (const v of values) {
+      const t = v.trim();
+      if (t && !merged.includes(t) && merged.length < MAX_EMOJIS) merged.push(t);
+    }
+    onChange(merged);
+  }
+
+  function addDraft() {
+    // Space-separate to paste several at once; each token is one drifter.
+    add(draft.split(/\s+/));
+    setDraft("");
+  }
+
+  return (
+    <div className="mt-5">
+      <div className="flex items-center justify-between">
+        <div className="text-sm font-medium">
+          Overlay emoji <span className="text-muted-foreground">({emojis.length}/{MAX_EMOJIS})</span>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="rounded-lg"
+          onClick={() => onChange([...DEFAULT_TIMER_EMOJIS])}
+        >
+          <RotateCcw className="size-3.5" />
+          Reset
+        </Button>
+      </div>
+      <p className="mt-1 text-xs text-muted-foreground">
+        These drift up behind the timer and burst out whenever time is added.
+      </p>
+
+      {/* current selection */}
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {emojis.length === 0 && (
+          <span className="text-xs text-muted-foreground">None — overlay falls back to 🐺.</span>
+        )}
+        {emojis.map((e, i) => (
+          <button
+            key={`${e}-${i}`}
+            type="button"
+            aria-label={`Remove ${e}`}
+            className="group inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-lg leading-none transition hover:border-destructive/60 hover:bg-destructive/10"
+            onClick={() => onChange(emojis.filter((_, j) => j !== i))}
+          >
+            <span>{e}</span>
+            <X className="size-3 text-muted-foreground group-hover:text-destructive" />
+          </button>
+        ))}
+      </div>
+
+      {/* quick presets */}
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {EMOJI_PRESETS.map((e) => {
+          const active = emojis.includes(e);
+          return (
+            <button
+              key={e}
+              type="button"
+              disabled={!active && emojis.length >= MAX_EMOJIS}
+              className={`inline-flex size-9 items-center justify-center rounded-lg border text-lg leading-none transition disabled:opacity-40 ${
+                active
+                  ? "border-primary/60 bg-primary/15"
+                  : "border-border bg-background hover:border-primary/40 hover:bg-accent"
+              }`}
+              onClick={() => (active ? onChange(emojis.filter((x) => x !== e)) : add([e]))}
+            >
+              {e}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* custom add */}
+      <div className="mt-3 flex items-center gap-2">
+        <Input
+          className="h-9 flex-1 rounded-lg"
+          placeholder="Paste your own (space-separated) — e.g. 🦊 🌟 🍩"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              addDraft();
+            }
+          }}
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          className="rounded-lg"
+          disabled={!draft.trim() || emojis.length >= MAX_EMOJIS}
+          onClick={addDraft}
+        >
+          <Plus className="size-3.5" />
+          Add
+        </Button>
+      </div>
     </div>
   );
 }

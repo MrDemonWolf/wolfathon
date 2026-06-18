@@ -43,3 +43,14 @@ test("validateTimerConfig rejects a non-numeric field", () => {
   const result = validateTimerConfig({ ...defaultTimerConfig(), startMinutes: "nope" });
   expect(result.ok).toBe(false);
 });
+
+test("validateTimerConfig keeps clean emoji and drops blanks", () => {
+  const result = validateTimerConfig({ ...defaultTimerConfig(), emojis: ["🐺", "  ", "🔥", ""] });
+  expect(result.ok).toBe(true);
+  if (result.ok) expect(result.config.emojis).toEqual(["🐺", "🔥"]);
+});
+
+test("validateTimerConfig rejects too many emoji", () => {
+  const emojis = Array.from({ length: 25 }, () => "🐺");
+  expect(validateTimerConfig({ ...defaultTimerConfig(), emojis }).ok).toBe(false);
+});
