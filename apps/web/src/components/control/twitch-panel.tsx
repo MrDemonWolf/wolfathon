@@ -3,7 +3,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { env } from "@wolfathon/env/web";
 import { Button } from "@wolfathon/ui/components/button";
-import { AlertTriangle, CheckCircle2, ExternalLink, Plug, Unplug } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ExternalLink, Plug, Unplug, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -18,6 +18,18 @@ export function TwitchPanel() {
 
   const startAuth = useMutation(controlTrpc.twitch.startAuth.mutationOptions());
   const disconnect = useMutation(controlTrpc.twitch.disconnect.mutationOptions({ onSuccess: invalidate }));
+  const sendTest = useMutation(
+    controlTrpc.twitch.sendTestEvent.mutationOptions({
+      onSuccess: (r) => {
+        if (r.ok)
+          toast.success(
+            `Webhook OK (${r.status}) — timer +${Math.round(r.addedMs / 60000)}m. Full chain verified.`,
+          );
+        else toast.error(`Webhook rejected the event (HTTP ${r.status})`);
+      },
+      onError: (e) => toast.error(e.message),
+    }),
+  );
 
   // Same-origin OAuth redirect URL the user registers in the Twitch app.
   const [redirectUrl, setRedirectUrl] = useState("");
@@ -50,20 +62,43 @@ export function TwitchPanel() {
       </p>
 
       {status?.connected ? (
-        <div className="mt-4 flex items-center justify-between rounded-xl border border-primary/30 bg-primary/5 p-4">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="size-5 text-primary" />
-            <div>
-              <div className="font-medium">Connected as {status.broadcasterLogin}</div>
-              <div className="text-xs text-muted-foreground">
-                {status.subscriptionCount} EventSub subscriptions active
+        <div className="mt-4 flex flex-col gap-3">
+          <div className="flex items-center justify-between rounded-xl border border-primary/30 bg-primary/5 p-4">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="size-5 text-primary" />
+              <div>
+                <div className="font-medium">Connected as {status.broadcasterLogin}</div>
+                <div className="text-xs text-muted-foreground">
+                  {status.subscriptionCount} EventSub subscriptions active
+                </div>
               </div>
             </div>
+            <Button variant="destructive" className="rounded-lg" onClick={() => disconnect.mutate()} disabled={disconnect.isPending}>
+              <Unplug className="size-4" />
+              Disconnect
+            </Button>
           </div>
-          <Button variant="destructive" className="rounded-lg" onClick={() => disconnect.mutate()} disabled={disconnect.isPending}>
-            <Unplug className="size-4" />
-            Disconnect
-          </Button>
+
+          {/* Live end-to-end test: signs a real EventSub notification and POSTs it
+              to the public webhook, exactly like Twitch does. */}
+          <div className="flex items-center justify-between rounded-xl border border-border p-4">
+            <div>
+              <div className="font-medium">Test EventSub</div>
+              <div className="text-xs text-muted-foreground">
+                Sends a signed <code className="font-mono">channel.subscribe</code> to your webhook — verifies
+                signature, reachability &amp; timer. Adds T1 time, so reset after.
+              </div>
+            </div>
+            <Button
+              variant="secondary"
+              className="rounded-lg"
+              onClick={() => sendTest.mutate()}
+              disabled={sendTest.isPending}
+            >
+              <Zap className="size-4" />
+              {sendTest.isPending ? "Sending…" : "Send test"}
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="mt-4 flex flex-col gap-4">

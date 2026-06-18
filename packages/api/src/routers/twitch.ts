@@ -1,8 +1,14 @@
 import { TRPCError } from "@trpc/server";
 
 import { protectedProcedure, router } from "../index";
-import { readTwitch, writeTwitch } from "../store";
-import { buildAuthorizeUrl, deleteSubscriptions, getAppToken, toStatus } from "../twitch";
+import { readTimer, readTwitch, writeTwitch } from "../store";
+import {
+  buildAuthorizeUrl,
+  deleteSubscriptions,
+  getAppToken,
+  sendTestNotification,
+  toStatus,
+} from "../twitch";
 
 /** App credentials come from the web Worker env, surfaced via ctx.twitch. */
 function requireCreds(ctx: { twitch?: { clientId?: string; clientSecret?: string } }) {
@@ -36,6 +42,30 @@ export const twitchRouter = router({
     const state = crypto.randomUUID().replace(/-/g, "");
     await writeTwitch(ctx.db, { ...doc, oauthState: state });
     return { url: buildAuthorizeUrl({ clientId, redirectUri: ctx.twitch.redirectUri, state }) };
+  }),
+
+  /**
+   * Fire a real, signed EventSub notification at our own public webhook to prove
+   * the live chain works (signature + reachability + parse + timer). `addedMs`
+   * confirms the timer actually moved.
+   */
+  sendTestEvent: protectedProcedure.mutation(async ({ ctx }) => {
+    const doc = await readTwitch(ctx.db);
+    if (!doc.connected || !doc.webhookSecret || !doc.broadcasterId) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "Connect Twitch first." });
+    }
+    if (!ctx.callbackUrl) {
+      throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Webhook URL not configured." });
+    }
+    const before = (await readTimer(ctx.db)).state.totalAddedMs;
+    const status = await sendTestNotification({
+      callbackUrl: ctx.callbackUrl,
+      secret: doc.webhookSecret,
+      broadcasterId: doc.broadcasterId,
+      broadcasterLogin: doc.broadcasterLogin,
+    });
+    const after = (await readTimer(ctx.db)).state.totalAddedMs;
+    return { status, ok: status >= 200 && status < 300, addedMs: Math.max(0, after - before) };
   }),
 
   disconnect: protectedProcedure.mutation(async ({ ctx }) => {

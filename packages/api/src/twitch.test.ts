@@ -1,6 +1,12 @@
 import { expect, test } from "bun:test";
 
-import { buildAuthorizeUrl, parseEvent, TWITCH_SCOPES } from "./twitch";
+import {
+  buildAuthorizeUrl,
+  parseEvent,
+  sendTestNotification,
+  TWITCH_SCOPES,
+  verifyEventsubSignature,
+} from "./twitch";
 
 test("a gifted recipient's subscribe is ignored (counted via the gift event)", () => {
   expect(parseEvent("channel.subscribe", { is_gift: true, tier: "1000" })).toBeNull();
@@ -27,6 +33,35 @@ test("a cheer carries the bit count", () => {
 
 test("unknown events are ignored", () => {
   expect(parseEvent("channel.follow", {})).toBeNull();
+});
+
+test("the test notification is signed so our own verifier accepts it", async () => {
+  const secret = "0123456789abcdef0123456789abcdef";
+  let captured: Request | undefined;
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    captured = new Request(input as string, init);
+    return new Response(null, { status: 204 });
+  }) as typeof fetch;
+
+  try {
+    const status = await sendTestNotification({
+      callbackUrl: "https://api.example.dev/twitch/eventsub",
+      secret,
+      broadcasterId: "1337",
+      broadcasterLogin: "wolf",
+    });
+    expect(status).toBe(204);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+
+  const req = captured!;
+  const body = await req.text();
+  expect(await verifyEventsubSignature(req.headers, body, secret)).toBe(true);
+  // A tampered body must fail the signature (proves we sign the bytes we send).
+  expect(await verifyEventsubSignature(req.headers, body + " ", secret)).toBe(false);
+  expect(parseEvent("channel.subscribe", JSON.parse(body).event)).toEqual({ kind: "sub", tier: "t1" });
 });
 
 test("the authorize URL carries the code flow params, scopes, and state", () => {
