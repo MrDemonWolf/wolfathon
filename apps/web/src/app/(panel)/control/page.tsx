@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { RewardsTab } from "@/components/control/rewards-tab";
 import { TimerTab } from "@/components/control/timer-tab";
@@ -20,14 +20,45 @@ type TabId = (typeof TABS)[number]["id"];
  */
 export default function ControlPage() {
   const [tab, setTab] = useState<TabId>("rewards");
+  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  // Roving arrow-key navigation between tabs (WAI-ARIA tabs pattern).
+  function onTabKeyDown(e: React.KeyboardEvent) {
+    const i = TABS.findIndex((t) => t.id === tab);
+    let next = i;
+    if (e.key === "ArrowRight") next = (i + 1) % TABS.length;
+    else if (e.key === "ArrowLeft") next = (i - 1 + TABS.length) % TABS.length;
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = TABS.length - 1;
+    else return;
+    e.preventDefault();
+    const id = TABS[next]!.id;
+    setTab(id);
+    tabRefs.current[id]?.focus();
+  }
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="inline-flex w-fit rounded-xl border border-border bg-card p-1">
+      <h1 className="sr-only">Wolfathon control panel</h1>
+
+      <div
+        role="tablist"
+        aria-label="Control sections"
+        onKeyDown={onTabKeyDown}
+        className="inline-flex w-fit rounded-xl border border-border bg-card p-1"
+      >
         {TABS.map((t) => (
           <button
             key={t.id}
             type="button"
+            role="tab"
+            id={`tab-${t.id}`}
+            aria-selected={tab === t.id}
+            aria-controls={`panel-${t.id}`}
+            tabIndex={tab === t.id ? 0 : -1}
+            ref={(el) => {
+              tabRefs.current[t.id] = el;
+            }}
             onClick={() => setTab(t.id)}
             className={`rounded-lg px-4 py-1.5 text-sm font-medium transition-colors ${
               tab === t.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
@@ -38,13 +69,15 @@ export default function ControlPage() {
         ))}
       </div>
 
-      {tab === "rewards" && <RewardsTab />}
-      {tab === "timer" && <TimerTab />}
-      {tab === "twitch" && (
-        <div className="max-w-2xl">
-          <TwitchPanel />
-        </div>
-      )}
+      <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`}>
+        {tab === "rewards" && <RewardsTab />}
+        {tab === "timer" && <TimerTab />}
+        {tab === "twitch" && (
+          <div className="max-w-2xl">
+            <TwitchPanel />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
