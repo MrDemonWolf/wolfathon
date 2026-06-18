@@ -95,7 +95,7 @@ export function TwitchPanel() {
 	const callback = `${env.NEXT_PUBLIC_SERVER_URL}/twitch/eventsub`;
 
 	return (
-		<div className="rounded-2xl border border-border bg-card p-5">
+		<div className="rounded-2xl panel-card p-5">
 			<h2 className="font-heading text-lg font-bold">Twitch</h2>
 			<p className="mt-1 text-sm text-muted-foreground">
 				Auto-add time from subs, gifts, bits, and channel points via EventSub.

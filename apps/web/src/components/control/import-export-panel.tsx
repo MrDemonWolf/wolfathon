@@ -137,7 +137,7 @@ export function ImportExportPanel({
 	}
 
 	return (
-		<div className="rounded-2xl border border-border bg-card p-5">
+		<div className="rounded-2xl panel-card p-5">
 			<h2 className="font-heading text-lg font-bold">Import / Export</h2>
 			<p className="mt-1 text-sm text-muted-foreground">
 				Paste or upload {config.title}, validate, then replace in one click.

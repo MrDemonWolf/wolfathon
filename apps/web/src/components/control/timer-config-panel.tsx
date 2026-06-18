@@ -48,7 +48,7 @@ export function TimerConfigPanel({
 }) {
 	if (!doc) {
 		return (
-			<div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">
+			<div className="rounded-2xl panel-card p-5 text-sm text-muted-foreground">
 				Loading config…
 			</div>
 		);
@@ -85,7 +85,7 @@ function ConfigForm({ config, onChanged }: { config: TimerConfig; onChanged: () 
 	}
 
 	return (
-		<div className="rounded-2xl border border-border bg-card p-5">
+		<div className="rounded-2xl panel-card p-5">
 			<div className="flex items-center justify-between">
 				<h2 className="font-heading text-lg font-bold">Time rules</h2>
 				<Button className="rounded-lg" onClick={save} disabled={setConfig.isPending}>
