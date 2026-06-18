@@ -91,12 +91,14 @@
 - **Evidence:** [Beyond Blue Links: Making Clickable Elements Recognizable](https://www.nngroup.com/articles/clickable-elements/).
 - **Decision:** left as-is. The Copy/Open affordances already read as buttons with labels + a toast; 44px is touch guidance and this is a mouse-driven, single-operator page. Verifier rated this low-confidence. No change needed.
 
-## Unverified (verification cut short by a session limit)
+## Follow-up pass (the surfaces cut short earlier) — ✅ DONE
 
-The per-finding adversarial verifiers for these surfaces did not all complete, so their findings are **not** in the confirmed set above. Worth a future pass:
+Reviewed inline (landing, rewards tab + goal editor + import/export, timer tab + config, design-system primitives):
 
-- **Landing page** (`(panel)/page.tsx`), **Rewards tab + goal editor + import/export**, **Timer tab + config**, and the **design-system primitives** (`packages/ui/src/components/{button,input}.tsx`).
-- Notable raw (unconfirmed) signal: the primitive **defaults are very compact** (button `h-8`/32px, input `h-8` + `text-xs`/12px, `rounded-none`) while app components override to `h-10`/`rounded-lg`. The 12px input text can trigger iOS zoom-on-focus and is below the 16px body guidance — worth checking where inputs aren't overridden (goal editor, timer config).
+- **Input default 12px → ✅ FIXED app-wide.** `packages/ui/src/components/input.tsx` was `text-xs` (12px) — below the 16px floor and triggers iOS zoom-on-focus. Now `text-base md:text-sm` (16px mobile / 14px desktop). Lifts every form input.
+- **Placeholder-only inputs → ✅ FIXED.** Added `aria-label` to goal reward/note, channel-point title + minutes, custom minutes, and custom-emoji inputs (placeholder ≠ label; WCAG 1.3.1 / 3.3.2). The timer-config number `Field` already wraps a real `<label>`.
+- **Landing / number inputs / import-replace confirm:** already correct — no change.
+- **Left intentionally:** single-goal delete + timer Reset have no confirm (recoverable, frequent operator actions; the dangerous empty-overlay broadcast is already guarded); 32–40px control heights are fine for a desktop mouse-driven panel.
 
 ## What's working well
 
@@ -107,7 +109,4 @@ The per-finding adversarial verifiers for these surfaces did not all complete, s
 
 ## Quick wins
 
-All quick wins from the findings above were applied this pass (findings #1–#8). Remaining optional follow-ups:
-
-- [ ] Verify input text size where primitives aren't overridden (raise to ≥14px, ideally 16px on mobile).
-- [ ] Run the deferred verification pass on landing / rewards-tab / timer-tab / design-system surfaces.
+All findings (#1–#8) and the deferred follow-up pass are applied. No open UI items remain.

@@ -161,6 +161,7 @@ function ConfigForm({ config, onChanged }: { config: TimerConfig; onChanged: () 
 						<div key={i} className="flex items-center gap-2">
 							<Input
 								className="h-9 flex-1 rounded-lg"
+								aria-label="Channel-point reward title (exact)"
 								placeholder="Reward title (exact)"
 								value={rule.rewardTitle}
 								onChange={(e) => {
@@ -172,6 +173,7 @@ function ConfigForm({ config, onChanged }: { config: TimerConfig; onChanged: () 
 							<Input
 								className="h-9 w-24 rounded-lg"
 								type="number"
+								aria-label="Minutes added per redemption"
 								value={String(rule.minutes)}
 								onChange={(e) => {
 									const cp = [...form.channelPoints];
@@ -320,6 +322,7 @@ function EmojiEditor({ emojis, onChange }: { emojis: string[]; onChange: (e: str
 			<div className="mt-3 flex items-center gap-2">
 				<Input
 					className="h-9 flex-1 rounded-lg"
+					aria-label="Add custom emoji (space-separated)"
 					placeholder="Paste your own (space-separated) — e.g. 🦊 🌟 🍩"
 					value={draft}
 					onChange={(e) => setDraft(e.target.value)}
