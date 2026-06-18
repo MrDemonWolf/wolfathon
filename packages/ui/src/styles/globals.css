@@ -248,13 +248,52 @@
 	animation: spin-slow 14s linear infinite;
 }
 
+/* Emotes welling up and filling the timer bar when time is added. Clipped to
+   the pill via overflow-hidden; per-emote left/size/spin/drift driven by vars. */
+@keyframes wolf-fill {
+	0% {
+		transform: translateY(70cqh) scale(0.35) rotate(0deg);
+		opacity: 0;
+	}
+	18% {
+		opacity: 1;
+	}
+	100% {
+		transform: translateY(-80cqh) translateX(var(--fill-x, 0)) scale(1)
+			rotate(var(--fill-spin, 90deg));
+		opacity: 0;
+	}
+}
+
+.animate-wolf-fill {
+	animation: wolf-fill var(--fill-dur, 1.5s) cubic-bezier(0.2, 0.7, 0.3, 1) both;
+	animation-delay: var(--fill-delay, 0s);
+}
+
+/* Brief cyan wash across the bar interior on a time-add event. */
+@keyframes wolf-flood {
+	0%,
+	100% {
+		opacity: 0;
+	}
+	25% {
+		opacity: 1;
+	}
+}
+
+.animate-wolf-flood {
+	animation: wolf-flood 2s ease-out both;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.animate-wolf-drift,
-	.animate-wolf-burst {
+	.animate-wolf-burst,
+	.animate-wolf-fill {
 		animation: none;
 		opacity: 0;
 	}
-	.animate-spin-slow {
+	.animate-spin-slow,
+	.animate-wolf-flood {
 		animation: none;
 	}
 }
