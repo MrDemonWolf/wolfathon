@@ -1,0 +1,25 @@
+{
+	// LOCAL DEV ONLY. Consumed exclusively by `initOpenNextCloudflareForDev`
+	// (see next.config.ts) to give `next dev` / `dev:bare` a local Cloudflare
+	// context: a miniflare-backed D1 + dev vars. Deploys are driven by Alchemy
+	// (packages/infra/alchemy.run.ts), which never reads this non-default file —
+	// so nothing here can affect production.
+	"name": "wolfathon-dev",
+	"compatibility_date": "2024-11-01",
+	"compatibility_flags": ["nodejs_compat"],
+	"vars": {
+		// Access is disabled locally so the operator panel works without a
+		// Cloudflare Access login. Every real deploy enforces Access regardless
+		// (alchemy.run.ts sets ACCESS_DISABLED=false for non-local).
+		"ACCESS_DISABLED": "true",
+		"NEXT_PUBLIC_SERVER_URL": "https://wolfathon-api.mrdemonwolf.workers.dev",
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "wolfathon-dev",
+			"database_id": "local-dev",
+			"migrations_dir": "../../packages/db/src/migrations",
+		},
+	],
+}

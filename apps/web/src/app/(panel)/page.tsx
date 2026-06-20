@@ -4,16 +4,14 @@ import Link from "next/link";
 /** Landing page — sets the brand tone, then routes to the two surfaces. */
 export default function Home() {
 	return (
-		<div className="flex flex-col gap-12">
+		<div className="flex flex-col gap-10">
 			{/* Hero */}
-			<section className="relative flex flex-col items-start gap-5 pt-6">
+			<section className="flex flex-col items-start gap-5 pt-6">
 				<span className="eyebrow text-xs">Subathon toolkit</span>
-				<h1 className="font-heading text-5xl font-extrabold tracking-tight sm:text-6xl">
+				<h1 className="font-heading text-4xl font-extrabold tracking-tight sm:text-5xl">
 					Run a subathon
 					<br />
-					<span className="bg-gradient-to-r from-[#5bc8f0] to-[#00aced] bg-clip-text text-transparent">
-						that runs itself.
-					</span>
+					<span className="text-primary">that runs itself.</span>
 				</h1>
 				<p className="max-w-xl text-base leading-relaxed text-muted-foreground">
 					A Twitch-driven countdown that auto-adds time from subs, gifts, bits, and channel points —
@@ -23,7 +21,7 @@ export default function Home() {
 				<div className="flex flex-wrap gap-3 pt-1">
 					<Link
 						href="/control"
-						className="inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-[0_0_24px_rgba(0,172,237,0.35)] transition-all hover:shadow-[0_0_32px_rgba(0,172,237,0.55)]"
+						className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none"
 					>
 						<Sliders className="size-4" />
 						Open control panel
@@ -32,7 +30,7 @@ export default function Home() {
 						href="/overlay"
 						target="_blank"
 						rel="noreferrer"
-						className="inline-flex items-center gap-2 rounded-xl border border-[#00aced]/30 px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-[#13244d]/60"
+						className="inline-flex items-center gap-2 rounded-lg border border-border px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none"
 					>
 						Get overlay URLs ↗
 					</a>
@@ -43,7 +41,7 @@ export default function Home() {
 			<section className="grid gap-4 sm:grid-cols-2">
 				<Link
 					href="/control"
-					className="group rounded-2xl panel-card panel-card-rail p-6 transition-all hover:border-[#00aced]/40 hover:shadow-[0_24px_50px_-30px_rgba(0,0,0,0.9),0_0_36px_-12px_rgba(0,172,237,0.4)]"
+					className="group rounded-xl panel-card p-6 transition-colors hover:border-primary/50 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 				>
 					<Sliders className="size-6 text-primary" />
 					<h2 className="mt-4 font-heading text-xl font-bold">Control panel</h2>
@@ -60,7 +58,7 @@ export default function Home() {
 					href="/overlay"
 					target="_blank"
 					rel="noreferrer"
-					className="group rounded-2xl panel-card panel-card-rail p-6 transition-all hover:border-[#00aced]/40 hover:shadow-[0_24px_50px_-30px_rgba(0,0,0,0.9),0_0_36px_-12px_rgba(0,172,237,0.4)]"
+					className="group rounded-xl panel-card p-6 transition-colors hover:border-primary/50 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 				>
 					<div className="flex gap-2">
 						<Gauge className="size-6 text-primary" />

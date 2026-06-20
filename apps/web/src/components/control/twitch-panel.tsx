@@ -6,8 +6,8 @@ import { Button } from "@wolfathon/ui/components/button";
 import {
 	AlertTriangle,
 	CheckCircle2,
+	ChevronDown,
 	Copy,
-	ExternalLink,
 	Loader2,
 	Plug,
 	Unplug,
@@ -95,15 +95,16 @@ export function TwitchPanel() {
 	const callback = `${env.NEXT_PUBLIC_SERVER_URL}/twitch/eventsub`;
 
 	return (
-		<div className="rounded-2xl panel-card p-5">
+		<div className="rounded-xl panel-card p-5">
 			<h2 className="font-heading text-lg font-bold">Twitch</h2>
 			<p className="mt-1 text-sm text-muted-foreground">
 				Auto-add time from subs, gifts, bits, and channel points via EventSub.
 			</p>
 
-			{status?.connected ? (
-				<div className="mt-4 flex flex-col gap-3">
-					<div className="flex items-center justify-between rounded-xl border border-primary/30 bg-primary/5 p-4">
+			<div className="mt-4 flex flex-col gap-3">
+				{/* status + connect/disconnect */}
+				{status?.connected ? (
+					<div className="flex items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 p-4">
 						<div className="flex items-center gap-2">
 							<CheckCircle2 className="size-5 text-primary" />
 							<div>
@@ -115,7 +116,6 @@ export function TwitchPanel() {
 						</div>
 						<Button
 							variant="destructive"
-							className="rounded-lg"
 							onClick={() => disconnect.mutate()}
 							disabled={disconnect.isPending}
 						>
@@ -127,65 +127,14 @@ export function TwitchPanel() {
 							{disconnect.isPending ? "Disconnecting…" : "Disconnect"}
 						</Button>
 					</div>
-
-					{/* Live end-to-end test: signs a real EventSub notification and POSTs it
-              to the public webhook, exactly like Twitch does. */}
-					<div className="flex items-center justify-between rounded-xl border border-border p-4">
-						<div>
-							<div className="font-medium">Test EventSub</div>
-							<div className="text-xs text-muted-foreground">
-								Sends a signed <code className="font-mono">channel.subscribe</code> to your webhook
-								— verifies signature, reachability &amp; timer. Adds T1 time, so reset after.
-							</div>
+				) : (
+					<div className="flex items-center justify-between gap-3 rounded-lg border border-border p-4">
+						<div className="flex items-center gap-2 text-sm text-muted-foreground">
+							<AlertTriangle className="size-5" />
+							Not connected
 						</div>
 						<Button
-							variant="secondary"
-							className="rounded-lg"
-							onClick={() => sendTest.mutate()}
-							disabled={sendTest.isPending}
-						>
-							<Zap className="size-4" />
-							{sendTest.isPending ? "Sending…" : "Send test"}
-						</Button>
-					</div>
-				</div>
-			) : (
-				<div className="mt-4 flex flex-col gap-4">
-					{/* 1. credentials (from env) */}
-					<div>
-						<div className="text-xs font-medium text-muted-foreground">
-							1. Twitch app credentials
-						</div>
-						{status?.hasCredentials ? (
-							<div className="mt-2 flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
-								<CheckCircle2 className="size-4 text-primary" />
-								Loaded from environment
-							</div>
-						) : (
-							<div className="mt-2 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
-								<AlertTriangle className="mt-0.5 size-4 text-destructive" />
-								<span>
-									Set <code className="font-mono">TWITCH_CLIENT_ID</code> and{" "}
-									<code className="font-mono">TWITCH_CLIENT_SECRET</code> in the environment, then
-									redeploy.
-								</span>
-							</div>
-						)}
-						<p className="mt-2 text-xs text-muted-foreground">
-							Create an app at dev.twitch.tv (Confidential). Set its OAuth Redirect URL to this
-							exact value:
-						</p>
-						<div className="mt-1.5">
-							<CopyUrl value={redirectUrl} label="Redirect URL" />
-						</div>
-						<p className="mt-1.5 text-xs text-muted-foreground">Scopes requested: {SCOPES}.</p>
-					</div>
-
-					{/* 2. connect */}
-					<div>
-						<div className="text-xs font-medium text-muted-foreground">2. Authorize</div>
-						<Button
-							className="mt-2 h-10 rounded-lg px-4"
+							size="lg"
 							disabled={!status?.hasCredentials || startAuth.isPending}
 							onClick={() =>
 								startAuth.mutate(undefined, {
@@ -203,22 +152,83 @@ export function TwitchPanel() {
 							)}
 							{startAuth.isPending ? "Connecting…" : "Connect Twitch"}
 						</Button>
-						<p className="mt-1 text-xs text-muted-foreground">
-							Sends you to Twitch to approve, then back here.
-						</p>
 					</div>
-				</div>
-			)}
+				)}
 
-			<div className="mt-4 border-t border-border pt-3">
-				<div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-					<ExternalLink className="size-3.5" />
-					EventSub callback
-				</div>
-				<div className="mt-1.5">
-					<CopyUrl value={callback} label="EventSub callback" />
+				{/* credentials missing — can't connect until set in env */}
+				{!status?.connected && !status?.hasCredentials && (
+					<div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
+						<AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
+						<span>
+							Set <code className="font-mono">TWITCH_CLIENT_ID</code> and{" "}
+							<code className="font-mono">TWITCH_CLIENT_SECRET</code> in the environment, then
+							redeploy.
+						</span>
+					</div>
+				)}
+
+				{/* test button — a real signed EventSub round-trip to the public webhook */}
+				<div className="flex items-center justify-between gap-3 rounded-lg border border-border p-4">
+					<div>
+						<div className="font-medium">Test EventSub</div>
+						<div className="text-xs text-muted-foreground">
+							Sends a signed channel.subscribe to your webhook — verifies signature, reachability,
+							and timer. Adds T1 time, so reset after.
+						</div>
+					</div>
+					<Button
+						variant="secondary"
+						onClick={() => sendTest.mutate()}
+						disabled={!status?.connected || sendTest.isPending}
+					>
+						<Zap className="size-4" />
+						{sendTest.isPending ? "Sending…" : "Send test"}
+					</Button>
 				</div>
 			</div>
+
+			{/* setup details — only needed when first wiring up the Twitch app */}
+			<details className="group mt-4 rounded-lg border border-border">
+				<summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium select-none">
+					Twitch app setup and URLs
+					<ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
+				</summary>
+				<div className="flex flex-col gap-4 border-t border-border p-4">
+					<div>
+						<div className="text-xs font-medium text-muted-foreground">App credentials</div>
+						{status?.hasCredentials ? (
+							<div className="mt-1.5 flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+								<CheckCircle2 className="size-4 text-primary" />
+								Loaded from environment
+							</div>
+						) : (
+							<div className="mt-1.5 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
+								<AlertTriangle className="mt-0.5 size-4 text-destructive" />
+								<span>
+									Set <code className="font-mono">TWITCH_CLIENT_ID</code> and{" "}
+									<code className="font-mono">TWITCH_CLIENT_SECRET</code>, then redeploy.
+								</span>
+							</div>
+						)}
+					</div>
+					<div>
+						<p className="text-xs text-muted-foreground">
+							Create an app at dev.twitch.tv (Confidential). Set its OAuth Redirect URL to this
+							exact value:
+						</p>
+						<div className="mt-1.5">
+							<CopyUrl value={redirectUrl} label="Redirect URL" />
+						</div>
+						<p className="mt-1.5 text-xs text-muted-foreground">Scopes requested: {SCOPES}.</p>
+					</div>
+					<div>
+						<div className="text-xs font-medium text-muted-foreground">EventSub callback</div>
+						<div className="mt-1.5">
+							<CopyUrl value={callback} label="EventSub callback" />
+						</div>
+					</div>
+				</div>
+			</details>
 		</div>
 	);
 }

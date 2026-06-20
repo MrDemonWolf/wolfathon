@@ -11,6 +11,7 @@ import { WolfMark } from "@/components/wolf-mark";
  */
 export default function PanelLayout({ children }: { children: React.ReactNode }) {
 	const pathname = usePathname();
+	const sha = process.env.NEXT_PUBLIC_COMMIT_SHA;
 
 	return (
 		<div className="app-bg flex min-h-svh flex-col text-foreground">
@@ -21,14 +22,14 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
 						<span className="font-heading text-lg font-extrabold tracking-tight">Wolfathon</span>
 					</Link>
 					<nav className="flex items-center gap-1 text-sm">
-						<NavLink href="/control" active={pathname === "/control"}>
+						<NavLink href="/control" active={pathname.startsWith("/control")}>
 							Control
 						</NavLink>
 						<a
 							href="/overlay"
 							target="_blank"
 							rel="noreferrer"
-							className="rounded-[0.7rem] px-3 py-1.5 text-muted-foreground transition-colors hover:bg-[#13244d]/60 hover:text-foreground"
+							className="rounded-[0.7rem] px-3 py-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 						>
 							Overlays ↗
 						</a>
@@ -51,13 +52,20 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
 							MrDemonWolf, Inc.
 						</a>
 					</p>
-					<span className="hidden text-muted-foreground/50 sm:inline">·</span>
-					<span
-						className="hidden font-mono text-xs text-muted-foreground sm:inline"
-						title={`Deployed commit: ${process.env.NEXT_PUBLIC_COMMIT_SHA}`}
-					>
-						{process.env.NEXT_PUBLIC_COMMIT_SHA}
-					</span>
+					{sha && (
+						<>
+							<span className="hidden text-muted-foreground/50 sm:inline">·</span>
+							<a
+								href={`https://github.com/MrDemonWolf/wolfathon/commit/${sha}`}
+								target="_blank"
+								rel="noopener noreferrer"
+								title={`Deployed commit ${sha} — view on GitHub`}
+								className="hidden font-mono text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-primary hover:underline sm:inline"
+							>
+								{sha.slice(0, 7)}
+							</a>
+						</>
+					)}
 				</div>
 			</footer>
 		</div>
@@ -77,10 +85,10 @@ function NavLink({
 		<Link
 			href={href}
 			aria-current={active ? "page" : undefined}
-			className={`rounded-[0.7rem] px-3 py-1.5 transition-colors ${
+			className={`rounded-[0.7rem] px-3 py-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
 				active
-					? "bg-[#00aced]/15 font-medium text-foreground shadow-[inset_0_1px_0_var(--glass-edge)]"
-					: "text-muted-foreground hover:bg-[#13244d]/60 hover:text-foreground"
+					? "bg-primary/15 font-medium text-foreground"
+					: "text-muted-foreground hover:bg-accent hover:text-foreground"
 			}`}
 		>
 			{children}

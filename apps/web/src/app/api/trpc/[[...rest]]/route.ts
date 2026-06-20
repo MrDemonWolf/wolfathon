@@ -37,7 +37,10 @@ function handler(req: Request) {
 				access: {
 					teamDomain: env.CF_ACCESS_TEAM_DOMAIN,
 					aud: env.CF_ACCESS_AUD,
-					disabled: env.ACCESS_DISABLED === "true",
+					// Bypass Access for `next dev` only. Fail-closed: a production build
+					// has NODE_ENV="production", so this can never disable Access live —
+					// the only other way off is the infra-set ACCESS_DISABLED (alchemy dev).
+					disabled: env.ACCESS_DISABLED === "true" || process.env.NODE_ENV === "development",
 				},
 				callbackUrl: env.NEXT_PUBLIC_SERVER_URL
 					? `${env.NEXT_PUBLIC_SERVER_URL}/twitch/eventsub`
