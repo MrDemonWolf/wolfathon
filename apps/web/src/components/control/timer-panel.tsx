@@ -5,7 +5,7 @@ import { currentRemainingMs, type TimerDoc } from "@wolfathon/api/timer";
 import { Button } from "@wolfathon/ui/components/button";
 import { Input } from "@wolfathon/ui/components/input";
 import { Pause, Play, RotateCcw } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { controlTrpc } from "@/utils/trpc";
@@ -40,42 +40,67 @@ export function TimerPanel({
 		addMinutes.isPending ||
 		applyEvent.isPending;
 
+	// Tick once a second so the countdown is live. The state is timestamp-based,
+	// so `currentRemainingMs` recomputes from `now` without refetching.
+	const [now, setNow] = useState(() => Date.now());
+	useEffect(() => {
+		const t = setInterval(() => setNow(Date.now()), 1000);
+		return () => clearInterval(t);
+	}, []);
+
 	const running = doc?.state.running ?? false;
-	const remaining = doc ? currentRemainingMs(doc.state, Date.now()) : 0;
+	const remaining = doc ? currentRemainingMs(doc.state, now) : 0;
+	const status = running ? "LIVE" : remaining > 0 ? "PAUSED" : "ENDED";
+
+	const SIMS = [
+		{ label: "Sub T1", event: { kind: "sub", tier: "t1" } },
+		{ label: "Sub T2", event: { kind: "sub", tier: "t2" } },
+		{ label: "Sub T3", event: { kind: "sub", tier: "t3" } },
+		{ label: "Gift ×1", event: { kind: "gift", tier: "t1", count: 1 } },
+		{ label: "100 bits", event: { kind: "bits", bits: 100 } },
+	] as const;
 
 	return (
-		<div className="rounded-2xl panel-card p-5">
+		<div className="rounded-xl panel-card p-5">
 			<h2 className="font-heading text-lg font-bold">Timer</h2>
 
-			{/* status */}
-			<div className="mt-3 flex items-center justify-between rounded-xl border border-primary/30 bg-primary/5 p-4">
+			{/* status + live countdown */}
+			<div className="mt-3 flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/40 px-5 py-4">
 				<div>
 					<div className="text-xs tracking-wide text-muted-foreground uppercase">Remaining</div>
-					<div className="font-heading text-3xl font-extrabold tabular-nums">{fmt(remaining)}</div>
+					<div className="font-heading text-4xl font-extrabold tabular-nums tracking-tight">
+						{fmt(remaining)}
+					</div>
 				</div>
 				<span
-					className={`rounded-full px-2.5 py-1 text-xs font-semibold ${running ? "bg-primary/20 text-primary" : "bg-secondary text-muted-foreground"}`}
+					className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
+						running ? "bg-primary/15 text-primary" : "bg-secondary text-muted-foreground"
+					}`}
 				>
-					{running ? "LIVE" : remaining > 0 ? "PAUSED" : "ENDED"}
+					<span
+						className={`size-1.5 rounded-full ${running ? "animate-pulse bg-primary" : "bg-muted-foreground"}`}
+					/>
+					{status}
 				</span>
 			</div>
 
 			{/* transport */}
 			<div className="mt-3 flex flex-wrap gap-2">
 				{running ? (
-					<Button className="h-10 rounded-lg px-4" onClick={() => pause.mutate()} disabled={busy}>
+					<Button size="lg" className="px-4" onClick={() => pause.mutate()} disabled={busy}>
 						<Pause className="size-4" />
 						Pause
 					</Button>
 				) : (
-					<Button className="h-10 rounded-lg px-4" onClick={() => start.mutate()} disabled={busy}>
+					<Button size="lg" className="px-4" onClick={() => start.mutate()} disabled={busy}>
 						<Play className="size-4" />
 						Start
 					</Button>
 				)}
 				<Button
+					size="lg"
 					variant="destructive"
-					className="h-10 rounded-lg px-4"
+					className="px-4"
 					onClick={() => reset.mutate(undefined, { onSuccess: () => toast.success("Timer reset") })}
 					disabled={busy}
 				>
@@ -85,14 +110,14 @@ export function TimerPanel({
 			</div>
 
 			{/* add time */}
-			<div className="mt-4">
+			<div className="mt-5">
 				<div className="text-xs font-medium text-muted-foreground">Add time</div>
 				<div className="mt-2 flex flex-wrap items-center gap-2">
 					{[1, 5, 10, 30].map((min) => (
 						<Button
 							key={min}
+							size="lg"
 							variant="outline"
-							className="rounded-lg"
 							onClick={() => addMinutes.mutate({ minutes: min })}
 							disabled={busy}
 						>
@@ -100,24 +125,24 @@ export function TimerPanel({
 						</Button>
 					))}
 					<Button
+						size="lg"
 						variant="outline"
-						className="rounded-lg"
 						onClick={() => addMinutes.mutate({ minutes: -5 })}
 						disabled={busy}
 					>
 						−5m
 					</Button>
-					<span className="mx-1 w-px self-stretch bg-border" />
+					<span className="mx-1 h-6 w-px self-center bg-border" />
 					<Input
-						className="h-9 w-20 rounded-lg"
+						className="h-9 w-20"
 						type="number"
 						aria-label="Custom minutes to add"
 						value={custom}
 						onChange={(e) => setCustom(e.target.value)}
 					/>
 					<Button
+						size="lg"
 						variant="outline"
-						className="rounded-lg"
 						onClick={() => addMinutes.mutate({ minutes: Number(custom) || 0 })}
 						disabled={busy || !custom}
 					>
@@ -127,51 +152,22 @@ export function TimerPanel({
 			</div>
 
 			{/* manual test events */}
-			<div className="mt-4">
+			<div className="mt-5">
 				<div className="text-xs font-medium text-muted-foreground">
 					Simulate events (uses the configured minutes)
 				</div>
 				<div className="mt-2 flex flex-wrap gap-2">
-					<Button
-						variant="secondary"
-						className="rounded-lg"
-						onClick={() => applyEvent.mutate({ kind: "sub", tier: "t1" })}
-						disabled={busy}
-					>
-						Sub T1
-					</Button>
-					<Button
-						variant="secondary"
-						className="rounded-lg"
-						onClick={() => applyEvent.mutate({ kind: "sub", tier: "t2" })}
-						disabled={busy}
-					>
-						Sub T2
-					</Button>
-					<Button
-						variant="secondary"
-						className="rounded-lg"
-						onClick={() => applyEvent.mutate({ kind: "sub", tier: "t3" })}
-						disabled={busy}
-					>
-						Sub T3
-					</Button>
-					<Button
-						variant="secondary"
-						className="rounded-lg"
-						onClick={() => applyEvent.mutate({ kind: "gift", tier: "t1", count: 1 })}
-						disabled={busy}
-					>
-						Gift ×1
-					</Button>
-					<Button
-						variant="secondary"
-						className="rounded-lg"
-						onClick={() => applyEvent.mutate({ kind: "bits", bits: 100 })}
-						disabled={busy}
-					>
-						100 bits
-					</Button>
+					{SIMS.map((s) => (
+						<Button
+							key={s.label}
+							size="lg"
+							variant="secondary"
+							onClick={() => applyEvent.mutate(s.event)}
+							disabled={busy}
+						>
+							{s.label}
+						</Button>
+					))}
 				</div>
 			</div>
 		</div>

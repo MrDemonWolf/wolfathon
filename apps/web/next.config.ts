@@ -21,4 +21,6 @@ const nextConfig: NextConfig = {
 
 export default nextConfig;
 
-initOpenNextCloudflareForDev();
+// Dev-only: load a local Cloudflare context (miniflare D1 + dev vars) from a
+// non-default config so Alchemy's deploy config is untouched. No-op in prod.
+initOpenNextCloudflareForDev({ configPath: "wrangler.dev.jsonc" });

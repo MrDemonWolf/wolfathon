@@ -6,6 +6,8 @@
 		"build": "next build",
 		"start": "next start",
 		"check-types": "tsc --noEmit",
+		"db:local": "wrangler d1 migrations apply wolfathon-dev --local --config wrangler.dev.jsonc",
+		"predev:bare": "bun run db:local",
 		"dev:bare": "next dev --port 3001"
 	},
 	"dependencies": {

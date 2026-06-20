@@ -7,14 +7,13 @@ const buttonVariants = cva(
 	{
 		variants: {
 			variant: {
-				default:
-					"bg-primary text-primary-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.28),0_4px_14px_-5px_rgba(0,172,237,0.6)] hover:brightness-110 [a]:hover:bg-primary/80",
+				default: "bg-primary text-primary-foreground hover:bg-primary/90",
 				outline:
-					"border-[var(--glass-stroke)] bg-[rgba(18,34,71,0.5)] shadow-[inset_0_1px_0_var(--glass-edge)] backdrop-blur-md hover:bg-[rgba(18,34,71,0.75)] hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground",
+					"border-border bg-transparent hover:bg-accent hover:text-accent-foreground aria-expanded:bg-accent aria-expanded:text-accent-foreground",
 				secondary:
-					"border-[var(--glass-stroke)] bg-secondary/70 text-secondary-foreground shadow-[inset_0_1px_0_var(--glass-edge)] backdrop-blur-md hover:bg-secondary aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
+					"bg-secondary text-secondary-foreground hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
 				ghost:
-					"hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
+					"hover:bg-accent hover:text-accent-foreground aria-expanded:bg-accent aria-expanded:text-accent-foreground",
 				destructive:
 					"bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
 				link: "text-primary underline-offset-4 hover:underline",
