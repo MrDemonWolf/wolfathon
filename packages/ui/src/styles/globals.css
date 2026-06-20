@@ -7,88 +7,75 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * MrDemonWolf brand palette
- *   navy        #091533  (base)
- *   cyan        #00ACED  (accent)
- *   light cyan  #5BC8F0  (secondary)
+ * MrDemonWolf brand palette — clean shadcn dark, brand blue accent.
+ *   slate base, one blue primary (#00ACED). No Liquid Glass, no light mode.
  *   white text is allowed for overlay readability (not used as a brand fill).
- *
- * Wolfathon ships a single dark, navy theme — there is no light mode.
  */
 :root {
-	--background: #091533;
-	--foreground: #ffffff;
-	--card: #0c1b40;
-	--card-foreground: #ffffff;
-	--popover: #0c1b40;
-	--popover-foreground: #ffffff;
+	--background: #0a0f1c;
+	--foreground: #f1f5f9;
+	--card: #111726;
+	--card-foreground: #f1f5f9;
+	--popover: #111726;
+	--popover-foreground: #f1f5f9;
 	--primary: #00aced;
 	--primary-foreground: #04122b;
-	--secondary: #13244d;
-	--secondary-foreground: #ffffff;
-	--muted: #122247;
-	--muted-foreground: #9db4d8;
-	--accent: #5bc8f0;
-	--accent-foreground: #04122b;
+	--secondary: #1b2335;
+	--secondary-foreground: #f1f5f9;
+	--muted: #161d2c;
+	--muted-foreground: #94a3b8;
+	--accent: #1b2335;
+	--accent-foreground: #f1f5f9;
 	--destructive: #f0556a;
-	--border: #21345f;
-	--input: #21345f;
+	--border: #232c40;
+	--input: #232c40;
 	--ring: #00aced;
 	--chart-1: #00aced;
 	--chart-2: #5bc8f0;
 	--chart-3: #3a86c9;
 	--chart-4: #6f7fd6;
 	--chart-5: #2b3f73;
-	--radius: 1.15rem;
-	/*
-	 * Liquid Glass material (macOS 26 Tahoe, tinted to the navy/cyan brand).
-	 *   --glass-*      translucent frosted fills, layered light→dark
-	 *   --glass-edge   the signature specular hairline on the top edge
-	 *   --glass-stroke content-aware border
-	 *   --glass-blur   backdrop blur+saturate amount
-	 */
-	--glass-1: rgba(18, 34, 71, 0.66);
-	--glass-2: rgba(9, 21, 51, 0.58);
-	--glass-edge: rgba(255, 255, 255, 0.1);
-	--glass-stroke: rgba(120, 190, 240, 0.16);
-	--glass-blur: blur(22px) saturate(165%);
-	--sidebar: #0c1b40;
-	--sidebar-foreground: #ffffff;
+	--radius: 0.625rem;
+	/* Subtle top-edge highlight still used by a couple of inset shadows. */
+	--glass-edge: rgba(255, 255, 255, 0.08);
+	--glass-stroke: var(--border);
+	--sidebar: #111726;
+	--sidebar-foreground: #f1f5f9;
 	--sidebar-primary: #00aced;
 	--sidebar-primary-foreground: #04122b;
-	--sidebar-accent: #13244d;
-	--sidebar-accent-foreground: #ffffff;
-	--sidebar-border: #21345f;
+	--sidebar-accent: #1b2335;
+	--sidebar-accent-foreground: #f1f5f9;
+	--sidebar-border: #232c40;
 	--sidebar-ring: #00aced;
 }
 
 /* Keep `.dark` identical so next-themes can't desync the brand look. */
 .dark {
-	--background: #091533;
-	--foreground: #ffffff;
-	--card: #0c1b40;
-	--card-foreground: #ffffff;
-	--popover: #0c1b40;
-	--popover-foreground: #ffffff;
+	--background: #0a0f1c;
+	--foreground: #f1f5f9;
+	--card: #111726;
+	--card-foreground: #f1f5f9;
+	--popover: #111726;
+	--popover-foreground: #f1f5f9;
 	--primary: #00aced;
 	--primary-foreground: #04122b;
-	--secondary: #13244d;
-	--secondary-foreground: #ffffff;
-	--muted: #122247;
-	--muted-foreground: #9db4d8;
-	--accent: #5bc8f0;
-	--accent-foreground: #04122b;
+	--secondary: #1b2335;
+	--secondary-foreground: #f1f5f9;
+	--muted: #161d2c;
+	--muted-foreground: #94a3b8;
+	--accent: #1b2335;
+	--accent-foreground: #f1f5f9;
 	--destructive: #f0556a;
-	--border: #21345f;
-	--input: #21345f;
+	--border: #232c40;
+	--input: #232c40;
 	--ring: #00aced;
-	--sidebar: #0c1b40;
-	--sidebar-foreground: #ffffff;
+	--sidebar: #111726;
+	--sidebar-foreground: #f1f5f9;
 	--sidebar-primary: #00aced;
 	--sidebar-primary-foreground: #04122b;
-	--sidebar-accent: #13244d;
-	--sidebar-accent-foreground: #ffffff;
-	--sidebar-border: #21345f;
+	--sidebar-accent: #1b2335;
+	--sidebar-accent-foreground: #f1f5f9;
+	--sidebar-border: #232c40;
 	--sidebar-ring: #00aced;
 }
 
@@ -325,138 +312,51 @@
 }
 
 /*
- * ── Liquid Glass operator-surface kit (macOS 26 Tahoe) ──────────────────────
+ * ── Operator-surface kit (clean shadcn) ─────────────────────────────────────
  * The /overlay routes stay transparent for OBS; these classes give the
- * landing/control/chooser pages translucent frosted "glass" surfaces that
- * float over a deep, atmospheric navy backdrop — Apple's Liquid Glass material
- * tinted to the brand cyan, rather than flat cards on flat navy.
+ * landing/control/chooser pages plain, flat shadcn surfaces over a near-solid
+ * slate backdrop. Brand blue is reserved for primary actions and accents.
  */
 
-/* Atmospheric page backdrop: stacked cyan light sources for depth + a faint
-   blueprint grid that the glass surfaces refract over. */
+/* Page backdrop: near-solid slate with one faint blue glow at the top. */
 .app-bg {
 	background-color: var(--background);
-	background-image:
-		radial-gradient(58% 44% at 50% -14%, rgba(0, 172, 237, 0.18), transparent 72%),
-		radial-gradient(46% 40% at 100% 4%, rgba(91, 200, 240, 0.1), transparent 70%),
-		radial-gradient(50% 50% at 0% 18%, rgba(124, 77, 255, 0.07), transparent 70%),
-		linear-gradient(rgba(0, 172, 237, 0.03) 1px, transparent 1px),
-		linear-gradient(90deg, rgba(0, 172, 237, 0.03) 1px, transparent 1px);
-	background-size:
-		auto,
-		auto,
-		auto,
-		54px 54px,
-		54px 54px;
-	background-attachment: fixed, fixed, fixed, scroll, scroll;
+	background-image: radial-gradient(60% 50% at 50% -10%, rgba(0, 172, 237, 0.08), transparent 70%);
+	background-attachment: fixed;
 }
 
-/*
- * The core Liquid Glass material. Translucent frosted fill, a content-aware
- * border, the signature specular highlight on the top edge, and a soft lifted
- * shadow for depth/hierarchy. Pair with a radius + padding in markup
- * (e.g. `rounded-2xl panel-card p-5`).
- */
+/* Flat card surface. Pair with a radius + padding in markup
+   (e.g. `rounded-xl panel-card p-5`). */
 .panel-card {
 	position: relative;
-	border: 1px solid var(--glass-stroke);
-	background: linear-gradient(155deg, var(--glass-1) 0%, var(--glass-2) 100%);
-	-webkit-backdrop-filter: var(--glass-blur);
-	backdrop-filter: var(--glass-blur);
-	box-shadow:
-		inset 0 1px 0 var(--glass-edge),
-		inset 0 0 0 1px rgba(0, 172, 237, 0.03),
-		0 1px 2px rgba(0, 0, 0, 0.35),
-		0 24px 56px -32px rgba(0, 0, 0, 0.9);
+	border: 1px solid var(--border);
+	background: var(--card);
+	box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.25);
 }
 
-/* A faint cyan specular sheen pooled in the top-left, like light catching glass. */
-.panel-card::after {
-	content: "";
-	position: absolute;
-	inset: 0;
-	border-radius: inherit;
-	pointer-events: none;
-	background: radial-gradient(120% 80% at 0% 0%, rgba(91, 200, 240, 0.08), transparent 56%);
-}
-
-/* Same material, plus a glowing cyan accent rail down the left edge — for the
-   one or two "hero" cards that should pull the eye. */
-.panel-card-rail {
-	overflow: hidden;
-}
-.panel-card-rail::before {
-	content: "";
-	position: absolute;
-	inset: 0 auto 0 0;
-	width: 3px;
-	z-index: 1;
-	background: linear-gradient(to bottom, #5bc8f0, #00aced 55%, rgba(0, 172, 237, 0));
-	box-shadow: 0 0 16px rgba(0, 172, 237, 0.75);
-}
-
-/*
- * Floating glass "bubble" bar — Tahoe detaches toolbars from the screen edges.
- * Used for the operator header: a rounded, translucent bar with margin from the
- * viewport edge rather than a full-bleed pinned strip.
- */
+/* Header bar — same flat card material. */
 .glass-bar {
-	border: 1px solid var(--glass-stroke);
-	background: linear-gradient(160deg, rgba(18, 34, 71, 0.72), rgba(9, 21, 51, 0.62));
-	-webkit-backdrop-filter: var(--glass-blur);
-	backdrop-filter: var(--glass-blur);
-	box-shadow:
-		inset 0 1px 0 var(--glass-edge),
-		0 8px 28px -16px rgba(0, 0, 0, 0.85);
+	border: 1px solid var(--border);
+	background: var(--card);
+	box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.25);
 }
 
-/*
- * Glass segmented control (macOS-style tabs). Wrap buttons in `.segmented`; the
- * active button gets `.segmented-on` for the lifted cyan glass pill.
- */
+/* Segmented control (shadcn tabs). Wrap buttons in `.segmented`; the active
+   button gets `.segmented-on` for the brand-blue pill. */
 .segmented {
-	border: 1px solid var(--glass-stroke);
-	background: rgba(8, 18, 44, 0.5);
-	-webkit-backdrop-filter: var(--glass-blur);
-	backdrop-filter: var(--glass-blur);
-	box-shadow: inset 0 1px 0 var(--glass-edge);
+	border: 1px solid var(--border);
+	background: var(--muted);
 }
 .segmented-on {
-	background: linear-gradient(160deg, rgba(0, 172, 237, 0.95), rgba(0, 140, 200, 0.9));
-	box-shadow:
-		inset 0 1px 0 rgba(255, 255, 255, 0.35),
-		0 4px 14px -4px rgba(0, 172, 237, 0.6);
+	background: var(--primary);
+	box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
 }
 
-/* Uppercase tracked label used as a section eyebrow, matching the overlays. */
+/* Uppercase tracked label used as a quiet section eyebrow. */
 .eyebrow {
 	font-family: var(--font-heading);
 	text-transform: uppercase;
-	letter-spacing: 0.26em;
-	font-weight: 700;
-	color: #5bc8f0;
-}
-
-/*
- * Accessibility: honour "Reduce transparency". Drop the blur + translucency for
- * opaque navy so the glass never hurts legibility for users who opt out.
- */
-@media (prefers-reduced-transparency: reduce) {
-	.panel-card,
-	.glass-bar,
-	.segmented {
-		-webkit-backdrop-filter: none;
-		backdrop-filter: none;
-		background: linear-gradient(155deg, #0c1b40, #081530);
-	}
-}
-
-/* Fallback for engines without backdrop-filter: lean opaque so nothing reads as
-   washed-out over the page backdrop. */
-@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
-	.panel-card,
-	.glass-bar,
-	.segmented {
-		background: linear-gradient(155deg, #0c1b40, #081530);
-	}
+	letter-spacing: 0.16em;
+	font-weight: 600;
+	color: var(--muted-foreground);
 }

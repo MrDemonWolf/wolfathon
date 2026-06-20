@@ -269,7 +269,7 @@ export function ImportExportPanel({
 				onClick={() => setShowSchema((v) => !v)}
 				className="mt-4 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
 			>
-				{showSchema ? "Hide" : "Show"} schema &amp; example
+				{showSchema ? "Hide schema & example" : "Show schema & example"}
 			</button>
 			{showSchema && (
 				<div className="mt-2">
