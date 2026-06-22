@@ -30,6 +30,8 @@ const SUBSCRIPTIONS: { type: string; version: string }[] = [
 	{ type: "channel.subscription.gift", version: "1" },
 	{ type: "channel.cheer", version: "1" },
 	{ type: "channel.channel_points_custom_reward_redemption.add", version: "1" },
+	// stream.offline auto-pauses the timer (manual resume on return); no scope needed.
+	{ type: "stream.offline", version: "1" },
 ];
 
 /** Persisted Twitch state (secret — never public). */
