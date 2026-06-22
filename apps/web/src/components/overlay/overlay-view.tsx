@@ -67,7 +67,7 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 	const stops = data.gradient?.length ? data.gradient : ["#00aced", "#5bc8f0"];
 	// Expand 3-digit shorthand so `${accent}AA` alpha suffixes stay valid CSS.
 	const accent = expandHex(stops.at(-1) ?? "#5bc8f0");
-	const accentDeep = stops[0] ?? "#00aced";
+	const accentDeep = expandHex(stops[0] ?? "#00aced");
 	const isHex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(data.textColor);
 	const ink = data.textColor === "auto" || !isHex ? "#ffffff" : data.textColor;
 	const fontFamily = FONT_STACKS[data.font] ?? FONT_STACKS.montserrat;
