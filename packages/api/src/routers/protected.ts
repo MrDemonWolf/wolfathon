@@ -4,6 +4,7 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../index";
 import { type Data, type Goal, MAX_GOALS, MAX_REWARD_LENGTH, validateImport } from "../state";
 import { readState, writeState } from "../store";
+import { type ThemeError, validateOverlayTheme } from "../theme";
 import { timerRouter } from "./timer";
 import { twitchRouter } from "./twitch";
 
@@ -39,13 +40,31 @@ export const protectedRouter = router({
 
 		/** Replace the entire state with an operator-provided document. */
 		replace: protectedProcedure.input(dataSchema).mutation(async ({ ctx, input }) => {
+			const existing = await readState(ctx.db);
 			const goals: Goal[] = input.goals.map((g) => ({
 				id: g.id ?? crypto.randomUUID(),
 				reward: g.reward.trim(),
 				note: normalizeNote(g.note),
 				unlocked: g.unlocked ?? false,
 			}));
-			return writeState(ctx.db, { goals, currentIndex: input.currentIndex ?? 0 });
+			// Goal edits never touch the theme — preserve it.
+			return writeState(ctx.db, {
+				goals,
+				currentIndex: input.currentIndex ?? 0,
+				theme: existing.theme,
+			});
+		}),
+
+		/** Update only the overlay theme, preserving goals. */
+		setTheme: protectedProcedure.input(z.unknown()).mutation(async ({ ctx, input }) => {
+			const errors: ThemeError[] = [];
+			const theme = validateOverlayTheme(input, errors);
+			if (errors.length > 0) {
+				return { ok: false as const, errors: errors.map((e) => ({ path: e.path, message: e.message })) };
+			}
+			const data = await readState(ctx.db);
+			const state = await writeState(ctx.db, { ...data, theme });
+			return { ok: true as const, state };
 		}),
 
 		/**
@@ -65,7 +84,12 @@ export const protectedRouter = router({
 		import: protectedProcedure.input(z.unknown()).mutation(async ({ ctx, input }) => {
 			const result = validateImport(input);
 			if (!result.ok) return { ok: false as const, errors: result.errors };
-			const state = await writeState(ctx.db, result.data);
+			// Importing goals shouldn't reset colours: keep the existing theme unless
+			// the imported document explicitly carries one.
+			const hasTheme =
+				typeof input === "object" && input !== null && "theme" in (input as object);
+			const theme = hasTheme ? result.data.theme : (await readState(ctx.db)).theme;
+			const state = await writeState(ctx.db, { ...result.data, theme });
 			return { ok: true as const, state, rewards: result.rewards };
 		}),
 	}),
@@ -114,7 +138,11 @@ export const protectedRouter = router({
 			.input(z.object({ id: z.string() }))
 			.mutation(async ({ ctx, input }) => {
 				const data = await readState(ctx.db);
-				const next: Data = { goals: data.goals.filter((g) => g.id !== input.id), currentIndex: 0 };
+				const next: Data = {
+					goals: data.goals.filter((g) => g.id !== input.id),
+					currentIndex: 0,
+					theme: data.theme,
+				};
 				return writeState(ctx.db, next);
 			}),
 
@@ -131,7 +159,7 @@ export const protectedRouter = router({
 					});
 				}
 				const goals = input.ids.map((id) => byId.get(id)!);
-				return writeState(ctx.db, { goals, currentIndex: 0 });
+				return writeState(ctx.db, { goals, currentIndex: 0, theme: data.theme });
 			}),
 	}),
 

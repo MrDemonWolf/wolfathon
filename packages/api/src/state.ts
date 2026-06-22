@@ -6,6 +6,16 @@
  * server-side by {@link stripNotes} before any public response.
  */
 
+import {
+	defaultOverlayTheme,
+	type OverlayTheme,
+	resolveThemeGradient,
+	type ThemeCorners,
+	type ThemeError,
+	type ThemeFont,
+	validateOverlayTheme,
+} from "./theme";
+
 /** A goal as stored internally (includes the private `note`). */
 export type Goal = {
 	id: string;
@@ -19,6 +29,8 @@ export type Data = {
 	goals: Goal[];
 	/** Index of the next goal to unlock (== number of unlocked goals at the front). */
 	currentIndex: number;
+	/** Overlay colours + chrome. Optional on old rows; defaults to brand. */
+	theme: OverlayTheme;
 };
 
 /** A goal as sent to the overlay — note removed. */
@@ -28,6 +40,18 @@ export type PublicGoal = Omit<Goal, "note">;
 export type PublicData = {
 	goals: PublicGoal[];
 	currentIndex: number;
+	/** Resolved accent gradient stops. */
+	gradient: string[];
+	/** Reward text colour: `"auto"` (→ white on the dark card) or a hex. */
+	textColor: string;
+	/** Display font key. */
+	font: ThemeFont;
+	/** Corner style. */
+	corners: ThemeCorners;
+	/** Show the "NEXT REWARD" eyebrow. */
+	showLabel: boolean;
+	/** Show the live status dot. */
+	showStatus: boolean;
 };
 
 /** A single import validation failure. `index` is the goal row, or -1 for document-level errors. */
@@ -64,6 +88,7 @@ export function sampleData(): Data {
 			unlocked: false,
 		})),
 		currentIndex: 0,
+		theme: defaultOverlayTheme(),
 	};
 }
 
@@ -77,14 +102,22 @@ export function recompute(data: Data): Data {
 	return {
 		goals: data.goals,
 		currentIndex: firstLocked === -1 ? data.goals.length : firstLocked,
+		theme: data.theme ?? defaultOverlayTheme(),
 	};
 }
 
-/** Remove every `note` so the tracker is safe to expose publicly. */
+/** Remove every `note` and resolve the theme so the tracker is safe to expose publicly. */
 export function stripNotes(data: Data): PublicData {
+	const theme = data.theme ?? defaultOverlayTheme();
 	return {
 		currentIndex: data.currentIndex,
 		goals: data.goals.map(({ id, reward, unlocked }) => ({ id, reward, unlocked })),
+		gradient: resolveThemeGradient(theme),
+		textColor: theme.textColor,
+		font: theme.font,
+		corners: theme.corners,
+		showLabel: theme.showLabel,
+		showStatus: theme.showStatus,
 	};
 }
 
@@ -162,13 +195,19 @@ export function validateImport(input: unknown): ImportResult {
 		normalized.push({ id: newId(), reward: trimmed, note: cleanNote(note), unlocked: false });
 	});
 
+	// Theme is optional on import; absent → brand default (the import router
+	// preserves the operator's existing theme when the doc omits one).
+	const themeErrors: ThemeError[] = [];
+	const theme = validateOverlayTheme((input as Record<string, unknown>).theme, themeErrors);
+	themeErrors.forEach((e) => errors.push({ index: -1, message: `${e.path}: ${e.message}` }));
+
 	if (errors.length > 0) {
 		return { ok: false, errors };
 	}
 
 	return {
 		ok: true,
-		data: { goals: normalized, currentIndex: 0 },
+		data: { goals: normalized, currentIndex: 0, theme },
 		rewards: normalized.map((g) => g.reward),
 	};
 }
