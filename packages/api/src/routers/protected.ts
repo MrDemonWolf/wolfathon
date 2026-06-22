@@ -2,7 +2,15 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import { protectedProcedure, router } from "../index";
-import { type Data, type Goal, MAX_GOALS, MAX_REWARD_LENGTH, validateImport } from "../state";
+import {
+	bumpPassedGoals,
+	type Data,
+	type Goal,
+	MAX_GOALS,
+	MAX_REWARD_LENGTH,
+	MAX_TARGET,
+	validateImport,
+} from "../state";
 import { readState, writeState } from "../store";
 import { type ThemeError, validateOverlayTheme } from "../theme";
 import { timerRouter } from "./timer";
@@ -16,11 +24,15 @@ const goalSchema = z.object({
 	reward: rewardSchema,
 	note: z.string().optional(),
 	unlocked: z.boolean().optional(),
+	target: z.number().int().nonnegative().max(MAX_TARGET).nullable().optional(),
 });
 
 const dataSchema = z.object({
 	goals: z.array(goalSchema).min(1).max(MAX_GOALS),
 	currentIndex: z.number().int().nonnegative().optional(),
+	currentSubs: z.number().int().nonnegative().optional(),
+	/** Optional — when present, validated + saved in the same write as the goals. */
+	theme: z.unknown().optional(),
 });
 
 function normalizeNote(note: string | undefined): string | undefined {
@@ -38,7 +50,11 @@ export const protectedRouter = router({
 		/** Full state including notes — powers Export and the control panel. */
 		getRaw: protectedProcedure.query(async ({ ctx }) => readState(ctx.db)),
 
-		/** Replace the entire state with an operator-provided document. */
+		/**
+		 * Replace the entire state with an operator-provided document. On save,
+		 * any numeric target at/below the current sub count is auto-bumped ~10% so
+		 * goals stay ahead of the count. Theme is preserved (goal edits never touch it).
+		 */
 		replace: protectedProcedure.input(dataSchema).mutation(async ({ ctx, input }) => {
 			const existing = await readState(ctx.db);
 			const goals: Goal[] = input.goals.map((g) => ({
@@ -46,14 +62,47 @@ export const protectedRouter = router({
 				reward: g.reward.trim(),
 				note: normalizeNote(g.note),
 				unlocked: g.unlocked ?? false,
+				...(g.target != null ? { target: g.target } : {}),
 			}));
-			// Goal edits never touch the theme — preserve it.
-			return writeState(ctx.db, {
-				goals,
+			const currentSubs = input.currentSubs ?? existing.currentSubs ?? 0;
+			const { goals: bumpedGoals, bumped } = bumpPassedGoals(goals, currentSubs);
+			// Theme rides along when present; otherwise the existing one is preserved.
+			let theme = existing.theme;
+			if (input.theme !== undefined) {
+				const themeErrors: ThemeError[] = [];
+				theme = validateOverlayTheme(input.theme, themeErrors);
+				if (themeErrors.length > 0) {
+					return {
+						ok: false as const,
+						errors: themeErrors.map((e) => ({ path: e.path, message: e.message })),
+					};
+				}
+			}
+			const state = await writeState(ctx.db, {
+				goals: bumpedGoals,
 				currentIndex: input.currentIndex ?? 0,
-				theme: existing.theme,
+				currentSubs,
+				theme,
 			});
+			return { ok: true as const, state, bumped };
 		}),
+
+		/** Adjust the running sub count (positive or negative); clamps at zero. */
+		adjustSubs: protectedProcedure
+			.input(z.object({ delta: z.number().int() }))
+			.mutation(async ({ ctx, input }) => {
+				const data = await readState(ctx.db);
+				const currentSubs = Math.max(0, (data.currentSubs ?? 0) + input.delta);
+				return writeState(ctx.db, { ...data, currentSubs });
+			}),
+
+		/** Set the running sub count to an exact value. */
+		setSubs: protectedProcedure
+			.input(z.object({ value: z.number().int().nonnegative() }))
+			.mutation(async ({ ctx, input }) => {
+				const data = await readState(ctx.db);
+				return writeState(ctx.db, { ...data, currentSubs: input.value });
+			}),
 
 		/** Update only the overlay theme, preserving goals. */
 		setTheme: protectedProcedure.input(z.unknown()).mutation(async ({ ctx, input }) => {
@@ -84,12 +133,13 @@ export const protectedRouter = router({
 		import: protectedProcedure.input(z.unknown()).mutation(async ({ ctx, input }) => {
 			const result = validateImport(input);
 			if (!result.ok) return { ok: false as const, errors: result.errors };
-			// Importing goals shouldn't reset colours: keep the existing theme unless
-			// the imported document explicitly carries one.
-			const hasTheme =
-				typeof input === "object" && input !== null && "theme" in (input as object);
-			const theme = hasTheme ? result.data.theme : (await readState(ctx.db)).theme;
-			const state = await writeState(ctx.db, { ...result.data, theme });
+			// Importing goals shouldn't reset colours or the sub count: keep the
+			// existing values unless the imported document explicitly carries them.
+			const obj = typeof input === "object" && input !== null ? (input as object) : {};
+			const existing = await readState(ctx.db);
+			const theme = "theme" in obj ? result.data.theme : existing.theme;
+			const currentSubs = "currentSubs" in obj ? result.data.currentSubs : existing.currentSubs;
+			const state = await writeState(ctx.db, { ...result.data, theme, currentSubs });
 			return { ok: true as const, state, rewards: result.rewards };
 		}),
 	}),
@@ -141,6 +191,7 @@ export const protectedRouter = router({
 				const next: Data = {
 					goals: data.goals.filter((g) => g.id !== input.id),
 					currentIndex: 0,
+					currentSubs: data.currentSubs,
 					theme: data.theme,
 				};
 				return writeState(ctx.db, next);
@@ -159,7 +210,12 @@ export const protectedRouter = router({
 					});
 				}
 				const goals = input.ids.map((id) => byId.get(id)!);
-				return writeState(ctx.db, { goals, currentIndex: 0, theme: data.theme });
+				return writeState(ctx.db, {
+					goals,
+					currentIndex: 0,
+					currentSubs: data.currentSubs,
+					theme: data.theme,
+				});
 			}),
 	}),
 

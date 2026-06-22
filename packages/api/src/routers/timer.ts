@@ -1,7 +1,8 @@
 import { z } from "zod";
 
 import { protectedProcedure, router } from "../index";
-import { readTimer, writeTimer } from "../store";
+import { subsFromEvent } from "../state";
+import { readState, readTimer, writeState, writeTimer } from "../store";
 import { applyEvent, pause, reset, start, type TimerEvent, validateTimerConfig } from "../timer";
 
 const tierSchema = z.enum(["t1", "t2", "t3", "prime"]);
@@ -55,7 +56,14 @@ export const timerRouter = router({
 	applyEvent: protectedProcedure.input(eventSchema).mutation(async ({ ctx, input }) => {
 		const doc = await readTimer(ctx.db);
 		const { state } = applyEvent(doc.config, doc.state, input, Date.now());
-		return writeTimer(ctx.db, { ...doc, state });
+		await writeTimer(ctx.db, { ...doc, state });
+		// Sub/gift events also bump the goals' running sub count.
+		const subs = subsFromEvent(input);
+		if (subs > 0) {
+			const data = await readState(ctx.db);
+			await writeState(ctx.db, { ...data, currentSubs: (data.currentSubs ?? 0) + subs });
+		}
+		return { ...doc, state };
 	}),
 
 	/** Validate a config import without writing (powers the Validate button). */
