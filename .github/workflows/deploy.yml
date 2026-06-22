@@ -69,6 +69,9 @@ jobs:
           # Twitch app credentials for the OAuth redirect flow.
           TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
           TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
+          # StreamElements tip listener — JWT + channel id (empty = listener idle).
+          SE_JWT: ${{ secrets.SE_JWT }}
+          SE_CHANNEL_ID: ${{ secrets.SE_CHANNEL_ID }}
 
       - name: Smoke test API
         run: |

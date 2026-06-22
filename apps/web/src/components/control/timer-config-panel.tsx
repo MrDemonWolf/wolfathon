@@ -230,6 +230,28 @@ export function TimerConfigPanel({
 				</p>
 			</div>
 
+			{/* StreamElements tips */}
+			<div className="mt-5">
+				<div className="text-sm font-medium">StreamElements tips</div>
+				<p className="mt-1 text-xs text-muted-foreground">
+					Tips add time and advance the reward goals. Connect by setting the{" "}
+					<code className="font-mono">SE_JWT</code> and{" "}
+					<code className="font-mono">SE_CHANNEL_ID</code> secrets, then redeploy.
+				</p>
+				<div className="mt-2 grid grid-cols-2 gap-3 sm:max-w-md">
+					<Field
+						label="Minutes per $1"
+						value={config.tipMinutesPerDollar}
+						onChange={(v) => onChange({ ...config, tipMinutesPerDollar: n(v) })}
+					/>
+					<Field
+						label="$ per goal sub (0 = off)"
+						value={config.tipDollarsPerSub}
+						onChange={(v) => onChange({ ...config, tipDollarsPerSub: n(v) })}
+					/>
+				</div>
+			</div>
+
 			{/* overlay colours + chrome */}
 			<ThemeEditor
 				theme={config.theme}
