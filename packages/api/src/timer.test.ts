@@ -5,6 +5,7 @@ import {
 	defaultTimerConfig,
 	defaultTimerDoc,
 	defaultTimerState,
+	eventLabel,
 	pause,
 	resolveThemeGradient,
 	start,
@@ -181,4 +182,35 @@ test("validateTimerConfig drops non-allowlisted emoji image URLs but keeps emote
 			"🐺",
 			"https://static-cdn.jtvnw.net/emoticons/v2/25/static/light/3.0",
 		]);
+});
+
+// ---- time-add alert source (who · what +Xm) -------------------------------
+
+test("eventLabel names who + what; manual adds have no source", () => {
+	expect(eventLabel({ kind: "sub", tier: "t1", who: "Wolf" })).toBe("Wolf · Sub");
+	expect(eventLabel({ kind: "gift", tier: "t1", count: 5, who: "Wolf" })).toBe("Wolf · Gift ×5");
+	expect(eventLabel({ kind: "bits", bits: 500 })).toBe("500 bits"); // anonymous → no name
+	expect(eventLabel({ kind: "manualMinutes", minutes: 5 })).toBe("");
+});
+
+test("applyEvent records the last add (minutes + label) only for positive adds", () => {
+	const config = defaultTimerConfig();
+	const { state } = applyEvent(
+		config,
+		defaultTimerState(config),
+		{ kind: "sub", tier: "t2", who: "Wolf" },
+		1000,
+	);
+	expect(state.lastEvent).toEqual({ at: 1000, minutes: config.sub.t2, label: "Wolf · Sub" });
+	// A negative manual correction must not overwrite it with a celebratory alert.
+	const { state: after } = applyEvent(config, state, { kind: "manualMinutes", minutes: -5 }, 2000);
+	expect(after.lastEvent?.at).toBe(1000);
+});
+
+test("toPublicTimer exposes the label + event-source toggle + last event", () => {
+	const doc = defaultTimerDoc();
+	const pub = toPublicTimer(doc, 0);
+	expect(pub.label).toBe("SUBATHON");
+	expect(pub.showEventSource).toBe(true);
+	expect(pub.lastEvent).toBeNull();
 });

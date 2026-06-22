@@ -54,6 +54,10 @@ export type TimerConfig = {
 	emojis: string[];
 	/** How many emotes flood the bar on each time-add (0 = none). */
 	emoteCount: number;
+	/** Editable eyebrow text above the countdown (visibility is `theme.showLabel`). */
+	label: string;
+	/** Show who/what added time on the time-add alert (e.g. "Name · Sub +5m"). */
+	showEventSource: boolean;
 	/** Overlay colours + chrome. Optional on old rows; defaults to brand. */
 	theme: OverlayTheme;
 };
@@ -66,6 +70,8 @@ export type TimerState = {
 	remainingMs: number;
 	/** Total ms ever added by events — for stats/goals. */
 	totalAddedMs: number;
+	/** Most recent time-add, for the overlay alert. Null until the first add. */
+	lastEvent: TimerLastEvent | null;
 };
 
 export type TimerDoc = { config: TimerConfig; state: TimerState };
@@ -89,18 +95,27 @@ export type PublicTimer = {
 	font: ThemeFont;
 	/** Corner style. */
 	corners: ThemeCorners;
-	/** Show the "SUBATHON" eyebrow. */
+	/** Show the eyebrow label. */
 	showLabel: boolean;
+	/** Editable eyebrow text (defaults to "SUBATHON"). */
+	label: string;
 	/** Show the play/pause status chip. */
 	showStatus: boolean;
+	/** Whether the alert should name who/what added the time. */
+	showEventSource: boolean;
+	/** The most recent time-add (drives the "+Xm" alert + source line). */
+	lastEvent: TimerLastEvent | null;
 };
 
 export type TimerEvent =
-	| { kind: "sub"; tier: SubTier }
-	| { kind: "gift"; tier: SubTier; count: number }
-	| { kind: "bits"; bits: number }
-	| { kind: "points"; rewardId?: string; rewardTitle?: string }
+	| { kind: "sub"; tier: SubTier; who?: string }
+	| { kind: "gift"; tier: SubTier; count: number; who?: string }
+	| { kind: "bits"; bits: number; who?: string }
+	| { kind: "points"; rewardId?: string; rewardTitle?: string; who?: string }
 	| { kind: "manualMinutes"; minutes: number };
+
+/** The most recent time-add, recorded for the overlay's "+Xm" alert. */
+export type TimerLastEvent = { at: number; minutes: number; label: string };
 
 export type TimerConfigError = { path: string; message: string };
 export type TimerConfigResult =
@@ -115,6 +130,9 @@ export const MAX_EMOJIS = 24;
 /** Ceiling on the per-add emote burst so a typo can't spawn thousands of nodes. */
 export const MAX_EMOTE_COUNT = 80;
 export const DEFAULT_EMOTE_COUNT = 26;
+/** Editable eyebrow label above the countdown. */
+export const DEFAULT_TIMER_LABEL = "SUBATHON";
+export const MAX_LABEL_LEN = 40;
 /** Longest single entry: fits a unicode emoji OR a Twitch emote CDN URL. */
 const MAX_EMOJI_LEN = 300;
 
@@ -168,6 +186,8 @@ export function defaultTimerConfig(): TimerConfig {
 		channelPoints: [],
 		emojis: [...DEFAULT_TIMER_EMOJIS],
 		emoteCount: DEFAULT_EMOTE_COUNT,
+		label: DEFAULT_TIMER_LABEL,
+		showEventSource: true,
 		theme: defaultOverlayTheme(),
 	};
 }
@@ -178,6 +198,7 @@ export function defaultTimerState(config: TimerConfig = defaultTimerConfig()): T
 		endsAt: null,
 		remainingMs: Math.round(config.startMinutes * MIN),
 		totalAddedMs: 0,
+		lastEvent: null,
 	};
 }
 
@@ -258,6 +279,27 @@ export function eventMinutes(config: TimerConfig, event: TimerEvent): number {
 	}
 }
 
+/**
+ * Human label for the time-add alert: who (if known) + what. Manual adds have no
+ * source, so they show just the "+Xm" with no label.
+ */
+export function eventLabel(event: TimerEvent): string {
+	const who = "who" in event && event.who ? event.who.trim() : "";
+	const tag = (base: string) => (who ? `${who} · ${base}` : base);
+	switch (event.kind) {
+		case "sub":
+			return tag("Sub");
+		case "gift":
+			return tag(`Gift ×${Math.max(1, event.count)}`);
+		case "bits":
+			return tag(`${Math.max(0, event.bits)} bits`);
+		case "points":
+			return tag(event.rewardTitle?.trim() || "Channel points");
+		case "manualMinutes":
+			return "";
+	}
+}
+
 /** Apply an event, returning the new state and how many ms were added. */
 export function applyEvent(
 	config: TimerConfig,
@@ -266,7 +308,21 @@ export function applyEvent(
 	now: number,
 ): { state: TimerState; addedMs: number } {
 	const ms = Math.round(eventMinutes(config, event) * MIN);
-	return { state: addMs(config, state, ms, now), addedMs: ms };
+	const next = addMs(config, state, ms, now);
+	// Record the add so the overlay can show "+Xm" + its source. Only positive
+	// adds count (a −5m correction shouldn't fire the celebratory alert).
+	const state2 =
+		ms > 0
+			? {
+					...next,
+					lastEvent: {
+						at: now,
+						minutes: Math.max(1, Math.round(ms / MIN)),
+						label: eventLabel(event),
+					},
+				}
+			: next;
+	return { state: state2, addedMs: ms };
 }
 
 export function toPublicTimer(doc: TimerDoc, now: number): PublicTimer {
@@ -284,7 +340,10 @@ export function toPublicTimer(doc: TimerDoc, now: number): PublicTimer {
 		font: theme.font,
 		corners: theme.corners,
 		showLabel: theme.showLabel,
+		label: doc.config.label ?? DEFAULT_TIMER_LABEL,
 		showStatus: theme.showStatus,
+		showEventSource: doc.config.showEventSource ?? true,
+		lastEvent: doc.state.lastEvent ?? null,
 	};
 }
 
@@ -347,6 +406,10 @@ export function validateTimerConfig(input: unknown): TimerConfigResult {
 			r.emoteCount === undefined
 				? DEFAULT_EMOTE_COUNT
 				: Math.round(num(errors, "emoteCount", r.emoteCount, { min: 0, max: MAX_EMOTE_COUNT })),
+		// Label + alert-source are optional; absent → defaults (lenient, like emojis).
+		label:
+			typeof r.label === "string" ? r.label.trim().slice(0, MAX_LABEL_LEN) : DEFAULT_TIMER_LABEL,
+		showEventSource: typeof r.showEventSource === "boolean" ? r.showEventSource : true,
 		theme: defaultOverlayTheme(),
 	};
 
