@@ -14,6 +14,7 @@ import {
 import { readState, writeState } from "../store";
 import { type ThemeError, validateOverlayTheme } from "../theme";
 import { timerRouter } from "./timer";
+import { streamElementsRouter } from "./streamelements";
 import { twitchRouter } from "./twitch";
 
 const rewardSchema = z.string().trim().min(1, "Reward must not be empty.").max(MAX_REWARD_LENGTH);
@@ -224,6 +225,7 @@ export const protectedRouter = router({
 
 	timer: timerRouter,
 	twitch: twitchRouter,
+	streamElements: streamElementsRouter,
 });
 
 export type ProtectedRouter = typeof protectedRouter;

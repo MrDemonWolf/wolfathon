@@ -234,9 +234,8 @@ export function TimerConfigPanel({
 			<div className="mt-5">
 				<div className="text-sm font-medium">StreamElements tips</div>
 				<p className="mt-1 text-xs text-muted-foreground">
-					Tips add time and advance the reward goals. Connect by setting the{" "}
-					<code className="font-mono">SE_JWT</code> and{" "}
-					<code className="font-mono">SE_CHANNEL_ID</code> secrets, then redeploy.
+					Tips add time and advance the reward goals at these rates. Connect your channel in the{" "}
+					<span className="text-foreground">StreamElements</span> tab.
 				</p>
 				<div className="mt-2 grid grid-cols-2 gap-3 sm:max-w-md">
 					<Field

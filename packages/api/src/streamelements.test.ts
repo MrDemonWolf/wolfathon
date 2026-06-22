@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 
-import { parseTip } from "./streamelements";
+import { parseTip, toSeStatus } from "./streamelements";
 import { applyEvent, defaultTimerConfig, defaultTimerState, eventLabel, tipSubs } from "./timer";
 
 test("parseTip reads amount + username from an SE tip event, ignores non-tips", () => {
@@ -43,4 +43,22 @@ test("tipDollarsPerSub = 0 disables goal advancement from tips", () => {
 
 test("eventLabel formats an anonymous tip", () => {
 	expect(eventLabel({ kind: "tip", amount: 3 })).toBe("$3 tip");
+});
+
+test("toSeStatus masks the jwt and reflects connection state", () => {
+	const status = toSeStatus({
+		jwt: "secret-token",
+		channelId: "abc",
+		connected: true,
+		lastTipAt: 5,
+	});
+	expect(status).toEqual({
+		connected: true,
+		hasJwt: true,
+		channelId: "abc",
+		lastTipAt: 5,
+		lastError: undefined,
+	});
+	expect(JSON.stringify(status)).not.toContain("secret-token");
+	expect(toSeStatus({}).hasJwt).toBe(false);
 });

@@ -10,10 +10,42 @@
  *   - advances goals     (config.tipDollarsPerSub → sub-equivalents)
  */
 
-import type { Db } from "@wolfathon/db";
+/**
+ * Persisted StreamElements state (secret — `jwt` never reaches a public response).
+ * Stored in D1 like the `twitch` doc so the operator can paste/rotate the token
+ * from the Access-gated control panel WITHOUT a redeploy; the listener DO reads it.
+ */
+export type SeDoc = {
+	jwt?: string;
+	channelId?: string;
+	/** Last known socket auth state — written by the listener DO. */
+	connected?: boolean;
+	lastError?: string;
+	lastTipAt?: number;
+};
 
-import { readState, readTimer, writeState, writeTimer } from "./store";
-import { applyEvent, tipSubs } from "./timer";
+export function defaultSeDoc(): SeDoc {
+	return {};
+}
+
+/** Masked status safe to return to the (Access-gated) control panel — no jwt. */
+export type SeStatus = {
+	connected: boolean;
+	hasJwt: boolean;
+	channelId?: string;
+	lastTipAt?: number;
+	lastError?: string;
+};
+
+export function toSeStatus(doc: SeDoc): SeStatus {
+	return {
+		connected: Boolean(doc.connected),
+		hasJwt: Boolean(doc.jwt),
+		channelId: doc.channelId,
+		lastTipAt: doc.lastTipAt,
+		lastError: doc.lastError,
+	};
+}
 
 export type SeTip = { id: string; amount: number; who?: string };
 
@@ -37,24 +69,4 @@ export function parseTip(payload: unknown): SeTip | null {
 	const who = typeof rawWho === "string" && rawWho.trim() ? rawWho.trim() : undefined;
 	const id = String(p._id ?? d._id ?? d.tipId ?? `${who ?? "anon"}-${amount}-${d.createdAt ?? ""}`);
 	return who ? { id, amount, who } : { id, amount };
-}
-
-/** Apply a tip: add timer time and advance the reward goals. */
-export async function recordTip(db: Db, tip: SeTip, now: number): Promise<void> {
-	const timer = await readTimer(db);
-	const { state } = applyEvent(
-		timer.config,
-		timer.state,
-		tip.who
-			? { kind: "tip", amount: tip.amount, who: tip.who }
-			: { kind: "tip", amount: tip.amount },
-		now,
-	);
-	await writeTimer(db, { ...timer, state });
-
-	const subs = tipSubs(tip.amount, timer.config);
-	if (subs > 0) {
-		const data = await readState(db);
-		await writeState(db, { ...data, currentSubs: (data.currentSubs ?? 0) + subs });
-	}
 }
