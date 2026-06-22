@@ -1,20 +1,19 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-import type { TimerConfig } from "@wolfathon/api/timer";
 import { Button } from "@wolfathon/ui/components/button";
-import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { controlTrpc, queryClient } from "@/utils/trpc";
 
 import { buildClaudePrompt } from "./claude-prompt";
 import { DirtyBar } from "./dirty-bar";
-import { type IEConfig, type IEError, ImportExportPanel } from "./import-export-panel";
+import { type IEConfig, ImportExportPanel } from "./import-export-panel";
 import { TimerConfigPanel } from "./timer-config-panel";
 import { TimerPanel } from "./timer-panel";
 import { TimerPreview } from "./timer-preview";
 import { TIMER_EXAMPLE_JSON, TIMER_SCHEMA_BULLETS } from "./timer-example";
+import { guard, useDraft } from "./use-draft";
 import { nowStamp } from "./util";
 
 export function TimerTab() {
@@ -22,42 +21,14 @@ export function TimerTab() {
 	const { data, isLoading, isError, refetch } = useQuery(rawOptions);
 	const invalidate = () => queryClient.invalidateQueries({ queryKey: rawOptions.queryKey });
 
-	const [draft, setDraft] = useState<TimerConfig | null>(null);
-	const savedRef = useRef<string>("");
-	const seenDataRef = useRef<typeof data>(undefined);
 	const setConfig = useMutation(controlTrpc.timer.setConfig.mutationOptions());
+	const { draft, setDraft, dirty, discard, seed } = useDraft(
+		data,
+		(d) => d.config,
+		(c) => JSON.stringify(c),
+	);
 
-	// Seed the draft config; re-seed when the server *reference* changes while
-	// clean. Gating on the reference makes a re-seed loop impossible.
-	useEffect(() => {
-		if (!data || data === seenDataRef.current) return;
-		seenDataRef.current = data;
-		if (draft === null || JSON.stringify(draft) === savedRef.current) {
-			setDraft(structuredClone(data.config));
-			savedRef.current = JSON.stringify(data.config);
-		}
-	}, [data, draft]);
-
-	const dirty = draft != null && JSON.stringify(draft) !== savedRef.current;
 	const previewDoc = data ? { config: draft ?? data.config, state: data.state } : undefined;
-
-	// Warn before a tab close/reload throws away unsaved edits (each control tab
-	// holds its draft in memory and only persists on Save).
-	useEffect(() => {
-		if (!dirty) return;
-		const onBeforeUnload = (e: BeforeUnloadEvent) => {
-			e.preventDefault();
-			e.returnValue = "";
-		};
-		window.addEventListener("beforeunload", onBeforeUnload);
-		return () => window.removeEventListener("beforeunload", onBeforeUnload);
-	}, [dirty]);
-
-	function discard() {
-		if (!data) return;
-		setDraft(structuredClone(data.config));
-		savedRef.current = JSON.stringify(data.config);
-	}
 
 	function save() {
 		if (!draft) return;
@@ -69,8 +40,7 @@ export function TimerTab() {
 					);
 					return;
 				}
-				setDraft(structuredClone(res.doc.config));
-				savedRef.current = JSON.stringify(res.doc.config);
+				seed(res.doc.config);
 				toast.success("Timer settings saved");
 				invalidate();
 			},
@@ -79,16 +49,6 @@ export function TimerTab() {
 
 	const validate = useMutation(controlTrpc.timer.validateConfig.mutationOptions());
 	const importMut = useMutation(controlTrpc.timer.setConfig.mutationOptions());
-
-	async function guard<T>(fn: () => Promise<T>, onErr: (errors: IEError[]) => T): Promise<T> {
-		try {
-			return await fn();
-		} catch (e) {
-			return onErr([
-				{ label: "Error", message: e instanceof Error ? e.message : "request failed" },
-			]);
-		}
-	}
 
 	const ie: IEConfig = {
 		title: "timer config",
@@ -126,8 +86,7 @@ export function TimerTab() {
 					if (r.ok) {
 						// Sync the draft to the imported config so a dirty draft does not shadow it
 						// (reseed skips while dirty) or revert it on the next Save.
-						setDraft(structuredClone(r.doc.config));
-						savedRef.current = JSON.stringify(r.doc.config);
+						seed(r.doc.config);
 						return { ok: true } as const;
 					}
 					return {

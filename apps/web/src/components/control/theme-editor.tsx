@@ -2,6 +2,7 @@
 
 import {
 	defaultOverlayTheme,
+	expandHex,
 	FONT_LABELS,
 	FONT_STACKS,
 	gradientCss,
@@ -40,17 +41,6 @@ const CORNER_PREVIEW: Record<ThemeCorners, string> = {
 	sharp: "rounded-[2px]",
 };
 
-/** `<input type="color">` only accepts #rrggbb — expand #rgb, fall back to brand. */
-function normalizeHex(c: string): string {
-	const v = c.trim();
-	const short = /^#([0-9a-fA-F]{3})$/.exec(v);
-	if (short) {
-		const [r, g, b] = short[1]!.split("");
-		return `#${r}${r}${g}${g}${b}${b}`;
-	}
-	return /^#[0-9a-fA-F]{6}$/.test(v) ? v : "#00aced";
-}
-
 /**
  * Shared overlay theme editor (timer + rewards). Controlled: holds no state,
  * just renders `theme` and calls `onChange` with the next theme.
@@ -72,7 +62,7 @@ export function ThemeEditor({
 	function selectPreset(p: ThemePreset) {
 		if (p === "custom") {
 			const seed = theme.gradient.length >= 2 ? theme.gradient : resolveThemeGradient(theme);
-			onChange({ ...theme, preset: "custom", gradient: seed.map(normalizeHex) });
+			onChange({ ...theme, preset: "custom", gradient: seed.map((c) => expandHex(c)) });
 		} else {
 			onChange({ ...theme, preset: p });
 		}
@@ -174,7 +164,7 @@ export function ThemeEditor({
 								<input
 									type="color"
 									aria-label={`Stop ${i + 1} colour`}
-									value={normalizeHex(c)}
+									value={expandHex(c)}
 									onChange={(e) => setStop(i, e.target.value)}
 									className="size-8 cursor-pointer rounded border-0 bg-transparent p-0"
 								/>
@@ -212,7 +202,7 @@ export function ThemeEditor({
 							<input
 								type="color"
 								aria-label="Text colour"
-								value={HEX_COLOR.test(theme.textColor) ? normalizeHex(theme.textColor) : "#ffffff"}
+								value={HEX_COLOR.test(theme.textColor) ? expandHex(theme.textColor) : "#ffffff"}
 								onChange={(e) => onChange({ ...theme, textColor: e.target.value })}
 								className="size-8 cursor-pointer rounded border-0 bg-transparent p-0"
 							/>
