@@ -141,6 +141,16 @@ export function defaultTimerDoc(): TimerDoc {
 	return { config, state: defaultTimerState(config) };
 }
 
+/**
+ * Backfill top-level config keys missing on rows persisted before a field
+ * existed (e.g. `theme`, `emojis`), so the operator editor never dereferences an
+ * absent field. The read boundary in store.ts runs every raw timer doc through
+ * this — see the round-trip test guarding new fields against the #20 crash class.
+ */
+export function withTimerConfigDefaults(doc: TimerDoc): TimerDoc {
+	return { ...doc, config: { ...defaultTimerConfig(), ...doc.config } };
+}
+
 /** Current remaining ms, whether running or paused. */
 export function currentRemainingMs(state: TimerState, now: number): number {
 	if (state.running && state.endsAt != null) return Math.max(0, state.endsAt - now);

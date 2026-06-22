@@ -3,6 +3,7 @@ import { expect, test } from "bun:test";
 import {
 	applyEvent,
 	defaultTimerConfig,
+	defaultTimerDoc,
 	defaultTimerState,
 	pause,
 	resolveThemeGradient,
@@ -10,6 +11,7 @@ import {
 	TIMER_THEME_PRESETS,
 	toPublicTimer,
 	validateTimerConfig,
+	withTimerConfigDefaults,
 } from "./timer";
 
 const MIN = 60_000;
@@ -137,4 +139,26 @@ test("theme: missing theme falls back to brand in the public payload", () => {
 	expect(
 		resolveThemeGradient({ preset: "brand", gradient: [], showLabel: true, showStatus: true }),
 	).toEqual(TIMER_THEME_PRESETS.brand);
+});
+
+// ---- read-boundary defaults (the #20 white-screen crash class) ------------
+// A new TimerConfig field added without a matching default in defaultTimerConfig
+// would crash /control on rows persisted before it existed. These iterate the
+// keys so future fields are covered without touching this test.
+
+test("withTimerConfigDefaults restores every config key dropped from an old row", () => {
+	const full = defaultTimerConfig();
+	for (const key of Object.keys(full) as (keyof typeof full)[]) {
+		const config = { ...full };
+		delete (config as Record<string, unknown>)[key];
+		const restored = withTimerConfigDefaults({ config, state: defaultTimerState() }).config;
+		expect(restored[key], `config.${key} must be backfilled at the read boundary`).toBeDefined();
+	}
+});
+
+test("withTimerConfigDefaults preserves all keys for a full doc (none dropped)", () => {
+	const doc = defaultTimerDoc();
+	const restored = withTimerConfigDefaults(doc);
+	expect(Object.keys(restored.config).sort()).toEqual(Object.keys(doc.config).sort());
+	expect(restored.state).toEqual(doc.state);
 });
