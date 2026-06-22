@@ -110,4 +110,18 @@ app.post("/twitch/eventsub", async (c) => {
 
 app.get("/", (c) => c.text("Wolfathon public API — OK"));
 
-export default app;
+export { SEListener } from "./se-listener";
+
+type ScheduledEnv = { SE_JWT?: string; SE_LISTENER: DurableObjectNamespace };
+
+export default {
+	fetch: app.fetch,
+	// Cron keepalive: nudge the StreamElements listener DO to (re)connect. The DO's
+	// own alarm sustains the socket between ticks; this just bootstraps it after a
+	// deploy or eviction. No-op until SE_JWT is configured.
+	async scheduled(_event: ScheduledController, env: ScheduledEnv): Promise<void> {
+		if (!env.SE_JWT) return;
+		const stub = env.SE_LISTENER.get(env.SE_LISTENER.idFromName("default"));
+		await stub.fetch("https://se-listener/ensure");
+	},
+};
