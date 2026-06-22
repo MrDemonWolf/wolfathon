@@ -29,6 +29,22 @@ export const MAX_GRADIENT_STOPS = 6;
 /** Matches `#abc` or `#aabbcc`. */
 export const HEX_COLOR = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
+/**
+ * Normalize a hex colour to `#rrggbb`: expand `#rgb` shorthand, pass a 6-digit
+ * value through unchanged, and fall back to brand blue for anything else.
+ * `<input type="color">` and `${hex}aa` alpha suffixes both require 6 digits,
+ * so every overlay/control surface expands through this single helper.
+ */
+export function expandHex(hex: string, fallback = "#00aced"): string {
+	const v = hex.trim();
+	const short = /^#([0-9a-fA-F]{3})$/.exec(v);
+	if (short) {
+		const [r, g, b] = short[1]!.split("");
+		return `#${r}${r}${g}${g}${b}${b}`;
+	}
+	return /^#[0-9a-fA-F]{6}$/.test(v) ? v : fallback;
+}
+
 /** Built-in capsule gradients. `brand` is the default (MrDemonWolf blue). */
 export const THEME_PRESETS: Record<Exclude<ThemePreset, "custom">, string[]> = {
 	brand: ["#0077c8", "#00aced", "#5bc8f0"],
@@ -89,8 +105,7 @@ export function resolveThemeGradient(theme: OverlayTheme): string[] {
 
 /** Perceived brightness (0–255) of a #rgb / #rrggbb colour. */
 export function luma(hex: string): number {
-	const h = hex.replace("#", "");
-	const f = h.length === 3 ? h.replace(/./g, "$&$&") : h;
+	const f = expandHex(hex).slice(1);
 	const r = parseInt(f.slice(0, 2), 16);
 	const g = parseInt(f.slice(2, 4), 16);
 	const b = parseInt(f.slice(4, 6), 16);
