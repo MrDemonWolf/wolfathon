@@ -72,8 +72,12 @@ would re-write the same value repeatedly and eat into the D1 write budget
 The timer counts real wall-clock time, so a stream/PC outage burns subathon time.
 Cleanest fix uses the EventSub we already have: subscribe to `stream.offline`
 (auto-pause the timer) and `stream.online` (auto-resume, or leave it for a manual
-Resume). No extra scopes needed. Ask Claude to "add stream offline/online
-auto-pause" and pick auto-resume vs manual-resume. Not built yet.
+Resume). No extra scopes needed.
+
+**BUILT:** subscribes to `stream.offline` and auto-pauses the timer on a stream
+outage. Manual resume by design (no `stream.online` subscription) so a flaky
+connection cannot silently restart the clock. Existing Twitch connections must
+**reconnect once** (control panel -> Twitch -> Connect) to create the new sub.
 
 ### If you ever DO want a heartbeat (optional, later)
 

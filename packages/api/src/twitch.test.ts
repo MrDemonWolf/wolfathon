@@ -33,6 +33,8 @@ test("a cheer carries the bit count", () => {
 
 test("unknown events are ignored", () => {
 	expect(parseEvent("channel.follow", {})).toBeNull();
+	// stream.offline carries no time; it is handled as a pause, not a TimerEvent.
+	expect(parseEvent("stream.offline", {})).toBeNull();
 });
 
 test("the test notification is signed so our own verifier accepts it", async () => {
