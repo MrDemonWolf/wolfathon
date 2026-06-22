@@ -56,11 +56,10 @@ export const server = await Worker("wolfathon-api", {
 	bindings: {
 		DB: db,
 		CORS_ORIGIN,
-		// StreamElements tip listener (Durable Object) + its credentials. The cron
-		// below + the DO's alarm keep the socket alive; empty JWT = listener idle.
+		// StreamElements tip listener (Durable Object). The channel JWT lives in D1
+		// (set from the control panel), so no creds here. The cron below + the DO's
+		// alarm keep the socket alive.
 		SE_LISTENER: seListener,
-		SE_JWT: process.env.SE_JWT ?? "",
-		SE_CHANNEL_ID: process.env.SE_CHANNEL_ID ?? "",
 	},
 	// Bootstrap/keepalive tick for the StreamElements listener DO.
 	crons: ["* * * * *"],

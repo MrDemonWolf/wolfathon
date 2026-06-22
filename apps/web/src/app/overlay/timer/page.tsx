@@ -6,13 +6,14 @@ import { TimerView } from "@/components/overlay/timer-view";
 import { publicTrpc } from "@/utils/trpc";
 
 /**
- * Subathon timer OBS browser source (1920×1080, transparent). Polls the public
- * timer every 2s; the overlay itself counts down to the frame between polls.
+ * Subathon timer OBS browser source (1920×1080, transparent). The overlay counts
+ * down locally to the frame, so a 5s poll stays smooth while keeping daily request
+ * volume well under the Cloudflare Workers free tier (a 2s poll ≈ 43k req/day).
  */
 export default function TimerOverlayPage() {
 	const { data } = useQuery({
 		...publicTrpc.timer.getPublic.queryOptions(),
-		refetchInterval: 2000,
+		refetchInterval: 5000,
 		refetchIntervalInBackground: true,
 	});
 
