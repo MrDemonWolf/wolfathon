@@ -1,10 +1,14 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
+import type { TimerConfig } from "@wolfathon/api/timer";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { controlTrpc, queryClient } from "@/utils/trpc";
 
 import { buildClaudePrompt } from "./claude-prompt";
+import { DirtyBar } from "./dirty-bar";
 import { type IEConfig, type IEError, ImportExportPanel } from "./import-export-panel";
 import { TimerConfigPanel } from "./timer-config-panel";
 import { TimerPanel } from "./timer-panel";
@@ -17,16 +21,55 @@ export function TimerTab() {
 	const { data } = useQuery(rawOptions);
 	const invalidate = () => queryClient.invalidateQueries({ queryKey: rawOptions.queryKey });
 
-	const validate = useMutation(controlTrpc.timer.validateConfig.mutationOptions());
+	const [draft, setDraft] = useState<TimerConfig | null>(null);
+	const savedRef = useRef<string>("");
+	const seenDataRef = useRef<typeof data>(undefined);
 	const setConfig = useMutation(controlTrpc.timer.setConfig.mutationOptions());
+
+	// Seed the draft config; re-seed when the server *reference* changes while
+	// clean. Gating on the reference makes a re-seed loop impossible.
+	useEffect(() => {
+		if (!data || data === seenDataRef.current) return;
+		seenDataRef.current = data;
+		if (draft === null || JSON.stringify(draft) === savedRef.current) {
+			setDraft(structuredClone(data.config));
+			savedRef.current = JSON.stringify(data.config);
+		}
+	}, [data, draft]);
+
+	const dirty = draft != null && JSON.stringify(draft) !== savedRef.current;
+	const previewDoc = data ? { config: draft ?? data.config, state: data.state } : undefined;
+
+	function discard() {
+		if (!data) return;
+		setDraft(structuredClone(data.config));
+		savedRef.current = JSON.stringify(data.config);
+	}
+
+	function save() {
+		if (!draft) return;
+		setConfig.mutate(draft, {
+			onSuccess: (res) => {
+				if (!res.ok) {
+					toast.error(res.errors[0] ? `${res.errors[0].path}: ${res.errors[0].message}` : "Invalid config");
+					return;
+				}
+				setDraft(structuredClone(res.doc.config));
+				savedRef.current = JSON.stringify(res.doc.config);
+				toast.success("Timer settings saved");
+				invalidate();
+			},
+		});
+	}
+
+	const validate = useMutation(controlTrpc.timer.validateConfig.mutationOptions());
+	const importMut = useMutation(controlTrpc.timer.setConfig.mutationOptions());
 
 	async function guard<T>(fn: () => Promise<T>, onErr: (errors: IEError[]) => T): Promise<T> {
 		try {
 			return await fn();
 		} catch (e) {
-			return onErr([
-				{ label: "Error", message: e instanceof Error ? e.message : "request failed" },
-			]);
+			return onErr([{ label: "Error", message: e instanceof Error ? e.message : "request failed" }]);
 		}
 	}
 
@@ -52,23 +95,17 @@ export function TimerTab() {
 					const r = await validate.mutateAsync(v);
 					return r.ok
 						? ({ ok: true, summary: ["valid config"] } as const)
-						: ({
-								ok: false,
-								errors: r.errors.map((e) => ({ label: e.path, message: e.message })),
-							} as const);
+						: ({ ok: false, errors: r.errors.map((e) => ({ label: e.path, message: e.message })) } as const);
 				},
 				(errors) => ({ ok: false, errors }),
 			),
 		doImport: (v) =>
 			guard(
 				async () => {
-					const r = await setConfig.mutateAsync(v);
+					const r = await importMut.mutateAsync(v);
 					return r.ok
 						? ({ ok: true } as const)
-						: ({
-								ok: false,
-								errors: r.errors.map((e) => ({ label: e.path, message: e.message })),
-							} as const);
+						: ({ ok: false, errors: r.errors.map((e) => ({ label: e.path, message: e.message })) } as const);
 				},
 				(errors) => ({ ok: false, errors }),
 			),
@@ -78,11 +115,18 @@ export function TimerTab() {
 		<div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
 			<div className="flex flex-col gap-6">
 				<TimerPanel doc={data} onChanged={invalidate} />
-				<TimerConfigPanel doc={data} onChanged={invalidate} />
+				{draft && <TimerConfigPanel config={draft} onChange={setDraft} />}
 				<ImportExportPanel
 					config={ie}
-					busy={validate.isPending || setConfig.isPending}
+					busy={validate.isPending || importMut.isPending}
 					onImported={invalidate}
+				/>
+				<DirtyBar
+					dirty={dirty}
+					saving={setConfig.isPending}
+					onSave={save}
+					onDiscard={discard}
+					summary="timer settings"
 				/>
 			</div>
 			<div className="flex flex-col gap-3 lg:sticky lg:top-6 lg:self-start">
@@ -97,7 +141,8 @@ export function TimerTab() {
 						Open ↗
 					</a>
 				</div>
-				<TimerPreview doc={data} />
+				<TimerPreview doc={previewDoc} />
+				{dirty && <p className="text-xs text-amber-400">Preview shows unsaved changes.</p>}
 			</div>
 		</div>
 	);

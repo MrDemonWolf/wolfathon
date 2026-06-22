@@ -1,9 +1,17 @@
 import { trpcServer } from "@hono/trpc-server";
 import { createContext } from "@wolfathon/api/context";
 import { publicRouter } from "@wolfathon/api/routers/index";
+import { subsFromEvent } from "@wolfathon/api/state";
 import { applyEvent } from "@wolfathon/api/timer";
 import { parseEvent, verifyEventsubSignature } from "@wolfathon/api/twitch";
-import { readTimer, readTwitch, writeTimer, writeTwitch } from "@wolfathon/api/store";
+import {
+	readState,
+	readTimer,
+	readTwitch,
+	writeState,
+	writeTimer,
+	writeTwitch,
+} from "@wolfathon/api/store";
 import { createDb } from "@wolfathon/db";
 import { env } from "@wolfathon/env/server";
 import { Hono } from "hono";
@@ -80,6 +88,12 @@ app.post("/twitch/eventsub", async (c) => {
 			const timer = await readTimer(db);
 			const { state } = applyEvent(timer.config, timer.state, event, Date.now());
 			await writeTimer(db, { ...timer, state });
+			// Sub/gift events also bump the goals' running sub count.
+			const subs = subsFromEvent(event);
+			if (subs > 0) {
+				const data = await readState(db);
+				await writeState(db, { ...data, currentSubs: (data.currentSubs ?? 0) + subs });
+			}
 		}
 		await writeTwitch(db, { ...twitch, recentEventIds: [messageId, ...recent].slice(0, 50) });
 		return c.body(null, 204);

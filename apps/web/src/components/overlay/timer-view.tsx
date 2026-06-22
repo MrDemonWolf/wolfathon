@@ -1,21 +1,36 @@
 "use client";
 
+import { FONT_STACKS, gradientCss, type ThemeCorners } from "@wolfathon/api/theme";
 import type { PublicTimer } from "@wolfathon/api/timer";
+import { Pause, Play } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Subathon timer overlay — a single horizontal pill "widget". Timestamp-driven:
- * it counts down locally from `endsAt` (correcting browser-clock skew via
- * `serverNow`) and only resyncs on the page's poll — smooth to the frame, no
- * websocket.
+ * Capsule corner radius per style. cqw = % of the OUTER source width (a capsule
+ * element isn't its own query container, so cqh would resolve against the source
+ * height — wrong). The bar is ~6.9cqw tall, so pill ≈ half that.
+ */
+const CORNER_RADII: Record<ThemeCorners, string> = {
+	pill: "9999px",
+	rounded: "4.4cqw",
+	sharp: "1.4cqw",
+};
+
+/**
+ * Subathon timer overlay — a single horizontal gradient capsule. Timestamp-
+ * driven: it counts down locally from `endsAt` (correcting browser-clock skew
+ * via `serverNow`) and only resyncs on the page's poll — smooth to the frame,
+ * no websocket.
  *
- * The bar fills its OBS browser source, so the streamer sizes the source to the
- * bar (recommend ~720×150) rather than floating a card in a 1080 canvas. When
- * remaining time jumps up (a sub/gift/bits added time) the operator's chosen
- * emoji well up and flood the inside of the bar, with a rising "+Xm" token.
+ * The capsule has a LOCKED aspect ratio and a capped width, centred near the
+ * top of the source. That's the fix for the old "fills the whole screen" bug:
+ * sizing used to be `h-full` of the source, so a 1920×1080 OBS source stretched
+ * the bar to ~1000px tall. Now the pill is its own `@container`, every interior
+ * size is a `%` of the pill, and the pill keeps its shape at any source size —
+ * identical in the 24:5 control preview and a full 16:9 browser source.
  *
- * All sizing is in container-query units (mostly `cqh`, height-relative) so the
- * bar reads identically at any source width and in the control-panel preview.
+ * When remaining time jumps up (a sub/gift/bits added time) the operator's
+ * chosen emotes well up and flood the inside of the capsule with a rising "+Xm".
  */
 export function TimerView({ data }: { data: PublicTimer | undefined }) {
 	const offsetRef = useRef(0); // serverNow - browserNow, captured per fetch
@@ -43,10 +58,11 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 		return () => clearInterval(t);
 	}, []);
 
-	// Auto-clear the "+Xm" flash + emote flood.
+	// Auto-clear the "+Xm" flash + emote flood. Long enough that the (slowed)
+	// emotes finish their rise before they're unmounted.
 	useEffect(() => {
 		if (!flash) return;
-		const t = setTimeout(() => setFlash(null), 2400);
+		const t = setTimeout(() => setFlash(null), 4200);
 		return () => clearTimeout(t);
 	}, [flash]);
 
@@ -60,54 +76,65 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 			: Math.max(0, data.remainingMs);
 	const { d, h, m, s } = format(remaining);
 	const live = data.running && remaining > 0;
-	const accent = live ? "#00aced" : "#f5b94d";
+
+	// Operator-themed sweep when live (brand blue by default); clean neutral slate
+	// when paused/ended so a stopped timer reads distinctly, whatever the theme.
+	const capsule = live
+		? gradientCss(data.gradient)
+		: "linear-gradient(100deg,#2b3346 0%,#3a4456 50%,#2b3346 100%)";
+	// Text colour is resolved server-side (auto → dark/white from gradient
+	// brightness, or the operator's explicit hex); paused forces white over slate.
+	const ink = live ? data.textColor : "#ffffff";
+	const fontFamily = FONT_STACKS[data.font] ?? FONT_STACKS.montserrat;
+	const radius = CORNER_RADII[data.corners] ?? CORNER_RADII.rounded;
+	// Soft coloured glow from the brightest stop — replaces the old halo element
+	// (a second rounded rect that read as a clumsy double border).
+	const accent = data.gradient.at(-1) ?? "#5bc8f0";
+	const glow = live ? withAlpha(accent, "5c") : "rgba(58,68,92,0.45)";
+	const boxShadow = `0 0.8cqw 2.6cqw rgba(4,9,24,0.5), 0 0 2.6cqw ${glow}`;
 
 	return (
-		<div className="pointer-events-none absolute inset-[5cqh] flex select-none items-center justify-center">
-			{/* rising "+Xm" token, sits just above the bar */}
-			{flash && (
+		<div
+			className="pointer-events-none absolute inset-0 flex select-none items-center justify-center"
+			style={{ fontFamily }}
+		>
+			<div className="relative w-[86cqw] max-w-[1560px]">
+				{/* the capsule — its OWN container, fixed aspect, clips the emote flood.
+				    Glow is a box-shadow (no second rounded element → no double border). */}
 				<div
-					key={`label-${flash.id}`}
-					className="animate-wolf-rise absolute bottom-full left-1/2 mb-[3cqh] -translate-x-1/2"
+					className="@container relative aspect-[131/20] w-full overflow-hidden"
+					style={{ backgroundImage: capsule, borderRadius: radius, boxShadow }}
 				>
-					<div className="rounded-full border border-[#00aced]/40 bg-[#091533]/90 px-[5cqh] py-[1.5cqh] font-heading text-[22cqh] font-extrabold whitespace-nowrap text-[#5bc8f0] shadow-[inset_0_0.12cqh_0_rgba(255,255,255,0.2),0_0_3cqh_rgba(0,172,237,0.45)] backdrop-blur-xl">
-						+{flash.minutes}m
-					</div>
-				</div>
-			)}
+					{/* one thin top hairline for depth — no muddy gloss overlay */}
+					<div className="pointer-events-none absolute inset-x-[6%] top-0 h-px bg-white/35" />
+					{/* slow sheen sweep — life without a busy animation */}
+					{live && (
+						<div
+							className="pointer-events-none absolute inset-0 overflow-hidden"
+							style={{ borderRadius: radius }}
+						>
+							<div className="wolf-sheen absolute inset-y-0 -left-1/3 w-[26%] skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+						</div>
+					)}
 
-			<div className="relative h-full w-full">
-				{/* animated gradient glow ring behind the bar */}
-				<div
-					className={`absolute -inset-[2cqh] rounded-full bg-[conic-gradient(from_0deg,#00aced,#5bc8f0,#3a86c9,#00aced)] opacity-50 blur-[2cqh] ${live ? "animate-spin-slow" : ""}`}
-				/>
-
-				{/* the pill — overflow-hidden so the emote flood is clipped inside */}
-				<div className="relative flex h-full w-full items-center gap-[4cqh] overflow-hidden rounded-full border border-[#5bc8f0]/40 bg-[#091533]/88 pr-[6cqh] pl-[3cqh] shadow-[inset_0_0.12cqh_0_rgba(255,255,255,0.18),0_0_4cqh_rgba(0,172,237,0.25)] backdrop-blur-xl">
-					{/* top hairline + inner sheen */}
-					<div className="pointer-events-none absolute inset-x-[8cqh] top-0 h-px bg-gradient-to-r from-transparent via-[#5bc8f0] to-transparent" />
-					<div className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(80%_140%_at_0%_0%,rgba(255,255,255,0.08),transparent_55%)]" />
-
-					{/* cyan flood wash on a time-add event */}
+					{/* white wash + emote flood on a time-add event */}
 					{flash && (
 						<div
 							key={`flood-${flash.id}`}
-							className="animate-wolf-flood pointer-events-none absolute inset-0 bg-gradient-to-t from-[#00aced]/35 via-[#00aced]/10 to-transparent"
+							className="animate-wolf-flood pointer-events-none absolute inset-0 bg-gradient-to-t from-white/30 via-white/10 to-transparent"
 						/>
 					)}
-
-					{/* emotes welling up and filling the bar */}
 					{flash && (
 						<div className="pointer-events-none absolute inset-0">
 							{fillParticles(emojis, flash.id).map((p) => (
 								<span
 									key={p.key}
-									className="animate-wolf-fill absolute bottom-[-12cqh] will-change-transform"
+									className="animate-wolf-fill absolute bottom-0 will-change-transform"
 									style={
 										{
 											left: `${p.left}%`,
-											filter: "drop-shadow(0 0 0.8cqh rgba(0,172,237,0.6))",
-											"--fill-x": `${p.x}cqh`,
+											filter: "drop-shadow(0 0.3cqh 0.6cqh rgba(0,0,0,0.35))",
+											"--fill-x": `${p.x}cqw`,
 											"--fill-spin": `${p.spin}deg`,
 											"--fill-dur": `${p.duration}s`,
 											"--fill-delay": `${p.delay}s`,
@@ -120,47 +147,54 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 						</div>
 					)}
 
-					{/* left badge: status orb in a tinted ring (no wolf logo, per #9) */}
-					<div
-						className="relative grid aspect-square h-[74%] shrink-0 place-items-center rounded-full bg-[#0c1c44]"
-						style={{
-							boxShadow: `0 0 2.5cqh ${accent}66, inset 0 0 0 0.4cqh ${accent}99`,
-						}}
-					>
-						{live && (
-							<span className="absolute inset-0 animate-ping rounded-full border border-[#00aced]/50" />
-						)}
-						<span
-							className="size-[34%] rounded-full"
-							style={{ backgroundColor: accent, boxShadow: `0 0 1.6cqh ${accent}` }}
-						/>
-					</div>
-
-					{/* eyebrow + status, stacked, then the countdown */}
-					<div className="relative flex min-w-0 flex-1 flex-col justify-center">
-						<div className="flex items-center gap-[2cqh]">
-							<span className="font-heading text-[12cqh] leading-none font-bold tracking-[0.45em] text-[#5bc8f0] uppercase">
-								Subathon
-							</span>
+					{/* status chip pinned left — a play (running) / pause (stopped) icon
+					    on its own dark plate, so it reads on any gradient */}
+					{data.showStatus && (
+						<div
+							className="absolute top-1/2 left-[3cqw] grid aspect-square h-[58%] -translate-y-1/2 place-items-center rounded-full bg-black/50 text-white backdrop-blur-md"
+							role="img"
+							aria-label={live ? "Running" : "Paused"}
+							title={live ? "Running" : "Paused"}
+						>
 							{live ? (
-								<span className="flex items-center gap-[1cqh] text-[10cqh] leading-none font-semibold tracking-widest text-[#00aced]">
-									<span className="size-[1.4cqh] animate-pulse rounded-full bg-[#00aced] [box-shadow:0_0_1.2cqh_#00aced]" />
-									LIVE
-								</span>
+								<Play className="size-[55%] fill-current" />
 							) : (
-								<span className="flex items-center gap-[1cqh] text-[10cqh] leading-none font-semibold tracking-widest text-[#f5b94d]">
-									<span className="size-[1.4cqh] rounded-full bg-[#f5b94d]" />
-									{remaining > 0 ? "PAUSED" : "ENDED"}
-								</span>
+								<Pause className="size-[55%] fill-current" />
 							)}
 						</div>
+					)}
 
+					{/* "+Xm" badge — inside the bar (top-right) so it's never clipped by a
+					    tightly-cropped source; pops in on a time-add event */}
+					{flash && (
 						<div
-							className={`mt-[2cqh] flex items-baseline gap-[3cqh] font-heading font-extrabold tabular-nums text-white ${live ? "wolf-glow" : ""}`}
+							key={`label-${flash.id}`}
+							className="animate-wolf-rise absolute top-[12%] right-[2.5cqw] z-10 rounded-full bg-black/45 px-[1.8cqw] py-[0.5cqw] text-[2.6cqw] font-extrabold whitespace-nowrap text-white backdrop-blur-md"
+							style={{ boxShadow: `0 0 2cqw ${glow}` }}
 						>
+							+{flash.minutes}m
+						</div>
+					)}
+
+					{/* eyebrow above the countdown, top-centre */}
+					{data.showLabel && (
+						<span
+							className="absolute top-[1.6cqh] left-1/2 -translate-x-1/2 text-[1.7cqw] leading-none font-bold tracking-[0.5em] uppercase opacity-70"
+							style={{ color: ink }}
+						>
+							Subathon
+						</span>
+					)}
+
+					{/* the countdown, dead-centre (ink resolved server-side from the theme) */}
+					<div
+						className="absolute inset-0 grid place-items-center font-extrabold tabular-nums"
+						style={{ color: ink }}
+					>
+						<div className="mt-[1cqh] flex items-baseline gap-[2.4cqw] [text-shadow:0_0.2cqh_0.7cqw_rgba(0,0,0,0.3)]">
 							{Number(d) > 0 && <Segment value={d} unit="D" />}
-							{(Number(d) > 0 || Number(h) > 0) && <Segment value={h} unit="H" />}
-							<Segment value={m} unit="M" />
+							{Number(d) > 0 || Number(h) > 0 ? <Segment value={h} unit="H" /> : null}
+							{remaining >= 60000 && <Segment value={m} unit="M" />}
 							<Segment value={s} unit="S" />
 						</div>
 					</div>
@@ -179,23 +213,28 @@ function Glyph({ e, size }: { e: string; size: number }) {
 				src={e}
 				alt=""
 				className="block object-contain"
-				style={{ width: `${size}cqh`, height: `${size}cqh` }}
+				style={{ width: `${size}cqw`, height: `${size}cqw` }}
 			/>
 		);
 	}
-	return <span style={{ fontSize: `${size}cqh`, lineHeight: 1 }}>{e}</span>;
+	return <span style={{ fontSize: `${size}cqw`, lineHeight: 1 }}>{e}</span>;
 }
 
 /** Display segment: numeric value + small subscript unit. */
 function Segment({ value, unit }: { value: string; unit: string }) {
 	return (
 		<span className="relative inline-flex items-baseline">
-			<span className="text-[44cqh] leading-none [text-shadow:0_0_2.4cqh_rgba(0,172,237,0.45)]">
-				{value}
-			</span>
-			<span className="ml-[0.4cqh] font-heading text-[12cqh] font-bold text-[#5bc8f0]">{unit}</span>
+			<span className="text-[8.6cqw] leading-none">{value}</span>
+			<span className="ml-[0.5cqw] text-[2.4cqw] font-bold opacity-70">{unit}</span>
 		</span>
 	);
+}
+
+/** Append a 2-digit alpha to a #rgb / #rrggbb colour (→ #rrggbbaa). */
+function withAlpha(hex: string, aa: string): string {
+	const h = hex.replace("#", "");
+	const f = h.length === 3 ? h.replace(/./g, "$&$&") : h.slice(0, 6);
+	return `#${f}${aa}`;
 }
 
 function format(ms: number): { d: string; h: string; m: string; s: string } {
@@ -215,16 +254,16 @@ function rand(seed: number, salt: number): number {
 	return x - Math.floor(x);
 }
 
-/** Emotes welling up across the bar width when time is added (seeded by flash id). */
+/** Emotes welling up across the capsule width when time is added (seeded by flash id). */
 function fillParticles(emojis: string[], seed: number, count = 26) {
 	return Array.from({ length: count }, (_, i) => ({
 		key: `${seed}-${i}`,
 		e: emojis[i % emojis.length] ?? "🐺",
 		left: 2 + rand(seed, i) * 96, // %
-		size: 7 + rand(seed, i + 40) * 8, // cqh
-		x: rand(seed, i + 80) * 16 - 8, // cqh horizontal drift
-		spin: rand(seed, i + 120) * 220 - 110, // deg
-		duration: 1.1 + rand(seed, i + 160) * 0.7, // s
-		delay: rand(seed, i + 200) * 0.85, // s, staggered so the bar "fills"
+		size: 3 + rand(seed, i + 40) * 3.4, // cqw
+		x: rand(seed, i + 80) * 10 - 5, // cqw horizontal drift
+		spin: rand(seed, i + 120) * 180 - 90, // deg
+		duration: 2.2 + rand(seed, i + 160) * 1.0, // s — slow enough to actually see
+		delay: rand(seed, i + 200) * 0.6, // s, staggered so the bar "fills"
 	}));
 }

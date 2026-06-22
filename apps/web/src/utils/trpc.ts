@@ -28,11 +28,18 @@ export const queryClient = new QueryClient({
 });
 
 /**
- * Public client → the overlay Worker (`apps/server`). Note-stripped, open.
+ * Public client → the overlay Worker (`apps/server`) in production. In local dev
+ * we hit a same-origin dev-only route handler instead, so the `/overlay` pages
+ * preview without running the separate public Worker. Note-stripped, open.
  * Used by `/overlay`.
  */
+const publicUrl =
+	process.env.NODE_ENV === "development"
+		? "/api/public-trpc"
+		: `${env.NEXT_PUBLIC_SERVER_URL}/trpc`;
+
 const publicClient = createTRPCClient<PublicRouter>({
-	links: [httpBatchLink({ url: `${env.NEXT_PUBLIC_SERVER_URL}/trpc` })],
+	links: [httpBatchLink({ url: publicUrl })],
 });
 
 export const publicTrpc = createTRPCOptionsProxy<PublicRouter>({

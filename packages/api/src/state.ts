@@ -6,12 +6,25 @@
  * server-side by {@link stripNotes} before any public response.
  */
 
+import {
+	defaultOverlayTheme,
+	type OverlayTheme,
+	resolveThemeGradient,
+	type ThemeCorners,
+	type ThemeError,
+	type ThemeFont,
+	validateOverlayTheme,
+} from "./theme";
+import type { TimerEvent } from "./timer";
+
 /** A goal as stored internally (includes the private `note`). */
 export type Goal = {
 	id: string;
 	reward: string;
 	note?: string;
 	unlocked: boolean;
+	/** Sub-count milestone for this reward. Undefined = no numeric target. */
+	target?: number;
 };
 
 /** The full tracker document, stored as JSON in the single DB row. */
@@ -19,16 +32,76 @@ export type Data = {
 	goals: Goal[];
 	/** Index of the next goal to unlock (== number of unlocked goals at the front). */
 	currentIndex: number;
+	/** Running sub count — fed by Twitch sub/gift events + manual adjust. */
+	currentSubs: number;
+	/** Overlay colours + chrome. Optional on old rows; defaults to brand. */
+	theme: OverlayTheme;
 };
 
-/** A goal as sent to the overlay — note removed. */
-export type PublicGoal = Omit<Goal, "note">;
+/** A goal as sent to the overlay — note AND target removed (only `nextTarget` leaks). */
+export type PublicGoal = Omit<Goal, "note" | "target">;
 
 /** The tracker document as sent to the overlay — notes removed. */
 export type PublicData = {
 	goals: PublicGoal[];
 	currentIndex: number;
+	/** Current sub count (for the next-goal progress bar). */
+	currentSubs: number;
+	/** Target of the NEXT goal only — never future targets. Null if none. */
+	nextTarget: number | null;
+	/** Resolved accent gradient stops. */
+	gradient: string[];
+	/** Reward text colour: `"auto"` (→ white on the dark card) or a hex. */
+	textColor: string;
+	/** Display font key. */
+	font: ThemeFont;
+	/** Corner style. */
+	corners: ThemeCorners;
+	/** Show the "NEXT REWARD" eyebrow. */
+	showLabel: boolean;
+	/** Show the live status dot. */
+	showStatus: boolean;
 };
+
+export const MAX_TARGET = 10_000_000;
+
+/** How many subs an event represents (sub = 1, gift = count, else 0). */
+export function subsFromEvent(event: TimerEvent): number {
+	if (event.kind === "sub") return 1;
+	if (event.kind === "gift") return Math.max(0, event.count);
+	return 0;
+}
+
+/** Round up to a clean step so a bumped target reads nicely (14, 30, 250…). */
+function roundUpClean(n: number): number {
+	const step = n < 20 ? 1 : n < 100 ? 5 : n < 1000 ? 10 : 50;
+	return Math.ceil(n / step) * step;
+}
+
+/**
+ * Keep numeric goal targets ahead of the current sub count: any target at/below
+ * the running floor is raised ~10% above it (and kept strictly ascending). The
+ * floor starts at `currentSubs`, so a goal set below where we already are floats
+ * back up instead of sitting permanently "already met". Returns how many moved.
+ */
+export function bumpPassedGoals(
+	goals: Goal[],
+	currentSubs: number,
+): { goals: Goal[]; bumped: number } {
+	let floor = Math.max(0, currentSubs);
+	let bumped = 0;
+	const next = goals.map((g) => {
+		if (g.target == null) return g;
+		let target = g.target;
+		if (target <= floor) {
+			target = Math.min(MAX_TARGET, roundUpClean(Math.max(floor * 1.1, floor + 1)));
+			bumped++;
+		}
+		floor = Math.max(floor, target);
+		return target === g.target ? g : { ...g, target };
+	});
+	return { goals: next, bumped };
+}
 
 /** A single import validation failure. `index` is the goal row, or -1 for document-level errors. */
 export type ImportError = { index: number; message: string };
@@ -41,12 +114,12 @@ export const MAX_GOALS = 50;
 export const MAX_REWARD_LENGTH = 80;
 
 /** Sample goals pre-seeded into a fresh database (mirrors the README example). */
-const SAMPLE_GOALS: { reward: string; note: string }[] = [
-	{ reward: "Q&A", note: "1 sub" },
-	{ reward: "Phasmophobia", note: "5 subs" },
-	{ reward: "Onesie reveal", note: "10 subs" },
-	{ reward: "Cake on cam", note: "15 subs" },
-	{ reward: "Confetti chaos", note: "25 subs" },
+const SAMPLE_GOALS: { reward: string; note: string; target?: number }[] = [
+	{ reward: "Q&A", note: "1 sub", target: 1 },
+	{ reward: "Phasmophobia", note: "5 subs", target: 5 },
+	{ reward: "Onesie reveal", note: "10 subs", target: 10 },
+	{ reward: "Cake on cam", note: "15 subs", target: 15 },
+	{ reward: "Confetti chaos", note: "25 subs", target: 25 },
 	{ reward: "Stretch goal", note: "dream" },
 ];
 
@@ -62,8 +135,11 @@ export function sampleData(): Data {
 			reward: g.reward,
 			note: g.note,
 			unlocked: false,
+			...(g.target != null ? { target: g.target } : {}),
 		})),
 		currentIndex: 0,
+		currentSubs: 0,
+		theme: defaultOverlayTheme(),
 	};
 }
 
@@ -77,14 +153,28 @@ export function recompute(data: Data): Data {
 	return {
 		goals: data.goals,
 		currentIndex: firstLocked === -1 ? data.goals.length : firstLocked,
+		currentSubs: Math.max(0, data.currentSubs ?? 0),
+		theme: data.theme ?? defaultOverlayTheme(),
 	};
 }
 
-/** Remove every `note` so the tracker is safe to expose publicly. */
+/** Remove every `note` and resolve the theme so the tracker is safe to expose publicly. */
 export function stripNotes(data: Data): PublicData {
+	const theme = data.theme ?? defaultOverlayTheme();
+	// Only the NEXT goal's target is exposed — never future ones (a big gifter
+	// must not see the final ceiling).
+	const nextTarget = data.goals[data.currentIndex]?.target ?? null;
 	return {
 		currentIndex: data.currentIndex,
+		currentSubs: Math.max(0, data.currentSubs ?? 0),
+		nextTarget,
 		goals: data.goals.map(({ id, reward, unlocked }) => ({ id, reward, unlocked })),
+		gradient: resolveThemeGradient(theme),
+		textColor: theme.textColor,
+		font: theme.font,
+		corners: theme.corners,
+		showLabel: theme.showLabel,
+		showStatus: theme.showStatus,
 	};
 }
 
@@ -159,8 +249,40 @@ export function validateImport(input: unknown): ImportResult {
 			errors.push({ index, message: "`note` must be a string when present." });
 			return;
 		}
-		normalized.push({ id: newId(), reward: trimmed, note: cleanNote(note), unlocked: false });
+		const rawTarget = (raw as Record<string, unknown>).target;
+		let target: number | undefined;
+		if (rawTarget !== undefined && rawTarget !== null) {
+			if (typeof rawTarget !== "number" || !Number.isFinite(rawTarget) || rawTarget < 0) {
+				errors.push({ index, message: "`target` must be a non-negative number when present." });
+				return;
+			}
+			target = Math.min(MAX_TARGET, Math.round(rawTarget));
+		}
+		normalized.push({
+			id: newId(),
+			reward: trimmed,
+			note: cleanNote(note),
+			unlocked: false,
+			...(target != null ? { target } : {}),
+		});
 	});
+
+	// Optional document-level current sub count.
+	const rawSubs = (input as Record<string, unknown>).currentSubs;
+	let currentSubs = 0;
+	if (rawSubs !== undefined) {
+		if (typeof rawSubs !== "number" || !Number.isFinite(rawSubs) || rawSubs < 0) {
+			errors.push({ index: -1, message: "`currentSubs` must be a non-negative number." });
+		} else {
+			currentSubs = Math.round(rawSubs);
+		}
+	}
+
+	// Theme is optional on import; absent → brand default (the import router
+	// preserves the operator's existing theme when the doc omits one).
+	const themeErrors: ThemeError[] = [];
+	const theme = validateOverlayTheme((input as Record<string, unknown>).theme, themeErrors);
+	themeErrors.forEach((e) => errors.push({ index: -1, message: `${e.path}: ${e.message}` }));
 
 	if (errors.length > 0) {
 		return { ok: false, errors };
@@ -168,7 +290,7 @@ export function validateImport(input: unknown): ImportResult {
 
 	return {
 		ok: true,
-		data: { goals: normalized, currentIndex: 0 },
+		data: { goals: normalized, currentIndex: 0, currentSubs, theme },
 		rewards: normalized.map((g) => g.reward),
 	};
 }
