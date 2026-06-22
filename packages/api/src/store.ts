@@ -2,7 +2,7 @@ import { type Db, trackerState } from "@wolfathon/db";
 import { eq } from "drizzle-orm";
 
 import { type Data, recompute, sampleData } from "./state";
-import { type TimerDoc, defaultTimerDoc } from "./timer";
+import { type TimerDoc, defaultTimerConfig, defaultTimerDoc } from "./timer";
 import { type TwitchDoc, defaultTwitchDoc } from "./twitch";
 
 /**
@@ -43,9 +43,14 @@ export async function writeDoc<T>(db: Db, id: string, data: T): Promise<T> {
 
 // ---- rewards (goals) ------------------------------------------------------
 
-/** Read the rewards tracker, seeding sample goals on first access. */
+/**
+ * Read the rewards tracker, seeding sample goals on first access. Runs the raw
+ * stored doc through `recompute` so rows persisted before a field existed (e.g.
+ * `theme`) are backfilled to defaults — otherwise the operator UI dereferences
+ * `theme.preset` on undefined and white-screens.
+ */
 export async function readState(db: Db): Promise<Data> {
-	return readDoc(db, STATE_ID, sampleData);
+	return recompute(await readDoc(db, STATE_ID, sampleData));
 }
 
 /**
@@ -58,7 +63,10 @@ export async function writeState(db: Db, data: Data): Promise<Data> {
 // ---- timer ----------------------------------------------------------------
 
 export async function readTimer(db: Db): Promise<TimerDoc> {
-	return readDoc(db, TIMER_ID, defaultTimerDoc);
+	const doc = await readDoc(db, TIMER_ID, defaultTimerDoc);
+	// Backfill top-level config keys missing on pre-existing rows (e.g. `theme`,
+	// `emojis`) so the operator editor never dereferences an absent field.
+	return { ...doc, config: { ...defaultTimerConfig(), ...doc.config } };
 }
 
 export async function writeTimer(db: Db, doc: TimerDoc): Promise<TimerDoc> {

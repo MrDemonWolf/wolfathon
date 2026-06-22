@@ -1,7 +1,22 @@
 import { expect, test } from "bun:test";
 
-import { bumpPassedGoals, type Goal, stripNotes, subsFromEvent, validateImport } from "./state";
+import {
+	bumpPassedGoals,
+	type Data,
+	type Goal,
+	recompute,
+	stripNotes,
+	subsFromEvent,
+	validateImport,
+} from "./state";
 import { defaultOverlayTheme } from "./theme";
+
+test("recompute backfills a missing theme (pre-theme rows can't crash the editor)", () => {
+	const legacy = { goals: [], currentIndex: 0, currentSubs: 0 } as unknown as Data;
+	const data = recompute(legacy);
+	expect(data.theme).toBeDefined();
+	expect(data.theme.preset).toBe("brand");
+});
 
 test("stripNotes never leaks the internal note", () => {
 	const pub = stripNotes({
