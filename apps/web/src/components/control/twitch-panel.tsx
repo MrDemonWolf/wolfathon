@@ -98,7 +98,8 @@ export function TwitchPanel() {
 		<div className="rounded-xl panel-card p-5">
 			<h2 className="font-heading text-lg font-bold">Twitch</h2>
 			<p className="mt-1 text-sm text-muted-foreground">
-				Auto-add time from subs, gifts, bits, and channel points via EventSub.
+				Auto-add time from subs, gifts, bits, and channel points via EventSub. Sub &amp; gift events
+				also advance the reward goal progress.
 			</p>
 
 			<div className="mt-4 flex flex-col gap-3">
