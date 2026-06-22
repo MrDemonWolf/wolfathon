@@ -292,7 +292,12 @@
 		opacity: 0;
 	}
 	.animate-spin-slow,
-	.animate-wolf-flood {
+	.animate-wolf-flood,
+	.animate-wolf-rise,
+	.animate-wolf-pop,
+	.animate-ping,
+	.wolf-glow,
+	.wolf-sheen {
 		animation: none;
 	}
 }
