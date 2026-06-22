@@ -58,7 +58,7 @@ function normalizeHex(c: string): string {
 export function ThemeEditor({
 	theme,
 	onChange,
-	labelToggleText = 'Show eyebrow label',
+	labelToggleText = "Show eyebrow label",
 	statusToggleText = "Show status indicator",
 }: {
 	theme: OverlayTheme;
@@ -202,7 +202,9 @@ export function ThemeEditor({
 				<div className="mt-2 flex flex-wrap items-center gap-3">
 					<Toggle
 						checked={autoText}
-						onChange={(v) => onChange({ ...theme, textColor: v ? "auto" : resolveTextColor(theme) })}
+						onChange={(v) =>
+							onChange({ ...theme, textColor: v ? "auto" : resolveTextColor(theme) })
+						}
 						label="Auto (match background)"
 					/>
 					{!autoText && (

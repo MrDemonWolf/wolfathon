@@ -65,7 +65,10 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 	// Theme. The card sits on a dark panel (not the gradient), so the gradient is
 	// an ACCENT (rail / eyebrow / chips); `auto` text → white on the dark card.
 	const stops = data.gradient?.length ? data.gradient : ["#00aced", "#5bc8f0"];
-	const accent = stops.at(-1) ?? "#5bc8f0";
+	const accentRaw = stops.at(-1) ?? "#5bc8f0";
+	// Expand 3-digit shorthand so `${accent}AA` alpha suffixes stay valid CSS.
+	const accent =
+		accentRaw.length === 4 ? "#" + [...accentRaw.slice(1)].map((c) => c + c).join("") : accentRaw;
 	const accentDeep = stops[0] ?? "#00aced";
 	const isHex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(data.textColor);
 	const ink = data.textColor === "auto" || !isHex ? "#ffffff" : data.textColor;

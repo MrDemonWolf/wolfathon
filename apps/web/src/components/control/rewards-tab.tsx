@@ -102,7 +102,9 @@ export function RewardsTab() {
 		try {
 			return await fn();
 		} catch (e) {
-			return onErr([{ label: "Error", message: e instanceof Error ? e.message : "request failed" }]);
+			return onErr([
+				{ label: "Error", message: e instanceof Error ? e.message : "request failed" },
+			]);
 		}
 	}
 
@@ -129,7 +131,10 @@ export function RewardsTab() {
 					const r = await validate.mutateAsync(v);
 					return r.ok
 						? ({ ok: true, summary: r.rewards } as const)
-						: ({ ok: false, errors: r.errors.map((e) => ({ label: label(e.index), message: e.message })) } as const);
+						: ({
+								ok: false,
+								errors: r.errors.map((e) => ({ label: label(e.index), message: e.message })),
+							} as const);
 				},
 				(errors) => ({ ok: false, errors }),
 			),
@@ -139,7 +144,10 @@ export function RewardsTab() {
 					const r = await importMut.mutateAsync(v);
 					return r.ok
 						? ({ ok: true } as const)
-						: ({ ok: false, errors: r.errors.map((e) => ({ label: label(e.index), message: e.message })) } as const);
+						: ({
+								ok: false,
+								errors: r.errors.map((e) => ({ label: label(e.index), message: e.message })),
+							} as const);
 				},
 				(errors) => ({ ok: false, errors }),
 			),
@@ -176,12 +184,12 @@ export function RewardsTab() {
 				)}
 				<ImportExportPanel
 					config={ie}
-					busy={validate.isPending || importMut.isPending}
+					busy={validate.isPending || importMut.isPending || replace.isPending}
 					onImported={invalidate}
 				/>
 				<DirtyBar
 					dirty={dirty}
-					saving={replace.isPending}
+					saving={replace.isPending || importMut.isPending}
 					onSave={save}
 					onDiscard={discard}
 					summary={summary}
