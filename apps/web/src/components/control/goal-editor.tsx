@@ -111,7 +111,8 @@ export function GoalEditor({
 									{g.unlocked ? <LockOpen className="size-4" /> : <Lock className="size-4" />}
 								</button>
 								<Input
-									className="h-9 flex-1 rounded-lg"
+									className={`h-9 flex-1 rounded-lg ${g.reward.trim() ? "" : "ring-1 ring-destructive/60"}`}
+									aria-invalid={!g.reward.trim()}
 									aria-label={`Goal ${i + 1} reward`}
 									placeholder="Reward (shown on stream)"
 									value={g.reward}
