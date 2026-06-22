@@ -1,6 +1,6 @@
 "use client";
 
-import { FONT_STACKS, gradientCss, type ThemeCorners } from "@wolfathon/api/theme";
+import { expandHex, FONT_STACKS, gradientCss, type ThemeCorners } from "@wolfathon/api/theme";
 import type { PublicTimer } from "@wolfathon/api/timer";
 import { Flag, Pause, Play } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -241,9 +241,7 @@ function Segment({ value, unit }: { value: string; unit: string }) {
 
 /** Append a 2-digit alpha to a #rgb / #rrggbb colour (→ #rrggbbaa). */
 function withAlpha(hex: string, aa: string): string {
-	const h = hex.replace("#", "");
-	const f = h.length === 3 ? h.replace(/./g, "$&$&") : h.slice(0, 6);
-	return `#${f}${aa}`;
+	return `${expandHex(hex)}${aa}`;
 }
 
 function format(ms: number): { d: string; h: string; m: string; s: string } {

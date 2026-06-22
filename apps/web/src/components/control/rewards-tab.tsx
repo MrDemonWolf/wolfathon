@@ -3,7 +3,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type Data, recompute } from "@wolfathon/api/state";
 import { Button } from "@wolfathon/ui/components/button";
-import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { controlTrpc, queryClient } from "@/utils/trpc";
@@ -12,10 +11,11 @@ import { buildClaudePrompt } from "./claude-prompt";
 import { DirtyBar } from "./dirty-bar";
 import { EXAMPLE_JSON, REWARDS_SCHEMA_BULLETS } from "./example";
 import { GoalEditor } from "./goal-editor";
-import { type IEConfig, type IEError, ImportExportPanel } from "./import-export-panel";
+import { type IEConfig, ImportExportPanel } from "./import-export-panel";
 import { OverlayPreview } from "./overlay-preview";
 import { SubsControl } from "./subs-control";
 import { ThemeEditor } from "./theme-editor";
+import { guard, useDraft } from "./use-draft";
 import { nowStamp } from "./util";
 
 const label = (index: number) => (index < 0 ? "Document" : `Goal #${index + 1}`);
@@ -30,43 +30,10 @@ export function RewardsTab() {
 	const { data, isLoading, isError, refetch } = useQuery(rawOptions);
 	const invalidate = () => queryClient.invalidateQueries({ queryKey: rawOptions.queryKey });
 
-	const [draft, setDraft] = useState<Data | null>(null);
-	const savedRef = useRef<string>("");
-	const seenDataRef = useRef<Data | null>(null);
 	const replace = useMutation(controlTrpc.state.replace.mutationOptions());
+	const { draft, setDraft, dirty, discard, seed } = useDraft(data, (d) => d, persisted);
 
-	// Seed the draft on first load, and re-seed when the server *reference* changes
-	// while we have no unsaved edits (an import, or Twitch bumping the sub count).
-	// Gating on the reference makes a re-seed loop impossible.
-	useEffect(() => {
-		if (!data || data === seenDataRef.current) return;
-		seenDataRef.current = data;
-		if (draft === null || persisted(draft) === savedRef.current) {
-			setDraft(structuredClone(data));
-			savedRef.current = persisted(data);
-		}
-	}, [data, draft]);
-
-	const dirty = draft != null && persisted(draft) !== savedRef.current;
 	const preview = draft ? recompute(draft) : data;
-
-	// Warn before a tab close/reload throws away unsaved edits (each control tab
-	// holds its draft in memory and only persists on Save).
-	useEffect(() => {
-		if (!dirty) return;
-		const onBeforeUnload = (e: BeforeUnloadEvent) => {
-			e.preventDefault();
-			e.returnValue = "";
-		};
-		window.addEventListener("beforeunload", onBeforeUnload);
-		return () => window.removeEventListener("beforeunload", onBeforeUnload);
-	}, [dirty]);
-
-	function discard() {
-		if (!data) return;
-		setDraft(structuredClone(data));
-		savedRef.current = persisted(data);
-	}
 
 	function save() {
 		if (!draft) return;
@@ -100,8 +67,7 @@ export function RewardsTab() {
 						toast.error(res.errors[0]?.message ?? "Couldn't save");
 						return;
 					}
-					setDraft(structuredClone(res.state));
-					savedRef.current = persisted(res.state);
+					seed(res.state);
 					toast.success(
 						res.bumped > 0
 							? `Saved · ${res.bumped} goal${res.bumped > 1 ? "s" : ""} raised above the count`
@@ -115,16 +81,6 @@ export function RewardsTab() {
 
 	const validate = useMutation(controlTrpc.state.validate.mutationOptions());
 	const importMut = useMutation(controlTrpc.state.import.mutationOptions());
-
-	async function guard<T>(fn: () => Promise<T>, onErr: (errors: IEError[]) => T): Promise<T> {
-		try {
-			return await fn();
-		} catch (e) {
-			return onErr([
-				{ label: "Error", message: e instanceof Error ? e.message : "request failed" },
-			]);
-		}
-	}
 
 	const ie: IEConfig = {
 		title: "rewards",
