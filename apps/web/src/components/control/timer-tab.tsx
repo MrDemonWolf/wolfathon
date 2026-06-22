@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { TimerConfig } from "@wolfathon/api/timer";
+import { Button } from "@wolfathon/ui/components/button";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -18,7 +19,7 @@ import { nowStamp } from "./util";
 
 export function TimerTab() {
 	const rawOptions = controlTrpc.timer.getRaw.queryOptions();
-	const { data } = useQuery(rawOptions);
+	const { data, isLoading, isError, refetch } = useQuery(rawOptions);
 	const invalidate = () => queryClient.invalidateQueries({ queryKey: rawOptions.queryKey });
 
 	const [draft, setDraft] = useState<TimerConfig | null>(null);
@@ -39,6 +40,18 @@ export function TimerTab() {
 
 	const dirty = draft != null && JSON.stringify(draft) !== savedRef.current;
 	const previewDoc = data ? { config: draft ?? data.config, state: data.state } : undefined;
+
+	// Warn before a tab close/reload throws away unsaved edits (each control tab
+	// holds its draft in memory and only persists on Save).
+	useEffect(() => {
+		if (!dirty) return;
+		const onBeforeUnload = (e: BeforeUnloadEvent) => {
+			e.preventDefault();
+			e.returnValue = "";
+		};
+		window.addEventListener("beforeunload", onBeforeUnload);
+		return () => window.removeEventListener("beforeunload", onBeforeUnload);
+	}, [dirty]);
 
 	function discard() {
 		if (!data) return;
@@ -129,8 +142,26 @@ export function TimerTab() {
 	return (
 		<div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
 			<div className="flex flex-col gap-6">
-				<TimerPanel doc={data} onChanged={invalidate} />
-				{draft && <TimerConfigPanel config={draft} onChange={setDraft} />}
+				{isError && !data ? (
+					<div className="rounded-xl panel-card p-5">
+						<h2 className="font-heading text-lg font-bold">Couldn&apos;t load timer settings</h2>
+						<p className="mt-1 text-sm text-muted-foreground">
+							The timer failed to load. Check your connection and try again.
+						</p>
+						<Button variant="outline" className="mt-3" onClick={() => refetch()}>
+							Retry
+						</Button>
+					</div>
+				) : !data && isLoading ? (
+					<div className="rounded-xl panel-card p-5 text-sm text-muted-foreground">
+						Loading timer…
+					</div>
+				) : (
+					<>
+						<TimerPanel doc={data} onChanged={invalidate} />
+						{draft && <TimerConfigPanel config={draft} onChange={setDraft} />}
+					</>
+				)}
 				<ImportExportPanel
 					config={ie}
 					busy={validate.isPending || importMut.isPending || setConfig.isPending}

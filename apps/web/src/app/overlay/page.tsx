@@ -2,7 +2,7 @@
 
 import { Button } from "@wolfathon/ui/components/button";
 import { Copy, ExternalLink, Gauge, Trophy } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { WolfMark } from "@/components/wolf-mark";
@@ -60,7 +60,12 @@ function SourceCard({
 	blurb: string;
 }) {
 	const [copied, setCopied] = useState(false);
-	const url = typeof window === "undefined" ? path : `${window.location.origin}${path}`;
+	// Render the relative path on the server and first client paint (they must
+	// match or React throws a hydration error), then upgrade to the absolute URL
+	// — what an operator actually pastes into OBS — once mounted.
+	const [origin, setOrigin] = useState("");
+	useEffect(() => setOrigin(window.location.origin), []);
+	const url = `${origin}${path}`;
 
 	async function copy() {
 		await navigator.clipboard.writeText(url);

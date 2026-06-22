@@ -27,6 +27,7 @@ export function TimerPanel({
 	onChanged: () => void;
 }) {
 	const [custom, setCustom] = useState("5");
+	const [confirmingReset, setConfirmingReset] = useState(false);
 	const opts = { onSuccess: onChanged };
 	const start = useMutation(controlTrpc.timer.start.mutationOptions(opts));
 	const pause = useMutation(controlTrpc.timer.pause.mutationOptions(opts));
@@ -97,16 +98,47 @@ export function TimerPanel({
 						Start
 					</Button>
 				)}
-				<Button
-					size="lg"
-					variant="destructive"
-					className="px-4"
-					onClick={() => reset.mutate(undefined, { onSuccess: () => toast.success("Timer reset") })}
-					disabled={busy}
-				>
-					<RotateCcw className="size-4" />
-					Reset
-				</Button>
+				{confirmingReset ? (
+					<div className="flex flex-wrap items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2">
+						<span className="text-sm">Reset the timer? This clears the remaining time.</span>
+						<Button
+							size="lg"
+							variant="destructive"
+							className="px-4"
+							onClick={() =>
+								reset.mutate(undefined, {
+									onSuccess: () => {
+										toast.success("Timer reset");
+										setConfirmingReset(false);
+									},
+								})
+							}
+							disabled={busy}
+						>
+							<RotateCcw className="size-4" />
+							Yes, reset
+						</Button>
+						<Button
+							size="lg"
+							variant="ghost"
+							onClick={() => setConfirmingReset(false)}
+							disabled={busy}
+						>
+							Cancel
+						</Button>
+					</div>
+				) : (
+					<Button
+						size="lg"
+						variant="destructive"
+						className="px-4"
+						onClick={() => setConfirmingReset(true)}
+						disabled={busy}
+					>
+						<RotateCcw className="size-4" />
+						Reset
+					</Button>
+				)}
 			</div>
 
 			{/* add time */}

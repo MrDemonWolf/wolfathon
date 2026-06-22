@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type Data, recompute } from "@wolfathon/api/state";
+import { Button } from "@wolfathon/ui/components/button";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -26,7 +27,7 @@ function persisted(d: Data) {
 
 export function RewardsTab() {
 	const rawOptions = controlTrpc.state.getRaw.queryOptions();
-	const { data } = useQuery(rawOptions);
+	const { data, isLoading, isError, refetch } = useQuery(rawOptions);
 	const invalidate = () => queryClient.invalidateQueries({ queryKey: rawOptions.queryKey });
 
 	const [draft, setDraft] = useState<Data | null>(null);
@@ -48,6 +49,18 @@ export function RewardsTab() {
 
 	const dirty = draft != null && persisted(draft) !== savedRef.current;
 	const preview = draft ? recompute(draft) : data;
+
+	// Warn before a tab close/reload throws away unsaved edits (each control tab
+	// holds its draft in memory and only persists on Save).
+	useEffect(() => {
+		if (!dirty) return;
+		const onBeforeUnload = (e: BeforeUnloadEvent) => {
+			e.preventDefault();
+			e.returnValue = "";
+		};
+		window.addEventListener("beforeunload", onBeforeUnload);
+		return () => window.removeEventListener("beforeunload", onBeforeUnload);
+	}, [dirty]);
 
 	function discard() {
 		if (!data) return;
@@ -165,6 +178,22 @@ export function RewardsTab() {
 	return (
 		<div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
 			<div className="flex flex-col gap-6">
+				{!draft && isError && (
+					<div className="rounded-2xl panel-card p-5">
+						<h2 className="font-heading text-lg font-bold">Couldn&apos;t load the subathon data</h2>
+						<p className="mt-1 text-sm text-muted-foreground">
+							The goals failed to load. Check your connection and try again.
+						</p>
+						<Button variant="outline" className="mt-3" onClick={() => refetch()}>
+							Retry
+						</Button>
+					</div>
+				)}
+				{!draft && !isError && isLoading && (
+					<div className="rounded-2xl panel-card p-5 text-sm text-muted-foreground">
+						Loading goals…
+					</div>
+				)}
 				{draft && (
 					<>
 						<GoalEditor
