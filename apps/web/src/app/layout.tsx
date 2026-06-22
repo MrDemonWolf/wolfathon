@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-import { Montserrat, Roboto } from "next/font/google";
+import { Inter, Montserrat, Poppins, Roboto } from "next/font/google";
 
 import "../index.css";
 import Providers from "@/components/providers";
 
-// Montserrat → headings, Roboto → body (MrDemonWolf brand).
+// Montserrat → headings, Roboto → body (MrDemonWolf brand). Poppins + Inter are
+// selectable overlay fonts (see the theme font picker).
 const montserrat = Montserrat({
 	variable: "--font-montserrat",
 	subsets: ["latin"],
@@ -14,7 +15,20 @@ const montserrat = Montserrat({
 const roboto = Roboto({
 	variable: "--font-roboto",
 	subsets: ["latin"],
-	weight: ["400", "500", "700"],
+	weight: ["400", "500", "700", "900"],
+	display: "swap",
+});
+
+const poppins = Poppins({
+	variable: "--font-poppins",
+	subsets: ["latin"],
+	weight: ["500", "600", "800"],
+	display: "swap",
+});
+
+const inter = Inter({
+	variable: "--font-inter",
+	subsets: ["latin"],
 	display: "swap",
 });
 
@@ -34,7 +48,9 @@ export default function RootLayout({
         The root layout adds no chrome — `/overlay` needs a bare, transparent
         page for OBS. Panel routes add their own header/background.
       */}
-			<body className={`${montserrat.variable} ${roboto.variable} antialiased`}>
+			<body
+				className={`${montserrat.variable} ${roboto.variable} ${poppins.variable} ${inter.variable} antialiased`}
+			>
 				<Providers>{children}</Providers>
 			</body>
 		</html>

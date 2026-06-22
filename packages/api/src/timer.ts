@@ -10,6 +10,26 @@
  * honouring an optional cap. Pure functions only — persistence lives in store.ts.
  */
 
+import {
+	defaultOverlayTheme,
+	type OverlayTheme,
+	resolveTextColor,
+	resolveThemeGradient,
+	type ThemeCorners,
+	type ThemeFont,
+	validateOverlayTheme,
+} from "./theme";
+
+// The overlay theme is shared with the rewards card — see ./theme.
+export type { OverlayTheme as TimerTheme, ThemePreset as TimerThemePreset } from "./theme";
+export {
+	defaultOverlayTheme as defaultTimerTheme,
+	HEX_COLOR,
+	MAX_GRADIENT_STOPS,
+	resolveThemeGradient,
+	THEME_PRESETS as TIMER_THEME_PRESETS,
+} from "./theme";
+
 export type SubTier = "t1" | "t2" | "t3" | "prime";
 
 export type ChannelPointRule = {
@@ -32,6 +52,8 @@ export type TimerConfig = {
 	channelPoints: ChannelPointRule[];
 	/** Emoji that drift behind the overlay + burst when time is added. */
 	emojis: string[];
+	/** Overlay colours + chrome. Optional on old rows; defaults to brand. */
+	theme: OverlayTheme;
 };
 
 export type TimerState = {
@@ -55,6 +77,18 @@ export type PublicTimer = {
 	serverNow: number;
 	/** Emoji the overlay animates (drift + add-time burst). */
 	emojis: string[];
+	/** Resolved capsule gradient stops (2+ hex colours). */
+	gradient: string[];
+	/** Resolved countdown text colour (hex). */
+	textColor: string;
+	/** Display font key. */
+	font: ThemeFont;
+	/** Corner style. */
+	corners: ThemeCorners;
+	/** Show the "SUBATHON" eyebrow. */
+	showLabel: boolean;
+	/** Show the play/pause status chip. */
+	showStatus: boolean;
 };
 
 export type TimerEvent =
@@ -89,6 +123,7 @@ export function defaultTimerConfig(): TimerConfig {
 		bitsPer100Minutes: 1,
 		channelPoints: [],
 		emojis: [...DEFAULT_TIMER_EMOJIS],
+		theme: defaultOverlayTheme(),
 	};
 }
 
@@ -181,12 +216,19 @@ export function applyEvent(
 
 export function toPublicTimer(doc: TimerDoc, now: number): PublicTimer {
 	const emojis = doc.config.emojis?.length ? doc.config.emojis : DEFAULT_TIMER_EMOJIS;
+	const theme = doc.config.theme ?? defaultOverlayTheme();
 	return {
 		running: doc.state.running,
 		endsAt: doc.state.endsAt,
 		remainingMs: currentRemainingMs(doc.state, now),
 		serverNow: now,
 		emojis,
+		gradient: resolveThemeGradient(theme),
+		textColor: resolveTextColor(theme),
+		font: theme.font,
+		corners: theme.corners,
+		showLabel: theme.showLabel,
+		showStatus: theme.showStatus,
 	};
 }
 
@@ -244,6 +286,7 @@ export function validateTimerConfig(input: unknown): TimerConfigResult {
 		bitsPer100Minutes: num(errors, "bitsPer100Minutes", r.bitsPer100Minutes),
 		channelPoints: [],
 		emojis: [...DEFAULT_TIMER_EMOJIS],
+		theme: defaultOverlayTheme(),
 	};
 
 	// Emoji are optional; absent → keep the wolf default set.
@@ -299,6 +342,9 @@ export function validateTimerConfig(input: unknown): TimerConfigResult {
 			});
 		}
 	}
+
+	// Theme is optional; absent → brand default. Shared validator (see ./theme).
+	config.theme = validateOverlayTheme(r.theme, errors);
 
 	if (errors.length > 0) return { ok: false, errors };
 	return { ok: true, config };
