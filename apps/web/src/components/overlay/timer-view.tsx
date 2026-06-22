@@ -62,7 +62,7 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 	// emotes finish their rise before they're unmounted.
 	useEffect(() => {
 		if (!flash) return;
-		const t = setTimeout(() => setFlash(null), 4200);
+		const t = setTimeout(() => setFlash(null), 5500);
 		return () => clearTimeout(t);
 	}, [flash]);
 
@@ -272,7 +272,7 @@ function fillParticles(emojis: string[], seed: number, count = 26) {
 		size: 3 + rand(seed, i + 40) * 3.4, // cqw
 		x: rand(seed, i + 80) * 10 - 5, // cqw horizontal drift
 		spin: rand(seed, i + 120) * 180 - 90, // deg
-		duration: 2.2 + rand(seed, i + 160) * 1.0, // s — slow enough to actually see
-		delay: rand(seed, i + 200) * 0.6, // s, staggered so the bar "fills"
+		duration: 3.0 + rand(seed, i + 160) * 1.4, // s — slowed so the flood is easy to catch
+		delay: rand(seed, i + 200) * 0.9, // s, staggered so the bar "fills"
 	}));
 }
