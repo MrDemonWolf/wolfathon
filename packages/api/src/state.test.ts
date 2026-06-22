@@ -5,6 +5,7 @@ import {
 	type Data,
 	type Goal,
 	recompute,
+	sampleData,
 	stripNotes,
 	subsFromEvent,
 	validateImport,
@@ -110,4 +111,26 @@ test("validateImport rejects a goal missing reward", () => {
 
 test("validateImport rejects an empty goals array", () => {
 	expect(validateImport({ goals: [] }).ok).toBe(false);
+});
+
+// ---- read-boundary defaults (the #20 white-screen crash class) ------------
+// `recompute` is the read boundary for rewards: a Data field added to the type
+// but dropped from recompute's return literal — or absent on an old row — would
+// crash /control. These guard both directions so future fields are covered.
+
+test("recompute backfills every optional key dropped from an old row", () => {
+	const full = sampleData();
+	// `goals` is the always-present core field (recompute indexes into it); the
+	// rest were added later and must survive a row persisted before they existed.
+	const optional = (Object.keys(full) as (keyof Data)[]).filter((k) => k !== "goals");
+	for (const key of optional) {
+		const data = { ...full };
+		delete (data as Record<string, unknown>)[key];
+		const restored = recompute(data as Data);
+		expect(restored[key], `${key} must be backfilled at the read boundary`).toBeDefined();
+	}
+});
+
+test("recompute preserves all Data keys (no field silently dropped)", () => {
+	expect(Object.keys(recompute(sampleData())).sort()).toEqual(Object.keys(sampleData()).sort());
 });
