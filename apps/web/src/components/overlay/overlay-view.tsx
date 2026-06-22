@@ -54,6 +54,14 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 	const current = data.goals[data.currentIndex]; // first locked goal = next reward
 	const hasGoals = data.goals.length > 0;
 
+	// Progress toward the NEXT goal only (never future ceilings — see stripNotes).
+	const currentSubs = data.currentSubs ?? 0;
+	const nextTarget = data.nextTarget;
+	const showProgress = current != null && nextTarget != null && nextTarget > 0;
+	const progressPct = showProgress
+		? Math.min(100, Math.round((currentSubs / nextTarget!) * 100))
+		: 0;
+
 	// Theme. The card sits on a dark panel (not the gradient), so the gradient is
 	// an ACCENT (rail / eyebrow / chips); `auto` text → white on the dark card.
 	const stops = data.gradient?.length ? data.gradient : ["#00aced", "#5bc8f0"];
@@ -112,13 +120,31 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 							)}
 
 							{current ? (
-								<div
-									key={current.id}
-									className="animate-wolf-rise mt-[1.4cqw] text-[5cqw] leading-[1.04] font-extrabold [text-shadow:0_0_2.4cqw_rgba(0,0,0,0.45)]"
-									style={{ color: ink }}
-								>
-									{current.reward}
-								</div>
+								<>
+									<div
+										key={current.id}
+										className="animate-wolf-rise mt-[1.4cqw] text-[5cqw] leading-[1.04] font-extrabold [text-shadow:0_0_2.4cqw_rgba(0,0,0,0.45)]"
+										style={{ color: ink }}
+									>
+										{current.reward}
+									</div>
+									{showProgress && (
+										<div className="mt-[1.4cqw]">
+											<div className="h-[0.9cqw] w-full overflow-hidden rounded-full bg-white/10">
+												<div
+													className="h-full rounded-full transition-[width] duration-500"
+													style={{ width: `${progressPct}%`, backgroundImage: gradientCss(stops) }}
+												/>
+											</div>
+											<div
+												className="mt-[0.7cqw] text-[1.35cqw] font-bold tracking-wide tabular-nums"
+												style={{ color: `${accent}d9` }}
+											>
+												{currentSubs} / {nextTarget} subs
+											</div>
+										</div>
+									)}
+								</>
 							) : (
 								<div
 									className="mt-[1.4cqw] text-[3.4cqw] leading-tight font-bold"
