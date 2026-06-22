@@ -111,6 +111,43 @@ export const MAX_EMOJIS = 24;
 /** Longest single entry: fits a unicode emoji OR a Twitch emote CDN URL. */
 const MAX_EMOJI_LEN = 300;
 
+/** Hosts whose https images we allow as emote glyphs. Operator-set image URLs
+ * that aren't on this list never reach an <img src> on the public overlay. */
+const EMOTE_CDN_HOSTS = new Set([
+	"static-cdn.jtvnw.net", // Twitch
+	"cdn.7tv.app", // 7TV
+	"cdn.betterttv.net", // BTTV
+	"cdn.frankerfacez.com", // FFZ
+]);
+
+const DANGEROUS_SCHEME = /^(javascript|data|vbscript):/i;
+
+/**
+ * Normalise one emoji entry, or return null to drop it.
+ *
+ * An entry is either a bare unicode emoji / text grapheme (rendered as text) or
+ * an https image URL on a known emote CDN (rendered as <img>). The overlay/control
+ * render an `<img src>` only for `https://` entries, so the only injection vector
+ * is a non-allowlisted https URL — that, plus any script/data URI or other
+ * protocol, is rejected here. Plain text (incl. ascii emotes like ":)") passes.
+ */
+export function sanitizeEmoji(raw: string): string | null {
+	const v = raw.trim();
+	if (!v || v.length > MAX_EMOJI_LEN) return null;
+	if (DANGEROUS_SCHEME.test(v)) return null;
+	if (v.includes("://")) {
+		if (!v.startsWith("https://")) return null; // http://, ftp://, …
+		let host: string;
+		try {
+			host = new URL(v).hostname.toLowerCase();
+		} catch {
+			return null;
+		}
+		return EMOTE_CDN_HOSTS.has(host) ? v : null;
+	}
+	return v;
+}
+
 /** Wolf-themed drift set, used when a config has none (incl. old saved rows). */
 export const DEFAULT_TIMER_EMOJIS = ["🐺", "🌙", "⚡", "💙", "🔥", "✨", "🎮", "🏆"];
 
@@ -313,8 +350,8 @@ export function validateTimerConfig(input: unknown): TimerConfigResult {
 					errors.push({ path: `emojis[${i}]`, message: "must be a string" });
 					return;
 				}
-				const v = item.trim();
-				if (v && v.length <= MAX_EMOJI_LEN) cleaned.push(v);
+				const ok = sanitizeEmoji(item);
+				if (ok) cleaned.push(ok);
 			});
 			config.emojis = cleaned;
 		}

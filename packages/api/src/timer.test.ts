@@ -162,3 +162,23 @@ test("withTimerConfigDefaults preserves all keys for a full doc (none dropped)",
 	expect(Object.keys(restored.config).sort()).toEqual(Object.keys(doc.config).sort());
 	expect(restored.state).toEqual(doc.state);
 });
+
+test("validateTimerConfig drops non-allowlisted emoji image URLs but keeps emote CDN + unicode", () => {
+	const result = validateTimerConfig({
+		...defaultTimerConfig(),
+		emojis: [
+			"🐺", // bare unicode → kept
+			"https://static-cdn.jtvnw.net/emoticons/v2/25/static/light/3.0", // allowlisted → kept
+			"javascript:alert(1)", // dropped
+			"data:image/svg+xml,<svg/onload=alert(1)>", // dropped
+			"http://static-cdn.jtvnw.net/x.png", // non-https → dropped
+			"https://evil.example.com/x.png", // arbitrary host → dropped
+		],
+	});
+	expect(result.ok).toBe(true);
+	if (result.ok)
+		expect(result.config.emojis).toEqual([
+			"🐺",
+			"https://static-cdn.jtvnw.net/emoticons/v2/25/static/light/3.0",
+		]);
+});

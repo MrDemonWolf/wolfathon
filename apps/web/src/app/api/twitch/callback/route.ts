@@ -22,6 +22,19 @@ type WebEnv = {
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Timing-safe string compare for the OAuth `state` token. Node's
+ * `crypto.timingSafeEqual` isn't guaranteed on the Workers runtime, so XOR-
+ * accumulate over char codes instead. The length check leaks only length, which
+ * is fixed for our random state tokens.
+ */
+function timingSafeEqual(a: string, b: string): boolean {
+	if (a.length !== b.length) return false;
+	let diff = 0;
+	for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+	return diff === 0;
+}
+
 export async function GET(req: Request) {
 	const url = new URL(req.url);
 	const back = (status: string) =>
@@ -40,7 +53,7 @@ export async function GET(req: Request) {
 	const db = createDb(env.DB);
 	const doc = await readTwitch(db);
 	// CSRF: the state must match the one minted by startAuth.
-	if (!doc.oauthState || doc.oauthState !== state) return back("state_error");
+	if (!doc.oauthState || !timingSafeEqual(doc.oauthState, state)) return back("state_error");
 
 	// Consume the state up front so it is strictly single-use: a duplicate or
 	// replayed callback now fails the check above instead of clobbering a
