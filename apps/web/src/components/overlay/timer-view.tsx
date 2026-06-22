@@ -35,18 +35,30 @@ const CORNER_RADII: Record<ThemeCorners, string> = {
 export function TimerView({ data }: { data: PublicTimer | undefined }) {
 	const offsetRef = useRef(0); // serverNow - browserNow, captured per fetch
 	const targetRef = useRef<number | null>(null);
+	const lastEventAtRef = useRef<number | null>(null);
 	const [now, setNow] = useState(() => Date.now());
-	const [flash, setFlash] = useState<{ id: number; minutes: number } | null>(null);
+	const [flash, setFlash] = useState<{ id: number; minutes: number; label: string } | null>(null);
 
 	// Resync the clock offset and detect added time on each fresh payload.
 	useEffect(() => {
 		if (!data) return;
 		offsetRef.current = data.serverNow - Date.now();
 		const target = data.remainingMs;
-		if (targetRef.current != null && target > targetRef.current + 800) {
+		// Don't flash on the first payload — it's the baseline, not a fresh add.
+		const baseline = targetRef.current == null;
+		const ev = data.lastEvent;
+		if (ev && ev.at !== lastEventAtRef.current) {
+			// Preferred path: the server recorded the add, so we get its source label.
+			lastEventAtRef.current = ev.at;
+			if (!baseline && ev.minutes > 0) {
+				setFlash({ id: ev.at, minutes: ev.minutes, label: data.showEventSource ? ev.label : "" });
+			}
+		} else if (!baseline && targetRef.current != null && target > targetRef.current + 800) {
+			// Fallback for a manual/legacy add with no recorded event.
 			setFlash({
 				id: data.serverNow,
 				minutes: Math.max(1, Math.round((target - targetRef.current) / 60000)),
+				label: "",
 			});
 		}
 		targetRef.current = target;
@@ -112,8 +124,6 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 					className="@container relative aspect-[131/20] w-full overflow-hidden"
 					style={{ backgroundImage: capsule, borderRadius: radius, boxShadow }}
 				>
-					{/* one thin top hairline for depth — no muddy gloss overlay */}
-					<div className="pointer-events-none absolute inset-x-[6%] top-0 h-px bg-white/35" />
 					{/* slow sheen sweep — life without a busy animation */}
 					{live && (
 						<div
@@ -174,14 +184,18 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 					)}
 
 					{/* "+Xm" badge — inside the bar (top-right) so it's never clipped by a
-					    tightly-cropped source; pops in on a time-add event */}
+					    tightly-cropped source; pops in on a time-add event. Shows the
+					    source ("Name · Sub") when the operator enabled it. */}
 					{flash && (
 						<div
 							key={`label-${flash.id}`}
-							className="animate-wolf-rise absolute top-[12%] right-[2.5cqw] z-10 rounded-full bg-black/45 px-[1.8cqw] py-[0.5cqw] text-[2.6cqw] font-extrabold whitespace-nowrap text-white backdrop-blur-md"
+							className="animate-wolf-rise absolute top-[12%] right-[2.5cqw] z-10 flex items-baseline gap-[0.6cqw] rounded-full bg-black/45 px-[1.8cqw] py-[0.5cqw] font-extrabold whitespace-nowrap text-white backdrop-blur-md"
 							style={{ boxShadow: `0 0 2cqw ${glow}` }}
 						>
-							+{flash.minutes}m
+							{flash.label && (
+								<span className="text-[1.9cqw] font-semibold opacity-90">{flash.label}</span>
+							)}
+							<span className="text-[2.6cqw]">+{flash.minutes}m</span>
 						</div>
 					)}
 
@@ -191,7 +205,7 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 							className="absolute top-[1.6cqh] left-1/2 -translate-x-1/2 text-[1.7cqw] leading-none font-bold tracking-[0.5em] uppercase opacity-70"
 							style={{ color: ink }}
 						>
-							{ended ? "Ended" : "Subathon"}
+							{ended ? "Ended" : data.label}
 						</span>
 					)}
 
