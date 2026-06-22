@@ -2,7 +2,7 @@ import { type Db, trackerState } from "@wolfathon/db";
 import { eq } from "drizzle-orm";
 
 import { type Data, recompute, sampleData } from "./state";
-import { type TimerDoc, defaultTimerConfig, defaultTimerDoc } from "./timer";
+import { type TimerDoc, defaultTimerDoc, withTimerConfigDefaults } from "./timer";
 import { type TwitchDoc, defaultTwitchDoc } from "./twitch";
 
 /**
@@ -63,10 +63,7 @@ export async function writeState(db: Db, data: Data): Promise<Data> {
 // ---- timer ----------------------------------------------------------------
 
 export async function readTimer(db: Db): Promise<TimerDoc> {
-	const doc = await readDoc(db, TIMER_ID, defaultTimerDoc);
-	// Backfill top-level config keys missing on pre-existing rows (e.g. `theme`,
-	// `emojis`) so the operator editor never dereferences an absent field.
-	return { ...doc, config: { ...defaultTimerConfig(), ...doc.config } };
+	return withTimerConfigDefaults(await readDoc(db, TIMER_ID, defaultTimerDoc));
 }
 
 export async function writeTimer(db: Db, doc: TimerDoc): Promise<TimerDoc> {
