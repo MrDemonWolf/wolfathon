@@ -2,6 +2,7 @@ import alchemy from "alchemy";
 import { Nextjs } from "alchemy/cloudflare";
 import { Worker } from "alchemy/cloudflare";
 import { D1Database } from "alchemy/cloudflare";
+import { DurableObjectNamespace } from "alchemy/cloudflare";
 import { config } from "dotenv";
 
 config({ path: "./.env" });
@@ -35,6 +36,14 @@ const db = await D1Database("database", {
 	adopt: true,
 });
 
+// StreamElements realtime listener — a single Durable Object holds the socket and
+// applies tips to the timer/goals. Defined by the `SEListener` class exported from
+// the server Worker below. Idle until SE_JWT is set.
+const seListener = DurableObjectNamespace("se-listener", {
+	className: "SEListener",
+	sqlite: true,
+});
+
 export const server = await Worker("wolfathon-api", {
 	// Explicit script name → wolfathon-api.<subdomain>.workers.dev
 	// (without this, Alchemy prefixes app + stage onto the name).
@@ -47,7 +56,14 @@ export const server = await Worker("wolfathon-api", {
 	bindings: {
 		DB: db,
 		CORS_ORIGIN,
+		// StreamElements tip listener (Durable Object) + its credentials. The cron
+		// below + the DO's alarm keep the socket alive; empty JWT = listener idle.
+		SE_LISTENER: seListener,
+		SE_JWT: process.env.SE_JWT ?? "",
+		SE_CHANNEL_ID: process.env.SE_CHANNEL_ID ?? "",
 	},
+	// Bootstrap/keepalive tick for the StreamElements listener DO.
+	crons: ["* * * * *"],
 	dev: {
 		port: 3000,
 	},
