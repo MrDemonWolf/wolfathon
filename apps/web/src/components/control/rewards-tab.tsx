@@ -57,9 +57,14 @@ export function RewardsTab() {
 
 	function save() {
 		if (!draft) return;
-		const goals = draft.goals
-			.map((g) => ({ ...g, reward: g.reward.trim() }))
-			.filter((g) => g.reward.length > 0);
+		const goals = draft.goals.map((g) => ({ ...g, reward: g.reward.trim() }));
+		const empties = goals.filter((g) => !g.reward).length;
+		if (empties > 0) {
+			toast.error(
+				`${empties} goal${empties > 1 ? "s" : ""} ${empties > 1 ? "have" : "has"} no reward name — fill it in or remove the row.`,
+			);
+			return;
+		}
 		if (goals.length === 0) {
 			toast.error("Add at least one goal with a reward name.");
 			return;

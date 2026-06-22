@@ -2,7 +2,7 @@
 
 import { FONT_STACKS, gradientCss, type ThemeCorners } from "@wolfathon/api/theme";
 import type { PublicTimer } from "@wolfathon/api/timer";
-import { Pause, Play } from "lucide-react";
+import { Flag, Pause, Play } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 /**
@@ -76,12 +76,15 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 			: Math.max(0, data.remainingMs);
 	const { d, h, m, s } = format(remaining);
 	const live = data.running && remaining > 0;
+	const ended = !live && remaining <= 0;
 
-	// Operator-themed sweep when live (brand blue by default); clean neutral slate
-	// when paused/ended so a stopped timer reads distinctly, whatever the theme.
+	// Three distinct backgrounds so the timer state is never ambiguous: themed
+	// sweep when live, cool slate when paused, warm maroon when ended.
 	const capsule = live
 		? gradientCss(data.gradient)
-		: "linear-gradient(100deg,#2b3346 0%,#3a4456 50%,#2b3346 100%)";
+		: ended
+			? "linear-gradient(100deg,#4a2030 0%,#5a2740 50%,#4a2030 100%)"
+			: "linear-gradient(100deg,#2b3346 0%,#3a4456 50%,#2b3346 100%)";
 	// Text colour is resolved server-side (auto → dark/white from gradient
 	// brightness, or the operator's explicit hex); paused forces white over slate.
 	const ink = live ? data.textColor : "#ffffff";
@@ -90,7 +93,11 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 	// Soft coloured glow from the brightest stop — replaces the old halo element
 	// (a second rounded rect that read as a clumsy double border).
 	const accent = data.gradient.at(-1) ?? "#5bc8f0";
-	const glow = live ? withAlpha(accent, "5c") : "rgba(58,68,92,0.45)";
+	const glow = live
+		? withAlpha(accent, "5c")
+		: ended
+			? "rgba(120,40,70,0.5)"
+			: "rgba(58,68,92,0.45)";
 	const boxShadow = `0 0.8cqw 2.6cqw rgba(4,9,24,0.5), 0 0 2.6cqw ${glow}`;
 
 	return (
@@ -153,11 +160,13 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 						<div
 							className="absolute top-1/2 left-[3cqw] grid aspect-square h-[58%] -translate-y-1/2 place-items-center rounded-full bg-black/50 text-white backdrop-blur-md"
 							role="img"
-							aria-label={live ? "Running" : "Paused"}
-							title={live ? "Running" : "Paused"}
+							aria-label={live ? "Running" : ended ? "Ended" : "Paused"}
+							title={live ? "Running" : ended ? "Ended" : "Paused"}
 						>
 							{live ? (
 								<Play className="size-[55%] fill-current" />
+							) : ended ? (
+								<Flag className="size-[55%] fill-current" />
 							) : (
 								<Pause className="size-[55%] fill-current" />
 							)}
@@ -182,7 +191,7 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 							className="absolute top-[1.6cqh] left-1/2 -translate-x-1/2 text-[1.7cqw] leading-none font-bold tracking-[0.5em] uppercase opacity-70"
 							style={{ color: ink }}
 						>
-							Subathon
+							{ended ? "Ended" : "Subathon"}
 						</span>
 					)}
 
