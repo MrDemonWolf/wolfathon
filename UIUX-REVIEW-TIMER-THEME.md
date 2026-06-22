@@ -19,11 +19,12 @@
 ### 🟧 Severity 3 — Major
 
 #### 1. Countdown text is hard-coded white, so light gradients render it unreadable
+
 - **What:** The time/units are always white (`text-white`, units `text-white/75`). Two of the offered themes are light:
   - `mono` stops `#8aa0bf · #b9c8de · #e2e8f0` → white-on-stop contrast ≈ **1.7 : 1**, **1.7 : 1**, **1.2 : 1**.
   - `brand`'s lightest stop `#5bc8f0` → ≈ **1.9 : 1** under the right-hand digits.
   - Custom mode lets an operator pick any stops, including pale ones, with no guard.
-  All are far below the WCAG AA threshold (4.5 : 1 normal, 3 : 1 large). Units at 75% opacity are worse.
+    All are far below the WCAG AA threshold (4.5 : 1 normal, 3 : 1 large). Units at 75% opacity are worse.
 - **Where:** `apps/web/src/components/overlay/timer-view.tsx` — `Segment` (`text-[8.6cqw]` white) and the `M/H/D/S` unit spans (`text-white/75`); gradient from `data.gradient` via `gradientCss`. Preset table in `packages/api/src/timer.ts` (`TIMER_THEME_PRESETS.mono`).
 - **Guideline:** Legibility requires high character/background contrast, and ideally a plain (not busy/textured) backing — a multi-stop gradient is exactly the varying background NN/g warns about.
 - **Evidence:** [Low-Contrast Text Is Not the Answer](https://www.nngroup.com/articles/low-contrast/) — low-contrast text is illegible and inaccessible; check the combination against the font size. [Legibility, Readability, and Comprehension](https://www.nngroup.com/articles/legibility-readability-comprehension/) — ensure high contrast and prefer a plain background over a textured one.
@@ -36,6 +37,7 @@
 ### 🟨 Severity 2 — Minor
 
 #### 2. "Remove stop" target is ~18 px — below the 1 cm minimum
+
 - **What:** The per-stop delete is an `X` at `size-3.5` (14 px) inside `p-0.5` (2 px) → ~18 px hit area, sitting tight against the color swatch and hex label. The custom-stop checkboxes are `size-4` (16 px).
 - **Where:** `timer-config-panel.tsx` — `ThemeEditor` remove-stop `<button>` and the `Toggle` checkboxes.
 - **Guideline:** Touch targets should be ~1 cm × 1 cm (≈44 px) to be tapped quickly without slips; crowded small targets cause mis-taps.
@@ -46,6 +48,7 @@
   - [ ] Consider a slightly larger custom checkbox/switch.
 
 #### 3. Status chip text sits on a 25%-opacity black plate
+
 - **What:** "LIVE"/"PAUSED" is white on `bg-black/25` over a bright gradient. Backdrop-blur helps, but effective contrast varies with the stop behind it and isn't guaranteed to clear AA.
 - **Where:** `timer-view.tsx` — status chip (`bg-black/25 ... backdrop-blur-md`).
 - **Guideline:** Same legibility/low-contrast guidance as #1, for a small secondary label.
@@ -55,6 +58,7 @@
   - [ ] Verify the worst-case (lightest stop behind the chip) reaches ≥4.5 : 1.
 
 #### 4. Theme text color can't be verified to follow stream contrast — but the capsule mitigates it
+
 - **What:** The overlay is transparent and floats over arbitrary stream content; the opaque capsule shields the text, which is good. What can't be verified from code is that operators size the OBS source sensibly (the cqw-based type assumes the documented ~720×150 / wide bar).
 - **Where:** `apps/web/src/app/overlay/timer/page.tsx` (1920×1080 transparent source) + capsule sizing.
 - **Guideline:** Legibility — plain backing improves character recognition (the opaque capsule already does this).
@@ -65,6 +69,7 @@
 ### ⬜ Severity 1 — Cosmetic
 
 #### 5. Hex readout is 11 px muted-foreground
+
 - **What:** The custom-stop hex label is `text-[11px] font-mono text-muted-foreground` — small and low-emphasis. It's a secondary readout next to the visible swatch, so impact is low, but it's at the floor of comfortable legibility.
 - **Where:** `timer-config-panel.tsx` — custom stop `<span className="font-mono text-[11px] …">`.
 - **Guideline:** Use a reasonably large font; avoid tiny text even for secondary labels.
@@ -73,6 +78,7 @@
   - [ ] Bump to 12–13 px and/or `text-foreground/70`.
 
 #### 6. "ENDED" state reuses the paused amber-grey
+
 - **What:** Running→`Live`, paused & ended both use the muted grey gradient; only the chip word differs ("Paused" vs "Ended"). Distinguishable, but the two terminal states look identical at a glance.
 - **Where:** `timer-view.tsx` — paused/ended share the `#6b7488…#a8895f` gradient.
 - **Guideline:** Visibility of system status — distinct states should be distinguishable.
@@ -81,17 +87,20 @@
   - [ ] Optional: give "ENDED" a slightly different treatment (e.g. dimmer, or a small "0:00" emphasis) if telling the two apart on-stream matters.
 
 ## Unverified (needs a different input to check)
+
 - Keyboard focus visibility on the color inputs / checkboxes — native controls, likely fine, but not confirmed by screenshot.
 - Computed contrast of the status chip in production over a live stream background (depends on the bright stop actually behind it at render).
 - Whether operators size the OBS browser source to the bar as documented (runtime/operator behavior, not in code).
 
 ## What's working well
+
 - **Status visibility (Heuristic #1):** LIVE/PAUSED chip + a live gradient swatch + a live overlay preview in the panel give immediate, honest feedback of both timer state and theme — textbook visibility of system status.
 - **Glanceability:** large centered tabular-nums countdown collapses to just seconds under a minute — easy to read in a quick glance.
-- **Safe defaults & no color-only meaning:** brand preset is dark-enough by default; presets are labeled with text *and* a swatch, not color alone.
+- **Safe defaults & no color-only meaning:** brand preset is dark-enough by default; presets are labeled with text _and_ a swatch, not color alone.
 - **Motion respects users:** the fill/flood/sheen animations are gated behind `prefers-reduced-motion` in the shared stylesheet.
 
 ## Quick wins
+
 - [ ] Auto-pick dark vs white countdown ink from gradient luminance (kills finding #1 outright).
 - [ ] Re-tune or drop the `mono` preset so no built-in option ships unreadable.
 - [ ] Enlarge the remove-stop hit area to ≥24 px and space it from the swatch.
