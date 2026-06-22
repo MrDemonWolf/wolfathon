@@ -62,7 +62,7 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 	// emotes finish their rise before they're unmounted.
 	useEffect(() => {
 		if (!flash) return;
-		const t = setTimeout(() => setFlash(null), 5500);
+		const t = setTimeout(() => setFlash(null), 8800);
 		return () => clearTimeout(t);
 	}, [flash]);
 
@@ -133,7 +133,7 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 					)}
 					{flash && (
 						<div className="pointer-events-none absolute inset-0">
-							{fillParticles(emojis, flash.id).map((p) => (
+							{fillParticles(emojis, flash.id, data.emoteCount).map((p) => (
 								<span
 									key={p.key}
 									className="animate-wolf-fill absolute bottom-0 will-change-transform"
@@ -263,14 +263,16 @@ function rand(seed: number, salt: number): number {
 
 /** Emotes welling up across the capsule width when time is added (seeded by flash id). */
 function fillParticles(emojis: string[], seed: number, count = 26) {
-	return Array.from({ length: count }, (_, i) => ({
+	// Clamp defensively — the server validates, but never spawn an absurd count.
+	const n = Math.max(0, Math.min(80, Math.round(count)));
+	return Array.from({ length: n }, (_, i) => ({
 		key: `${seed}-${i}`,
 		e: emojis[i % emojis.length] ?? "🐺",
 		left: 2 + rand(seed, i) * 96, // %
 		size: 3 + rand(seed, i + 40) * 3.4, // cqw
 		x: rand(seed, i + 80) * 10 - 5, // cqw horizontal drift
 		spin: rand(seed, i + 120) * 180 - 90, // deg
-		duration: 3.0 + rand(seed, i + 160) * 1.4, // s — slowed so the flood is easy to catch
-		delay: rand(seed, i + 200) * 0.9, // s, staggered so the bar "fills"
+		duration: 5.0 + rand(seed, i + 160) * 2.0, // s — slow, floaty rise so the flood is unmissable
+		delay: rand(seed, i + 200) * 1.4, // s, staggered so the bar fills gradually
 	}));
 }

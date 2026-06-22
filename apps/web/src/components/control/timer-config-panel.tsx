@@ -1,7 +1,12 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { DEFAULT_TIMER_EMOJIS, MAX_EMOJIS, type TimerConfig } from "@wolfathon/api/timer";
+import {
+	DEFAULT_TIMER_EMOJIS,
+	MAX_EMOJIS,
+	MAX_EMOTE_COUNT,
+	type TimerConfig,
+} from "@wolfathon/api/timer";
 import { Button } from "@wolfathon/ui/components/button";
 import { Input } from "@wolfathon/ui/components/input";
 import { Plus, RotateCcw, Twitch, X } from "lucide-react";
@@ -166,6 +171,29 @@ export function TimerConfigPanel({
 
 			{/* overlay emoji */}
 			<EmojiEditor emojis={config.emojis} onChange={(emojis) => onChange({ ...config, emojis })} />
+
+			{/* emote burst count */}
+			<div className="mt-4">
+				<label className="flex max-w-xs flex-col gap-1 text-sm font-medium">
+					Emotes per time-add
+					<Input
+						className="h-9 rounded-lg"
+						type="number"
+						min={0}
+						max={MAX_EMOTE_COUNT}
+						value={String(config.emoteCount)}
+						onChange={(e) =>
+							onChange({
+								...config,
+								emoteCount: Math.max(0, Math.min(MAX_EMOTE_COUNT, Math.round(n(e.target.value)))),
+							})
+						}
+					/>
+					<span className="text-xs font-normal text-muted-foreground">
+						How many emotes flood the bar on each add (0–{MAX_EMOTE_COUNT}, 0 = off).
+					</span>
+				</label>
+			</div>
 
 			{/* overlay colours + chrome */}
 			<ThemeEditor
