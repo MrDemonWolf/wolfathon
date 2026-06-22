@@ -3,6 +3,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
 	DEFAULT_TIMER_EMOJIS,
+	defaultTimerTheme,
 	MAX_EMOJIS,
 	type TimerConfig,
 	type TimerDoc,
@@ -12,6 +13,8 @@ import { Input } from "@wolfathon/ui/components/input";
 import { Plus, RotateCcw, Save, Twitch, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+
+import { ThemeEditor } from "./theme-editor";
 
 /** Quick palette for one-tap adding — covers most subathon/stream vibes. */
 const EMOJI_PRESETS = [
@@ -61,6 +64,7 @@ function ConfigForm({ config, onChanged }: { config: TimerConfig; onChanged: () 
 	const [form, setForm] = useState<TimerConfig>({
 		...config,
 		emojis: config.emojis ?? [...DEFAULT_TIMER_EMOJIS],
+		theme: config.theme ?? defaultTimerTheme(),
 	});
 	const [errors, setErrors] = useState<{ path: string; message: string }[]>([]);
 	const setConfig = useMutation(controlTrpc.timer.setConfig.mutationOptions());
@@ -205,6 +209,14 @@ function ConfigForm({ config, onChanged }: { config: TimerConfig; onChanged: () 
 
 			{/* overlay emoji */}
 			<EmojiEditor emojis={form.emojis} onChange={(emojis) => setForm({ ...form, emojis })} />
+
+			{/* overlay colours + chrome */}
+			<ThemeEditor
+				theme={form.theme}
+				onChange={(theme) => setForm({ ...form, theme })}
+				labelToggleText='Show "SUBATHON" label'
+				statusToggleText="Show play/pause icon"
+			/>
 
 			{errors.length > 0 && (
 				<ul className="mt-4 space-y-1 rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">

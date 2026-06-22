@@ -1,6 +1,11 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { defaultOverlayTheme, type OverlayTheme } from "@wolfathon/api/theme";
+import { Button } from "@wolfathon/ui/components/button";
+import { Save } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 
 import { controlTrpc, queryClient } from "@/utils/trpc";
 
@@ -9,9 +14,60 @@ import { EXAMPLE_JSON, REWARDS_SCHEMA_BULLETS } from "./example";
 import { GoalEditor } from "./goal-editor";
 import { type IEConfig, type IEError, ImportExportPanel } from "./import-export-panel";
 import { OverlayPreview } from "./overlay-preview";
+import { ThemeEditor } from "./theme-editor";
 import { nowStamp } from "./util";
 
 const label = (index: number) => (index < 0 ? "Document" : `Goal #${index + 1}`);
+
+/** Edits the rewards-overlay theme (saved independently of the goal list). */
+function RewardsThemePanel({
+	theme,
+	onChanged,
+}: {
+	theme: OverlayTheme | undefined;
+	onChanged: () => void;
+}) {
+	// Remount (reseed) whenever the saved theme changes.
+	return <ThemeForm key={JSON.stringify(theme)} initial={theme ?? defaultOverlayTheme()} onChanged={onChanged} />;
+}
+
+function ThemeForm({ initial, onChanged }: { initial: OverlayTheme; onChanged: () => void }) {
+	const [theme, setTheme] = useState<OverlayTheme>(initial);
+	const save = useMutation(controlTrpc.state.setTheme.mutationOptions());
+
+	return (
+		<div className="rounded-2xl panel-card p-5">
+			<div className="flex items-center justify-between">
+				<h2 className="font-heading text-lg font-bold">Overlay theme</h2>
+				<Button
+					className="rounded-lg"
+					disabled={save.isPending}
+					onClick={() =>
+						save.mutate(theme, {
+							onSuccess: (res) => {
+								if (res.ok) {
+									toast.success("Overlay theme saved");
+									onChanged();
+								} else {
+									toast.error(res.errors[0]?.message ?? "Invalid theme");
+								}
+							},
+						})
+					}
+				>
+					<Save className="size-4" />
+					Save
+				</Button>
+			</div>
+			<ThemeEditor
+				theme={theme}
+				onChange={setTheme}
+				labelToggleText='Show "NEXT REWARD" label'
+				statusToggleText="Show live status dot"
+			/>
+		</div>
+	);
+}
 
 export function RewardsTab() {
 	const rawOptions = controlTrpc.state.getRaw.queryOptions();
@@ -80,6 +136,7 @@ export function RewardsTab() {
 		<div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
 			<div className="flex flex-col gap-6">
 				<GoalEditor data={data} onChanged={invalidate} />
+				<RewardsThemePanel theme={data?.theme} onChanged={invalidate} />
 				<ImportExportPanel
 					config={ie}
 					busy={validate.isPending || importMut.isPending}

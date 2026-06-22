@@ -16,5 +16,6 @@ export const REWARDS_SCHEMA_BULLETS = [
 	"Top-level `goals` is a non-empty array (max 50).",
 	"Each goal needs a non-empty `reward` string (max 80 chars).",
 	"`note` is optional and internal; unknown keys and any `id` are ignored.",
+	"Optional `theme` (colour/font/corners) round-trips on export; omit it and import keeps your current theme.",
 	"On import every goal resets to locked and progress returns to the first goal.",
 ];
