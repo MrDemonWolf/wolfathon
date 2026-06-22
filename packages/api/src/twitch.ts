@@ -431,19 +431,31 @@ function planToTier(tier: unknown): "t1" | "t2" | "t3" {
  * which is already counted via channel.subscription.gift).
  */
 export function parseEvent(type: string, event: Record<string, unknown>): TimerEvent | null {
+	// Display name of who triggered it, for the overlay alert. Anonymous cheers /
+	// gifts carry no name (is_anonymous) — leave `who` unset so they stay anonymous.
+	const who = (() => {
+		if (event.is_anonymous === true) return undefined;
+		const n = event.user_name ?? event.user_login;
+		return typeof n === "string" && n.trim() ? { who: n.trim() } : undefined;
+	})();
 	switch (type) {
 		case "channel.subscribe":
 			if (event.is_gift === true) return null; // counted via the gift event
-			return { kind: "sub", tier: planToTier(event.tier) };
+			return { kind: "sub", tier: planToTier(event.tier), ...who };
 		case "channel.subscription.message":
-			return { kind: "sub", tier: planToTier(event.tier) };
+			return { kind: "sub", tier: planToTier(event.tier), ...who };
 		case "channel.subscription.gift":
-			return { kind: "gift", tier: planToTier(event.tier), count: Number(event.total) || 1 };
+			return {
+				kind: "gift",
+				tier: planToTier(event.tier),
+				count: Number(event.total) || 1,
+				...who,
+			};
 		case "channel.cheer":
-			return { kind: "bits", bits: Number(event.bits) || 0 };
+			return { kind: "bits", bits: Number(event.bits) || 0, ...who };
 		case "channel.channel_points_custom_reward_redemption.add": {
 			const reward = (event.reward ?? {}) as { id?: string; title?: string };
-			return { kind: "points", rewardId: reward.id, rewardTitle: reward.title };
+			return { kind: "points", rewardId: reward.id, rewardTitle: reward.title, ...who };
 		}
 		default:
 			return null;

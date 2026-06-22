@@ -5,6 +5,7 @@ import {
 	DEFAULT_TIMER_EMOJIS,
 	MAX_EMOJIS,
 	MAX_EMOTE_COUNT,
+	MAX_LABEL_LEN,
 	type TimerConfig,
 } from "@wolfathon/api/timer";
 import { Button } from "@wolfathon/ui/components/button";
@@ -193,6 +194,40 @@ export function TimerConfigPanel({
 						How many emotes flood the bar on each add (0–{MAX_EMOTE_COUNT}, 0 = off).
 					</span>
 				</label>
+			</div>
+
+			{/* editable eyebrow label */}
+			<div className="mt-4">
+				<label className="flex max-w-xs flex-col gap-1 text-sm font-medium">
+					Overlay label
+					<Input
+						className="h-9 rounded-lg"
+						maxLength={MAX_LABEL_LEN}
+						value={config.label}
+						onChange={(e) => onChange({ ...config, label: e.target.value })}
+						placeholder="SUBATHON"
+					/>
+					<span className="text-xs font-normal text-muted-foreground">
+						The eyebrow text above the countdown. Toggle its visibility under “Overlay theme”.
+					</span>
+				</label>
+			</div>
+
+			{/* alert: name who added the time */}
+			<div className="mt-4">
+				<label className="flex items-center gap-2 text-sm font-medium">
+					<input
+						type="checkbox"
+						className="size-4 accent-primary"
+						checked={config.showEventSource}
+						onChange={(e) => onChange({ ...config, showEventSource: e.target.checked })}
+					/>
+					Name who added the time on the alert
+				</label>
+				<p className="mt-1 text-xs text-muted-foreground">
+					e.g. “MrDemonWolf · Sub +5m”. Off shows just “+5m”. Anonymous cheers and gifts stay
+					anonymous.
+				</p>
 			</div>
 
 			{/* overlay colours + chrome */}

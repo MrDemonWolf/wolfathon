@@ -66,6 +66,7 @@ test("the test notification is signed so our own verifier accepts it", async () 
 	expect(parseEvent("channel.subscribe", JSON.parse(body).event)).toEqual({
 		kind: "sub",
 		tier: "t1",
+		who: "wolfathon_test",
 	});
 });
 

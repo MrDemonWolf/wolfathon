@@ -7,14 +7,21 @@ import { applyEvent, pause, reset, start, type TimerEvent, validateTimerConfig }
 
 const tierSchema = z.enum(["t1", "t2", "t3", "prime"]);
 
+const whoSchema = z.string().trim().min(1).max(60).optional();
 const eventSchema: z.ZodType<TimerEvent> = z.discriminatedUnion("kind", [
-	z.object({ kind: z.literal("sub"), tier: tierSchema }),
-	z.object({ kind: z.literal("gift"), tier: tierSchema, count: z.number().int().min(1) }),
-	z.object({ kind: z.literal("bits"), bits: z.number().int().min(1) }),
+	z.object({ kind: z.literal("sub"), tier: tierSchema, who: whoSchema }),
+	z.object({
+		kind: z.literal("gift"),
+		tier: tierSchema,
+		count: z.number().int().min(1),
+		who: whoSchema,
+	}),
+	z.object({ kind: z.literal("bits"), bits: z.number().int().min(1), who: whoSchema }),
 	z.object({
 		kind: z.literal("points"),
 		rewardId: z.string().optional(),
 		rewardTitle: z.string().optional(),
+		who: whoSchema,
 	}),
 	z.object({ kind: z.literal("manualMinutes"), minutes: z.number() }),
 ]);
