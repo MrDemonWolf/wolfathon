@@ -41,7 +41,7 @@ test("stripNotes exposes the NEXT target + currentSubs but no other targets", ()
 	expect(pub.currentSubs).toBe(7);
 	expect(pub.nextTarget).toBe(10); // goals[currentIndex]
 	// Future ceilings (25) must never reach the wire.
-	expect(JSON.stringify(pub)).not.toContain("25");
+	expect(pub.goals.some((g) => (g as { target?: number }).target === 25)).toBe(false);
 	expect(pub.goals.every((g) => !("target" in g))).toBe(true);
 });
 

@@ -112,7 +112,11 @@ export type ThemeError = { path: string; message: string };
  * fields fall back to the brand default. Returns a complete OverlayTheme even on
  * error (the caller decides whether to use it based on `errors.length`).
  */
-export function validateOverlayTheme(raw: unknown, errors: ThemeError[], at = "theme"): OverlayTheme {
+export function validateOverlayTheme(
+	raw: unknown,
+	errors: ThemeError[],
+	at = "theme",
+): OverlayTheme {
 	const theme = defaultOverlayTheme();
 	if (raw === undefined) return theme;
 	if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
@@ -123,7 +127,10 @@ export function validateOverlayTheme(raw: unknown, errors: ThemeError[], at = "t
 
 	if (t.preset !== undefined) {
 		if (typeof t.preset !== "string" || !THEME_PRESET_KEYS.includes(t.preset as ThemePreset)) {
-			errors.push({ path: `${at}.preset`, message: `must be one of ${THEME_PRESET_KEYS.join(", ")}` });
+			errors.push({
+				path: `${at}.preset`,
+				message: `must be one of ${THEME_PRESET_KEYS.join(", ")}`,
+			});
 		} else {
 			theme.preset = t.preset as ThemePreset;
 		}
@@ -138,7 +145,10 @@ export function validateOverlayTheme(raw: unknown, errors: ThemeError[], at = "t
 			const stops: string[] = [];
 			t.gradient.forEach((c, i) => {
 				if (typeof c !== "string" || !HEX_COLOR.test(c.trim())) {
-					errors.push({ path: `${at}.gradient[${i}]`, message: "must be a hex color like #00aced" });
+					errors.push({
+						path: `${at}.gradient[${i}]`,
+						message: "must be a hex color like #00aced",
+					});
 				} else {
 					stops.push(c.trim());
 				}
@@ -151,7 +161,10 @@ export function validateOverlayTheme(raw: unknown, errors: ThemeError[], at = "t
 	}
 
 	if (t.textColor !== undefined) {
-		if (t.textColor === "auto" || (typeof t.textColor === "string" && HEX_COLOR.test(t.textColor))) {
+		if (
+			t.textColor === "auto" ||
+			(typeof t.textColor === "string" && HEX_COLOR.test(t.textColor))
+		) {
 			theme.textColor = t.textColor;
 		} else {
 			errors.push({ path: `${at}.textColor`, message: 'must be "auto" or a hex color' });

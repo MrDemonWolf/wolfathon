@@ -51,7 +51,9 @@ export function TimerTab() {
 		setConfig.mutate(draft, {
 			onSuccess: (res) => {
 				if (!res.ok) {
-					toast.error(res.errors[0] ? `${res.errors[0].path}: ${res.errors[0].message}` : "Invalid config");
+					toast.error(
+						res.errors[0] ? `${res.errors[0].path}: ${res.errors[0].message}` : "Invalid config",
+					);
 					return;
 				}
 				setDraft(structuredClone(res.doc.config));
@@ -69,7 +71,9 @@ export function TimerTab() {
 		try {
 			return await fn();
 		} catch (e) {
-			return onErr([{ label: "Error", message: e instanceof Error ? e.message : "request failed" }]);
+			return onErr([
+				{ label: "Error", message: e instanceof Error ? e.message : "request failed" },
+			]);
 		}
 	}
 
@@ -95,7 +99,10 @@ export function TimerTab() {
 					const r = await validate.mutateAsync(v);
 					return r.ok
 						? ({ ok: true, summary: ["valid config"] } as const)
-						: ({ ok: false, errors: r.errors.map((e) => ({ label: e.path, message: e.message })) } as const);
+						: ({
+								ok: false,
+								errors: r.errors.map((e) => ({ label: e.path, message: e.message })),
+							} as const);
 				},
 				(errors) => ({ ok: false, errors }),
 			),
@@ -103,9 +110,17 @@ export function TimerTab() {
 			guard(
 				async () => {
 					const r = await importMut.mutateAsync(v);
-					return r.ok
-						? ({ ok: true } as const)
-						: ({ ok: false, errors: r.errors.map((e) => ({ label: e.path, message: e.message })) } as const);
+					if (r.ok) {
+						// Sync the draft to the imported config so a dirty draft does not shadow it
+						// (reseed skips while dirty) or revert it on the next Save.
+						setDraft(structuredClone(r.doc.config));
+						savedRef.current = JSON.stringify(r.doc.config);
+						return { ok: true } as const;
+					}
+					return {
+						ok: false,
+						errors: r.errors.map((e) => ({ label: e.path, message: e.message })),
+					} as const;
 				},
 				(errors) => ({ ok: false, errors }),
 			),
@@ -118,12 +133,12 @@ export function TimerTab() {
 				{draft && <TimerConfigPanel config={draft} onChange={setDraft} />}
 				<ImportExportPanel
 					config={ie}
-					busy={validate.isPending || importMut.isPending}
+					busy={validate.isPending || importMut.isPending || setConfig.isPending}
 					onImported={invalidate}
 				/>
 				<DirtyBar
 					dirty={dirty}
-					saving={setConfig.isPending}
+					saving={setConfig.isPending || importMut.isPending}
 					onSave={save}
 					onDiscard={discard}
 					summary="timer settings"

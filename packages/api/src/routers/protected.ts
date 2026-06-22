@@ -109,7 +109,10 @@ export const protectedRouter = router({
 			const errors: ThemeError[] = [];
 			const theme = validateOverlayTheme(input, errors);
 			if (errors.length > 0) {
-				return { ok: false as const, errors: errors.map((e) => ({ path: e.path, message: e.message })) };
+				return {
+					ok: false as const,
+					errors: errors.map((e) => ({ path: e.path, message: e.message })),
+				};
 			}
 			const data = await readState(ctx.db);
 			const state = await writeState(ctx.db, { ...data, theme });

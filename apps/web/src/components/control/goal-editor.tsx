@@ -1,6 +1,6 @@
 "use client";
 
-import type { Goal } from "@wolfathon/api/state";
+import { type Goal, MAX_TARGET } from "@wolfathon/api/state";
 import { Button } from "@wolfathon/ui/components/button";
 import { Input } from "@wolfathon/ui/components/input";
 import { ArrowDown, ArrowUp, Check, Lock, LockOpen, Plus, Trophy, X } from "lucide-react";
@@ -49,7 +49,13 @@ export function GoalEditor({
 		<div className="rounded-2xl panel-card p-5">
 			<div className="flex items-center justify-between gap-3">
 				<h2 className="font-heading text-lg font-bold">Goals</h2>
-				<Button variant="outline" size="sm" className="rounded-lg" onClick={add} disabled={goals.length >= 50}>
+				<Button
+					variant="outline"
+					size="sm"
+					className="rounded-lg"
+					onClick={add}
+					disabled={goals.length >= 50}
+				>
 					<Plus className="size-3.5" />
 					Add goal
 				</Button>
@@ -113,13 +119,33 @@ export function GoalEditor({
 									onChange={(e) => patch(i, { reward: e.target.value })}
 								/>
 								<div className="flex shrink-0 items-center gap-1">
-									<Button variant="ghost" size="icon-sm" className="rounded-lg" aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)}>
+									<Button
+										variant="ghost"
+										size="icon-sm"
+										className="rounded-lg"
+										aria-label="Move up"
+										disabled={i === 0}
+										onClick={() => move(i, -1)}
+									>
 										<ArrowUp className="size-4" />
 									</Button>
-									<Button variant="ghost" size="icon-sm" className="rounded-lg" aria-label="Move down" disabled={i === goals.length - 1} onClick={() => move(i, 1)}>
+									<Button
+										variant="ghost"
+										size="icon-sm"
+										className="rounded-lg"
+										aria-label="Move down"
+										disabled={i === goals.length - 1}
+										onClick={() => move(i, 1)}
+									>
 										<ArrowDown className="size-4" />
 									</Button>
-									<Button variant="destructive" size="icon-sm" className="rounded-lg" aria-label="Remove goal" onClick={() => onChange(goals.filter((_, j) => j !== i))}>
+									<Button
+										variant="destructive"
+										size="icon-sm"
+										className="rounded-lg"
+										aria-label="Remove goal"
+										onClick={() => onChange(goals.filter((_, j) => j !== i))}
+									>
 										<X className="size-4" />
 									</Button>
 								</div>
@@ -142,7 +168,12 @@ export function GoalEditor({
 										value={g.target ?? ""}
 										onChange={(e) => {
 											const v = e.target.value;
-											patch(i, { target: v === "" ? undefined : Math.max(0, Math.floor(Number(v) || 0)) });
+											patch(i, {
+												target:
+													v === ""
+														? undefined
+														: Math.min(MAX_TARGET, Math.max(0, Math.floor(Number(v) || 0))),
+											});
 										}}
 									/>
 									<span className="text-xs text-muted-foreground">subs</span>

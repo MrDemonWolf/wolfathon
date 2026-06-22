@@ -145,7 +145,10 @@ export function TimerConfigPanel({
 								className="rounded-lg"
 								aria-label="Remove rule"
 								onClick={() =>
-									onChange({ ...config, channelPoints: config.channelPoints.filter((_, j) => j !== i) })
+									onChange({
+										...config,
+										channelPoints: config.channelPoints.filter((_, j) => j !== i),
+									})
 								}
 							>
 								<X className="size-4" />
@@ -171,7 +174,6 @@ export function TimerConfigPanel({
 				labelToggleText='Show "SUBATHON" label'
 				statusToggleText="Show play/pause icon"
 			/>
-
 		</div>
 	);
 }
