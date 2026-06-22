@@ -52,6 +52,8 @@ export type TimerConfig = {
 	channelPoints: ChannelPointRule[];
 	/** Emoji that drift behind the overlay + burst when time is added. */
 	emojis: string[];
+	/** How many emotes flood the bar on each time-add (0 = none). */
+	emoteCount: number;
 	/** Overlay colours + chrome. Optional on old rows; defaults to brand. */
 	theme: OverlayTheme;
 };
@@ -77,6 +79,8 @@ export type PublicTimer = {
 	serverNow: number;
 	/** Emoji the overlay animates (drift + add-time burst). */
 	emojis: string[];
+	/** How many emotes flood the bar on each time-add. */
+	emoteCount: number;
 	/** Resolved capsule gradient stops (2+ hex colours). */
 	gradient: string[];
 	/** Resolved countdown text colour (hex). */
@@ -108,6 +112,9 @@ export const MAX_CHANNEL_POINT_RULES = 50;
 /** Sanity ceiling so a typo can't set a 10-year timer. */
 export const MAX_MINUTES_LIMIT = 525_600; // one year
 export const MAX_EMOJIS = 24;
+/** Ceiling on the per-add emote burst so a typo can't spawn thousands of nodes. */
+export const MAX_EMOTE_COUNT = 80;
+export const DEFAULT_EMOTE_COUNT = 26;
 /** Longest single entry: fits a unicode emoji OR a Twitch emote CDN URL. */
 const MAX_EMOJI_LEN = 300;
 
@@ -160,6 +167,7 @@ export function defaultTimerConfig(): TimerConfig {
 		bitsPer100Minutes: 1,
 		channelPoints: [],
 		emojis: [...DEFAULT_TIMER_EMOJIS],
+		emoteCount: DEFAULT_EMOTE_COUNT,
 		theme: defaultOverlayTheme(),
 	};
 }
@@ -270,6 +278,7 @@ export function toPublicTimer(doc: TimerDoc, now: number): PublicTimer {
 		remainingMs: currentRemainingMs(doc.state, now),
 		serverNow: now,
 		emojis,
+		emoteCount: doc.config.emoteCount ?? DEFAULT_EMOTE_COUNT,
 		gradient: resolveThemeGradient(theme),
 		textColor: resolveTextColor(theme),
 		font: theme.font,
@@ -333,6 +342,11 @@ export function validateTimerConfig(input: unknown): TimerConfigResult {
 		bitsPer100Minutes: num(errors, "bitsPer100Minutes", r.bitsPer100Minutes),
 		channelPoints: [],
 		emojis: [...DEFAULT_TIMER_EMOJIS],
+		// Optional on older import docs; absent → the default burst size.
+		emoteCount:
+			r.emoteCount === undefined
+				? DEFAULT_EMOTE_COUNT
+				: Math.round(num(errors, "emoteCount", r.emoteCount, { min: 0, max: MAX_EMOTE_COUNT })),
 		theme: defaultOverlayTheme(),
 	};
 
