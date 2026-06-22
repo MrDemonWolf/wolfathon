@@ -2,7 +2,7 @@ import { trpcServer } from "@hono/trpc-server";
 import { createContext } from "@wolfathon/api/context";
 import { publicRouter } from "@wolfathon/api/routers/index";
 import { subsFromEvent } from "@wolfathon/api/state";
-import { applyEvent } from "@wolfathon/api/timer";
+import { applyEvent, pause } from "@wolfathon/api/timer";
 import { parseEvent, verifyEventsubSignature } from "@wolfathon/api/twitch";
 import {
 	readState,
@@ -83,7 +83,14 @@ app.post("/twitch/eventsub", async (c) => {
 		const recent = twitch.recentEventIds ?? [];
 		if (messageId && recent.includes(messageId)) return c.body(null, 204); // already processed
 
-		const event = parseEvent(body.subscription?.type ?? "", body.event ?? {});
+		const subType = body.subscription?.type ?? "";
+		if (subType === "stream.offline") {
+			// Stream went down — auto-pause so the outage does not burn subathon time.
+			const timer = await readTimer(db);
+			const state = pause(timer.state, Date.now());
+			if (state !== timer.state) await writeTimer(db, { ...timer, state });
+		}
+		const event = parseEvent(subType, body.event ?? {});
 		if (event) {
 			const timer = await readTimer(db);
 			const { state } = applyEvent(timer.config, timer.state, event, Date.now());
