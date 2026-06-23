@@ -114,8 +114,15 @@ authorization. The **Twitch** tab walks you through it:
    the panel flips to **Connected**.
 4. On connect, the server creates EventSub webhook subscriptions for
    `channel.subscribe`, `channel.subscription.message`,
-   `channel.subscription.gift`, `channel.cheer`, and
-   `channel.channel_points_custom_reward_redemption.add`.
+   `channel.subscription.gift`, `channel.cheer`,
+   `channel.channel_points_custom_reward_redemption.add`, and `stream.offline`.
+
+The `stream.offline` / `stream.online` subscriptions **auto-pause the timer when
+your stream ends and resume it when you go live again**, so an outage or a
+forgotten "end stream" doesn't burn subathon time. Auto-resume only fires if the
+pause was automatic — a manual pause is never overridden. Toggle the whole
+behavior with **Auto-pause when the stream goes offline** on the Timer tab
+(default on).
 
 Scopes requested: `channel:read:subscriptions`, `bits:read`,
 `channel:read:redemptions`. The EventSub callback is your API Worker at

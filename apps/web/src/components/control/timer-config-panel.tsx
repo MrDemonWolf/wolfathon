@@ -230,6 +230,24 @@ export function TimerConfigPanel({
 				</p>
 			</div>
 
+			{/* auto-pause when the stream goes offline */}
+			<div className="mt-4">
+				<label className="flex items-center gap-2 text-sm font-medium">
+					<input
+						type="checkbox"
+						className="size-4 accent-primary"
+						checked={config.autoPauseOnOffline}
+						onChange={(e) => onChange({ ...config, autoPauseOnOffline: e.target.checked })}
+					/>
+					Auto-pause when the stream goes offline
+				</label>
+				<p className="mt-1 text-xs text-muted-foreground">
+					Pauses the timer on <code className="text-foreground">stream.offline</code> so an outage
+					or ended stream doesn’t burn time, and resumes it when you go live again. Requires Twitch
+					connected. A manual pause is never overridden.
+				</p>
+			</div>
+
 			{/* StreamElements tips */}
 			<div className="mt-5">
 				<div className="text-sm font-medium">StreamElements tips</div>
