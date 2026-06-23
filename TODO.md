@@ -67,17 +67,20 @@ Therefore a "save every N seconds" loop is intentionally **not** implemented: it
 would re-write the same value repeatedly and eat into the D1 write budget
 (Workers free tier = 100k writes/day). Writes only happen on real changes.
 
-### Possible feature: auto-pause when the stream goes offline
+### Auto-pause when the stream goes offline — DONE
 
 The timer counts real wall-clock time, so a stream/PC outage burns subathon time.
-Cleanest fix uses the EventSub we already have: subscribe to `stream.offline`
-(auto-pause the timer) and `stream.online` (auto-resume, or leave it for a manual
-Resume). No extra scopes needed.
+Uses the EventSub we already have: `stream.offline` auto-pauses, `stream.online`
+auto-resumes. No extra scopes needed.
 
-**BUILT:** subscribes to `stream.offline` and auto-pauses the timer on a stream
-outage. Manual resume by design (no `stream.online` subscription) so a flaky
-connection cannot silently restart the clock. Existing Twitch connections must
-**reconnect once** (control panel -> Twitch -> Connect) to create the new sub.
+**DONE:** subscribes to `stream.offline` + `stream.online`. Offline auto-pauses;
+online auto-resumes **only if the pause was automatic** (a pause-reason flag on
+the timer state means a manual pause is never overridden). Opt-in via the Timer
+tab toggle **Auto-pause when the stream goes offline** (config
+`autoPauseOnOffline`, default on). The control Timer status chip shows
+"PAUSED · OFFLINE" (amber) when auto-paused. Existing Twitch connections must
+**reconnect once** (control panel -> Twitch -> Connect) to create the
+`stream.online` sub.
 
 ### If you ever DO want a heartbeat (optional, later)
 

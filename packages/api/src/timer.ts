@@ -58,6 +58,12 @@ export type TimerConfig = {
 	label: string;
 	/** Show who/what added time on the time-add alert (e.g. "Name · Sub +5m"). */
 	showEventSource: boolean;
+	/**
+	 * Auto-pause the timer when the stream goes offline (and auto-resume when it
+	 * comes back, only if the pause was automatic). Driven by `stream.offline` /
+	 * `stream.online` EventSub. Default on.
+	 */
+	autoPauseOnOffline: boolean;
 	/** Minutes added per $1 of a StreamElements tip. */
 	tipMinutesPerDollar: number;
 	/** Dollars of tips that count as one sub toward the reward goals (0 = tips don't advance goals). */
@@ -76,6 +82,12 @@ export type TimerState = {
 	totalAddedMs: number;
 	/** Most recent time-add, for the overlay alert. Null until the first add. */
 	lastEvent: TimerLastEvent | null;
+	/**
+	 * True when the current pause was automatic (stream went offline). Lets
+	 * `stream.online` auto-resume without overriding a deliberate manual pause.
+	 * Any manual Start/Pause clears it.
+	 */
+	autoPaused: boolean;
 };
 
 export type TimerDoc = { config: TimerConfig; state: TimerState };
@@ -99,6 +111,8 @@ export type PublicTimer = {
 	font: ThemeFont;
 	/** Corner style. */
 	corners: ThemeCorners;
+	/** Paused automatically because the stream is offline (vs a manual pause). */
+	autoPaused: boolean;
 	/** Show the eyebrow label. */
 	showLabel: boolean;
 	/** Editable eyebrow text (defaults to "SUBATHON"). */
@@ -193,6 +207,7 @@ export function defaultTimerConfig(): TimerConfig {
 		emoteCount: DEFAULT_EMOTE_COUNT,
 		label: DEFAULT_TIMER_LABEL,
 		showEventSource: true,
+		autoPauseOnOffline: true,
 		tipMinutesPerDollar: 1,
 		tipDollarsPerSub: 5,
 		theme: defaultOverlayTheme(),
@@ -212,6 +227,7 @@ export function defaultTimerState(config: TimerConfig = defaultTimerConfig()): T
 		remainingMs: Math.round(config.startMinutes * MIN),
 		totalAddedMs: 0,
 		lastEvent: null,
+		autoPaused: false,
 	};
 }
 
@@ -257,12 +273,51 @@ export function addMs(config: TimerConfig, state: TimerState, ms: number, now: n
 
 export function start(state: TimerState, now: number): TimerState {
 	if (state.running) return state;
-	return { ...state, running: true, endsAt: now + Math.max(0, state.remainingMs) };
+	// Manual start clears the auto-pause flag (this is a deliberate resume).
+	return {
+		...state,
+		running: true,
+		endsAt: now + Math.max(0, state.remainingMs),
+		autoPaused: false,
+	};
 }
 
 export function pause(state: TimerState, now: number): TimerState {
+	// Manual pause — always clears the auto-pause flag so a later stream.online
+	// won't override the operator's choice.
+	if (!state.running || state.endsAt == null) {
+		return state.autoPaused ? { ...state, autoPaused: false } : state;
+	}
+	return {
+		...state,
+		running: false,
+		endsAt: null,
+		remainingMs: Math.max(0, state.endsAt - now),
+		autoPaused: false,
+	};
+}
+
+/** Pause because the stream went offline. Tags the pause as automatic. No-op if already paused. */
+export function autoPause(state: TimerState, now: number): TimerState {
 	if (!state.running || state.endsAt == null) return state;
-	return { ...state, running: false, endsAt: null, remainingMs: Math.max(0, state.endsAt - now) };
+	return {
+		...state,
+		running: false,
+		endsAt: null,
+		remainingMs: Math.max(0, state.endsAt - now),
+		autoPaused: true,
+	};
+}
+
+/** Resume on stream.online — only if the timer was auto-paused (never overrides a manual pause). */
+export function autoResume(state: TimerState, now: number): TimerState {
+	if (state.running || !state.autoPaused) return state;
+	return {
+		...state,
+		running: true,
+		endsAt: now + Math.max(0, state.remainingMs),
+		autoPaused: false,
+	};
 }
 
 /** Reset to the configured start time (stopped, stats cleared). */
@@ -349,6 +404,7 @@ export function toPublicTimer(doc: TimerDoc, now: number): PublicTimer {
 		running: doc.state.running,
 		endsAt: doc.state.endsAt,
 		remainingMs: currentRemainingMs(doc.state, now),
+		autoPaused: doc.state.autoPaused ?? false,
 		serverNow: now,
 		emojis,
 		emoteCount: doc.config.emoteCount ?? DEFAULT_EMOTE_COUNT,
@@ -427,6 +483,8 @@ export function validateTimerConfig(input: unknown): TimerConfigResult {
 		label:
 			typeof r.label === "string" ? r.label.trim().slice(0, MAX_LABEL_LEN) : DEFAULT_TIMER_LABEL,
 		showEventSource: typeof r.showEventSource === "boolean" ? r.showEventSource : true,
+		// Optional; absent → on (auto-pause/resume around stream offline).
+		autoPauseOnOffline: typeof r.autoPauseOnOffline === "boolean" ? r.autoPauseOnOffline : true,
 		// Tip rates are optional; absent → defaults.
 		tipMinutesPerDollar:
 			r.tipMinutesPerDollar === undefined
