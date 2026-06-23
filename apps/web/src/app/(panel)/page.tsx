@@ -26,14 +26,12 @@ export default function Home() {
 						<Sliders className="size-4" />
 						Open control panel
 					</Link>
-					<a
-						href="/overlay"
-						target="_blank"
-						rel="noreferrer"
+					<Link
+						href="/control/overlays"
 						className="inline-flex items-center gap-2 rounded-lg border border-border px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none"
 					>
-						Get overlay URLs ↗
-					</a>
+						Get overlay URLs →
+					</Link>
 				</div>
 			</section>
 
@@ -54,25 +52,23 @@ export default function Home() {
 					</span>
 				</Link>
 
-				<a
-					href="/overlay"
-					target="_blank"
-					rel="noreferrer"
+				<Link
+					href="/control/overlays"
 					className="group rounded-xl panel-card p-6 transition-colors hover:border-primary/50 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 				>
 					<div className="flex gap-2">
 						<Gauge className="size-6 text-primary" />
 						<Trophy className="size-6 text-primary" />
 					</div>
-					<h2 className="mt-4 font-heading text-xl font-bold">Overlays ↗</h2>
+					<h2 className="mt-4 font-heading text-xl font-bold">Overlays</h2>
 					<p className="mt-1.5 text-sm text-muted-foreground">
-						Transparent OBS browser sources (1920×1080): the subathon timer and the rewards tracker.
-						Copy each URL straight into OBS.
+						Transparent OBS browser sources: the subathon timer and the rewards tracker. Tokenized
+						URLs live in the control panel — copy each straight into OBS.
 					</p>
 					<span className="mt-4 inline-block text-sm font-medium text-primary transition-transform group-hover:translate-x-1">
 						Get URLs →
 					</span>
-				</a>
+				</Link>
 			</section>
 		</div>
 	);

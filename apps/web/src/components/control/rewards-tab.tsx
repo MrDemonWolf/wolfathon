@@ -3,6 +3,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type Data, recompute } from "@wolfathon/api/state";
 import { Button } from "@wolfathon/ui/components/button";
+import Link from "next/link";
 import { toast } from "sonner";
 
 import { controlTrpc, queryClient } from "@/utils/trpc";
@@ -188,14 +189,12 @@ export function RewardsTab() {
 			<div className="flex flex-col gap-3 lg:sticky lg:top-6 lg:self-start">
 				<div className="flex items-center justify-between">
 					<h2 className="font-heading text-lg font-bold">Live preview</h2>
-					<a
-						href="/overlay/rewards"
-						target="_blank"
-						rel="noreferrer"
-						className="text-xs text-muted-foreground transition-colors hover:text-foreground"
+					<Link
+						href="/control/overlays"
+						className="rounded text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 					>
-						Open ↗
-					</a>
+						Get URL →
+					</Link>
 				</div>
 				<OverlayPreview data={preview} />
 				{dirty && <p className="text-xs text-amber-400">Preview shows unsaved changes.</p>}

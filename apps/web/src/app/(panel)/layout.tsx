@@ -22,17 +22,15 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
 						<span className="font-heading text-lg font-extrabold tracking-tight">Wolfathon</span>
 					</Link>
 					<nav className="flex items-center gap-1 text-sm">
-						<NavLink href="/control" active={pathname.startsWith("/control")}>
+						<NavLink
+							href="/control"
+							active={pathname.startsWith("/control") && pathname !== "/control/overlays"}
+						>
 							Control
 						</NavLink>
-						<a
-							href="/overlay"
-							target="_blank"
-							rel="noreferrer"
-							className="rounded-[0.7rem] px-3 py-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-						>
-							Overlays ↗
-						</a>
+						<NavLink href="/control/overlays" active={pathname === "/control/overlays"}>
+							Overlays
+						</NavLink>
 					</nav>
 				</div>
 			</header>
