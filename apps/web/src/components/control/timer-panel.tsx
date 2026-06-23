@@ -50,8 +50,15 @@ export function TimerPanel({
 	}, []);
 
 	const running = doc?.state.running ?? false;
+	const autoPaused = !running && (doc?.state.autoPaused ?? false);
 	const remaining = doc ? currentRemainingMs(doc.state, now) : 0;
-	const status = running ? "LIVE" : remaining > 0 ? "PAUSED" : "ENDED";
+	const status = running
+		? "LIVE"
+		: remaining > 0
+			? autoPaused
+				? "PAUSED · OFFLINE"
+				: "PAUSED"
+			: "ENDED";
 
 	const SIMS = [
 		{ label: "Sub T1", event: { kind: "sub", tier: "t1" } },
@@ -75,11 +82,21 @@ export function TimerPanel({
 				</div>
 				<span
 					className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
-						running ? "bg-primary/15 text-primary" : "bg-secondary text-muted-foreground"
+						running
+							? "bg-primary/15 text-primary"
+							: autoPaused
+								? "bg-amber-400/15 text-amber-400"
+								: "bg-secondary text-muted-foreground"
 					}`}
 				>
 					<span
-						className={`size-1.5 rounded-full ${running ? "animate-pulse bg-primary" : "bg-muted-foreground"}`}
+						className={`size-1.5 rounded-full ${
+							running
+								? "animate-pulse bg-primary"
+								: autoPaused
+									? "bg-amber-400"
+									: "bg-muted-foreground"
+						}`}
 					/>
 					{status}
 				</span>
