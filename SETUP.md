@@ -116,5 +116,4 @@ up by your configured minutes.
 | Twitch apps           | https://dev.twitch.tv/console/apps                            |
 | OAuth Redirect URL    | https://wolfathon.mrdemonwolf.workers.dev/api/twitch/callback |
 | Your panel            | https://wolfathon.mrdemonwolf.workers.dev/control             |
-| Timer overlay (OBS)   | https://wolfathon.mrdemonwolf.workers.dev/overlay/timer       |
-| Rewards overlay (OBS) | https://wolfathon.mrdemonwolf.workers.dev/overlay/rewards     |
+| Overlay URLs (OBS)    | Control panel → **Overlays** tab (tokenized; copy from there) |
