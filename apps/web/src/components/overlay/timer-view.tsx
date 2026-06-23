@@ -170,8 +170,24 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 						<div
 							className="absolute top-1/2 left-[3cqw] grid aspect-square h-[58%] -translate-y-1/2 place-items-center rounded-full bg-black/50 text-white backdrop-blur-md"
 							role="img"
-							aria-label={live ? "Running" : ended ? "Ended" : "Paused"}
-							title={live ? "Running" : ended ? "Ended" : "Paused"}
+							aria-label={
+								live
+									? "Running"
+									: ended
+										? "Ended"
+										: data.autoPaused
+											? "Paused — stream offline"
+											: "Paused"
+							}
+							title={
+								live
+									? "Running"
+									: ended
+										? "Ended"
+										: data.autoPaused
+											? "Paused — stream offline"
+											: "Paused"
+							}
 						>
 							{live ? (
 								<Play className="size-[55%] fill-current" />

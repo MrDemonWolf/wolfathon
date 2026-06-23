@@ -2,6 +2,8 @@ import { expect, test } from "bun:test";
 
 import {
 	applyEvent,
+	autoPause,
+	autoResume,
 	defaultTimerConfig,
 	defaultTimerDoc,
 	defaultTimerState,
@@ -46,6 +48,51 @@ test("start then pause preserves remaining", () => {
 	const paused = pause(running, 10 * MIN);
 	expect(paused.running).toBe(false);
 	expect(paused.remainingMs).toBe(50 * MIN);
+});
+
+test("autoPause then stream.online auto-resumes, preserving remaining", () => {
+	const config = defaultTimerConfig();
+	const running = start(defaultTimerState(config), 0);
+
+	const paused = autoPause(running, 10 * MIN); // 50 min left, offline
+	expect(paused.running).toBe(false);
+	expect(paused.autoPaused).toBe(true);
+	expect(paused.remainingMs).toBe(50 * MIN);
+
+	const resumed = autoResume(paused, 20 * MIN);
+	expect(resumed.running).toBe(true);
+	expect(resumed.autoPaused).toBe(false);
+	expect(resumed.endsAt).toBe(20 * MIN + 50 * MIN);
+});
+
+test("auto-resume never overrides a manual pause", () => {
+	const running = start(defaultTimerState(defaultTimerConfig()), 0);
+	const manuallyPaused = pause(running, 10 * MIN);
+	expect(manuallyPaused.autoPaused).toBe(false);
+	expect(autoResume(manuallyPaused, 20 * MIN)).toBe(manuallyPaused);
+});
+
+test("a manual pause after an auto-pause clears the auto flag (stays paused on online)", () => {
+	const running = start(defaultTimerState(defaultTimerConfig()), 0);
+	const auto = autoPause(running, 5 * MIN);
+	const manual = pause(auto, 6 * MIN);
+	expect(manual.autoPaused).toBe(false);
+	expect(autoResume(manual, 9 * MIN)).toBe(manual);
+});
+
+test("auto-resume is a no-op while already running", () => {
+	const running = start(defaultTimerState(defaultTimerConfig()), 0);
+	expect(autoResume(running, 5 * MIN)).toBe(running);
+});
+
+test("autoPauseOnOffline defaults on and survives a config round-trip", () => {
+	expect(defaultTimerConfig().autoPauseOnOffline).toBe(true);
+	const off = validateTimerConfig({ ...defaultTimerConfig(), autoPauseOnOffline: false });
+	expect(off.ok && off.config.autoPauseOnOffline).toBe(false);
+	// Old import docs without the field backfill to on.
+	const { autoPauseOnOffline: _omit, ...noField } = defaultTimerConfig();
+	const back = validateTimerConfig(noField);
+	expect(back.ok && back.config.autoPauseOnOffline).toBe(true);
 });
 
 test("validateTimerConfig accepts the default config", () => {

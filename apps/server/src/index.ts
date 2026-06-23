@@ -2,7 +2,7 @@ import { trpcServer } from "@hono/trpc-server";
 import { createContext } from "@wolfathon/api/context";
 import { publicRouter } from "@wolfathon/api/routers/index";
 import { subsFromEvent } from "@wolfathon/api/state";
-import { applyEvent, pause } from "@wolfathon/api/timer";
+import { applyEvent, autoPause, autoResume } from "@wolfathon/api/timer";
 import { parseEvent, verifyEventsubSignature } from "@wolfathon/api/twitch";
 import {
 	readState,
@@ -84,11 +84,18 @@ app.post("/twitch/eventsub", async (c) => {
 		if (messageId && recent.includes(messageId)) return c.body(null, 204); // already processed
 
 		const subType = body.subscription?.type ?? "";
-		if (subType === "stream.offline") {
-			// Stream went down — auto-pause so the outage does not burn subathon time.
+		if (subType === "stream.offline" || subType === "stream.online") {
+			// Stream went down / came back — auto-pause so an outage doesn't burn
+			// subathon time, then auto-resume on return. Opt-in (default on); resume
+			// only fires when the pause was automatic, never overriding a manual one.
 			const timer = await readTimer(db);
-			const state = pause(timer.state, Date.now());
-			if (state !== timer.state) await writeTimer(db, { ...timer, state });
+			if (timer.config.autoPauseOnOffline) {
+				const state =
+					subType === "stream.offline"
+						? autoPause(timer.state, Date.now())
+						: autoResume(timer.state, Date.now());
+				if (state !== timer.state) await writeTimer(db, { ...timer, state });
+			}
 		}
 		const event = parseEvent(subType, body.event ?? {});
 		if (event) {
