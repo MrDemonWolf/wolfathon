@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 
 import { TimerView } from "@/components/overlay/timer-view";
 import { publicTrpc } from "@/utils/trpc";
@@ -11,8 +12,14 @@ import { publicTrpc } from "@/utils/trpc";
  * volume well under the Cloudflare Workers free tier (a 2s poll ≈ 43k req/day).
  */
 export default function TimerOverlayPage() {
+	// The `?t=` secret gates the public read. Read it client-side (avoids the
+	// useSearchParams Suspense dance) and hold the query until it's known.
+	const [token, setToken] = useState<string | null>(null);
+	useEffect(() => setToken(new URLSearchParams(window.location.search).get("t") ?? ""), []);
+
 	const { data } = useQuery({
-		...publicTrpc.timer.getPublic.queryOptions(),
+		...publicTrpc.timer.getPublic.queryOptions({ token: token ?? "" }),
+		enabled: token !== null,
 		refetchInterval: 5000,
 		refetchIntervalInBackground: true,
 	});

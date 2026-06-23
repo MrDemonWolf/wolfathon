@@ -9,6 +9,7 @@ const SECTIONS = [
 	{ href: "/control/timer", label: "Timer" },
 	{ href: "/control/twitch", label: "Twitch" },
 	{ href: "/control/streamelements", label: "StreamElements" },
+	{ href: "/control/overlays", label: "Overlays" },
 ] as const;
 
 export default function ControlLayout({ children }: { children: React.ReactNode }) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 
 import { OverlayView } from "@/components/overlay/overlay-view";
 import { publicTrpc } from "@/utils/trpc";
@@ -11,8 +12,14 @@ import { publicTrpc } from "@/utils/trpc";
  * well under the Cloudflare Workers free tier.
  */
 export default function RewardsOverlayPage() {
+	// The `?t=` secret gates the public read. Read it client-side (avoids the
+	// useSearchParams Suspense dance) and hold the query until it's known.
+	const [token, setToken] = useState<string | null>(null);
+	useEffect(() => setToken(new URLSearchParams(window.location.search).get("t") ?? ""), []);
+
 	const { data } = useQuery({
-		...publicTrpc.state.getPublic.queryOptions(),
+		...publicTrpc.state.getPublic.queryOptions({ token: token ?? "" }),
+		enabled: token !== null,
 		refetchInterval: 10000,
 		refetchIntervalInBackground: true,
 	});
