@@ -2,6 +2,7 @@ import { type Db, trackerState } from "@wolfathon/db";
 import { eq } from "drizzle-orm";
 
 import { type Data, recompute, sampleData } from "./state";
+import { type SettingsDoc, defaultSettingsDoc } from "./settings";
 import { type SeDoc, type SeTip, defaultSeDoc } from "./streamelements";
 import {
 	type TimerDoc,
@@ -23,6 +24,7 @@ const STATE_ID = "default";
 const TIMER_ID = "timer";
 const TWITCH_ID = "twitch";
 const SE_ID = "streamelements";
+const SETTINGS_ID = "settings";
 
 /**
  * Generic doc read with lazy seeding. Returns the parsed JSON, or seeds (and
@@ -86,6 +88,16 @@ export async function readTwitch(db: Db): Promise<TwitchDoc> {
 
 export async function writeTwitch(db: Db, doc: TwitchDoc): Promise<TwitchDoc> {
 	return writeDoc(db, TWITCH_ID, doc);
+}
+
+// ---- settings (overlay token) ---------------------------------------------
+
+export async function readSettings(db: Db): Promise<SettingsDoc> {
+	return readDoc(db, SETTINGS_ID, defaultSettingsDoc);
+}
+
+export async function writeSettings(db: Db, doc: SettingsDoc): Promise<SettingsDoc> {
+	return writeDoc(db, SETTINGS_ID, doc);
 }
 
 // ---- streamelements (secret) ----------------------------------------------

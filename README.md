@@ -28,8 +28,9 @@ Keep the rewards flowing. Keep the clock ticking.
   paste or upload JSON, validate, replace in one click, export, and copy a
   ready-made prompt so you can have Claude generate a new config to paste back.
 - **Cloudflare Access security** - The control panel and its API sit behind
-  Cloudflare Zero Trust; the public overlays stay open. Twitch secrets never
-  reach a public response.
+  Cloudflare Zero Trust. The overlays stay open (OBS can't sign in to Access)
+  but are gated by a secret token in their URL, resettable from the control
+  panel. Twitch secrets never reach a public response.
 - **Installable PWA** - The control panel installs as a standalone app.
 - **Brand-ready** - MrDemonWolf navy and cyan, Montserrat and Roboto, with
   macOS-style rounded panels.
@@ -57,9 +58,7 @@ Keep the rewards flowing. Keep the clock ticking.
 4. Open the surfaces:
 
    - Control panel: `http://localhost:3001/control`
-   - Overlay chooser: `http://localhost:3001/overlay`
-   - Timer overlay: `http://localhost:3001/overlay/timer`
-   - Rewards overlay: `http://localhost:3001/overlay/rewards`
+   - Overlay URLs (tokenized): control panel → **Overlays** tab
    - API (overlay data + Twitch webhook): `http://localhost:3000`
 
    Local development (`bun run dev`) bypasses Cloudflare Access automatically,
@@ -71,14 +70,19 @@ Keep the rewards flowing. Keep the clock ticking.
 
 ### OBS browser sources
 
-Open `/overlay` (the chooser) and copy each source URL straight into OBS. Add
-each as a **Browser** source with a transparent background, sized as noted
-below — the overlays paint only the panel, nothing else full-screen.
+Open the control panel → **Overlays** tab and copy each source URL straight into
+OBS. Add each as a **Browser** source with a transparent background, sized as
+noted below — the overlays paint only the panel, nothing else full-screen.
 
-| Source  | URL                | Size (W×H)  | Shows                                                        |
-| ------- | ------------------ | ----------- | ------------------------------------------------------------ |
-| Timer   | `/overlay/timer`   | `720×150`   | Compact countdown bar (D/H/M/S); emotes flood it on each add |
-| Rewards | `/overlay/rewards` | `1920×1080` | Current reward name + unlock celebration                     |
+Each URL carries a secret `?t=<token>` — the public overlay API serves nothing
+without it, so an OBS source works while a guessed bare path does not. The
+**Reset** button on the Overlays tab rotates the token and instantly kills the
+old URLs (re-paste the new ones into OBS).
+
+| Source  | URL                    | Size (W×H)  | Shows                                                        |
+| ------- | ---------------------- | ----------- | ------------------------------------------------------------ |
+| Timer   | `/overlay/timer?t=…`   | `720×150`   | Compact countdown bar (D/H/M/S); emotes flood it on each add |
+| Rewards | `/overlay/rewards?t=…` | `1920×1080` | Current reward name + unlock celebration                     |
 
 The timer is a self-contained widget that fills its source, so resize the
 browser source itself to move or scale the bar — no full-screen canvas needed.

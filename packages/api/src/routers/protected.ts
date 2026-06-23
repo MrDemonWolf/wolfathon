@@ -11,7 +11,8 @@ import {
 	MAX_TARGET,
 	validateImport,
 } from "../state";
-import { readState, writeState } from "../store";
+import { newOverlayToken } from "../settings";
+import { readSettings, readState, writeSettings, writeState } from "../store";
 import { type ThemeError, validateOverlayTheme } from "../theme";
 import { timerRouter } from "./timer";
 import { streamElementsRouter } from "./streamelements";
@@ -221,6 +222,15 @@ export const protectedRouter = router({
 					theme: data.theme,
 				});
 			}),
+	}),
+
+	/** Overlay token: the shared secret in the OBS source URLs. */
+	settings: router({
+		get: protectedProcedure.query(async ({ ctx }) => readSettings(ctx.db)),
+		/** Rotate the overlay token — instantly breaks old URLs (re-paste in OBS). */
+		rotateOverlayToken: protectedProcedure.mutation(async ({ ctx }) =>
+			writeSettings(ctx.db, { overlayToken: newOverlayToken() }),
+		),
 	}),
 
 	timer: timerRouter,
