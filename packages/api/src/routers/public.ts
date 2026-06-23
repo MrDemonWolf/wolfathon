@@ -19,14 +19,22 @@ import { toPublicTimer } from "../timer";
 const tokenInput = z.object({ token: z.string() });
 
 /**
- * Reject reads whose token doesn't match the stored one. A plain compare is
- * fine: the token is a 122-bit random secret, so a timing side-channel reveals
- * nothing brute-forceable over the network.
+ * The overlay-token gate decision. A non-empty given token must exactly equal
+ * the stored one. An empty given (or empty stored) never matches, so a fresh /
+ * tokenless URL is always rejected.
+ *
+ * A plain compare is fine: the token is a 122-bit random secret, so a timing
+ * side-channel reveals nothing brute-forceable over the network.
  * ponytail: constant-time compare adds nothing here; revisit only if the token
  * shrinks or becomes guessable.
  */
+export function tokenMatches(stored: string, given: string): boolean {
+	return given.length > 0 && given === stored;
+}
+
+/** Reject reads whose token doesn't match the stored one. */
 function assertToken(stored: string, given: string): void {
-	if (!given || given !== stored) {
+	if (!tokenMatches(stored, given)) {
 		throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid overlay token." });
 	}
 }
