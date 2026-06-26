@@ -1,13 +1,16 @@
 import { trpcServer } from "@hono/trpc-server";
 import { createContext } from "@wolfathon/api/context";
+import { applyGiveawayEvent, parseGiveawayEvent } from "@wolfathon/api/giveaway";
 import { publicRouter } from "@wolfathon/api/routers/index";
 import { subsFromEvent } from "@wolfathon/api/state";
 import { applyEvent, autoPause, autoResume } from "@wolfathon/api/timer";
 import { parseEvent, verifyEventsubSignature } from "@wolfathon/api/twitch";
 import {
+	readGiveaway,
 	readState,
 	readTimer,
 	readTwitch,
+	writeGiveaway,
 	writeState,
 	writeTimer,
 	writeTwitch,
@@ -79,35 +82,58 @@ app.post("/twitch/eventsub", async (c) => {
 		return c.body(null, 204);
 	}
 	if (messageType === "notification") {
+		const type = body.subscription?.type ?? "";
+		const event = body.event ?? {};
 		const messageId = c.req.header("twitch-eventsub-message-id") ?? "";
+
+		const timerEvent = parseEvent(type, event);
+
+		// Cheap pre-filter so the chat firehose stays free: only gifts and
+		// "!"-prefixed chat messages can be giveaway events. Everything else (the
+		// vast majority of chat) returns here with zero giveaway D1 access.
+		// NOTE: the raffle command must start with "!" for this gate to see it.
+		const chatText = (event.message as { text?: unknown } | undefined)?.text;
+		const maybeGiveaway =
+			type === "channel.subscription.gift" ||
+			(type === "channel.chat.message" &&
+				typeof chatText === "string" &&
+				chatText.trim().startsWith("!"));
+
+		const isStreamState = type === "stream.offline" || type === "stream.online";
+
+		// Nothing actionable → skip dedup write + all giveaway/timer reads.
+		if (!timerEvent && !maybeGiveaway && !isStreamState) return c.body(null, 204);
+
 		const recent = twitch.recentEventIds ?? [];
 		if (messageId && recent.includes(messageId)) return c.body(null, 204); // already processed
 
-		const subType = body.subscription?.type ?? "";
-		if (subType === "stream.offline" || subType === "stream.online") {
+		const now = Date.now();
+		if (isStreamState) {
 			// Stream went down / came back — auto-pause so an outage doesn't burn
 			// subathon time, then auto-resume on return. Opt-in (default on); resume
 			// only fires when the pause was automatic, never overriding a manual one.
 			const timer = await readTimer(db);
 			if (timer.config.autoPauseOnOffline) {
 				const state =
-					subType === "stream.offline"
-						? autoPause(timer.state, Date.now())
-						: autoResume(timer.state, Date.now());
+					type === "stream.offline" ? autoPause(timer.state, now) : autoResume(timer.state, now);
 				if (state !== timer.state) await writeTimer(db, { ...timer, state });
 			}
 		}
-		const event = parseEvent(subType, body.event ?? {});
-		if (event) {
+		if (timerEvent) {
 			const timer = await readTimer(db);
-			const { state } = applyEvent(timer.config, timer.state, event, Date.now());
+			const { state } = applyEvent(timer.config, timer.state, timerEvent, now);
 			await writeTimer(db, { ...timer, state });
 			// Sub/gift events also bump the goals' running sub count.
-			const subs = subsFromEvent(event);
+			const subs = subsFromEvent(timerEvent);
 			if (subs > 0) {
 				const data = await readState(db);
 				await writeState(db, { ...data, currentSubs: (data.currentSubs ?? 0) + subs });
 			}
+		}
+		if (maybeGiveaway) {
+			const giveaway = await readGiveaway(db);
+			const gEvent = parseGiveawayEvent(type, event, giveaway.config.command);
+			if (gEvent) await writeGiveaway(db, applyGiveawayEvent(giveaway, gEvent, now));
 		}
 		await writeTwitch(db, { ...twitch, recentEventIds: [messageId, ...recent].slice(0, 50) });
 		return c.body(null, 204);
