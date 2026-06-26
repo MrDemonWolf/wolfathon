@@ -14,6 +14,7 @@ import { WolfMark } from "@/components/wolf-mark";
 const SECTIONS = [
 	{ href: "/", label: "Rewards" },
 	{ href: "/timer", label: "Timer" },
+	{ href: "/giveaways", label: "Giveaways" },
 	{ href: "/twitch", label: "Twitch" },
 	{ href: "/overlays", label: "Overlays" },
 ] as const;
