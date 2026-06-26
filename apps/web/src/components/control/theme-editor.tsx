@@ -92,11 +92,19 @@ export function ThemeEditor({
 				Colour, text, font and corners. Brand blue, Montserrat, macOS-rounded by default.
 			</p>
 
-			{/* live swatch */}
+			{/* live swatch — sample reward text on the gradient so the operator can
+			    judge legibility with the exact colour/font the overlay uses. */}
 			<div
-				className="mt-2 h-8 w-full rounded-full ring-1 ring-border"
+				className={`mt-2 flex w-full items-center justify-center px-4 py-2.5 ring-1 ring-border ${CORNER_PREVIEW[theme.corners]}`}
 				style={{ backgroundImage: gradientCss(stops) }}
-			/>
+			>
+				<span
+					className="truncate text-base font-semibold"
+					style={{ color: resolveTextColor(theme), fontFamily: FONT_STACKS[theme.font] }}
+				>
+					Next reward
+				</span>
+			</div>
 
 			{/* preset buttons — auto-fit so they never cram in the narrow panel */}
 			<div className="mt-3 grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(4.5rem,1fr))]">

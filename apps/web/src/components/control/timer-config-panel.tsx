@@ -57,52 +57,73 @@ export function TimerConfigPanel({
 	return (
 		<div className="rounded-2xl panel-card p-5">
 			<h2 className="font-heading text-lg font-bold">Time rules</h2>
+			<p className="mt-1 text-sm text-muted-foreground">
+				Minutes added per event. Each field below is labelled with the event it covers.
+			</p>
 
-			<div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-				<Field
-					label="Start (min)"
-					value={config.startMinutes}
-					onChange={(v) => onChange({ ...config, startMinutes: n(v) })}
-				/>
-				<Field
-					label="Cap (min, 0=∞)"
-					value={config.maxMinutes}
-					onChange={(v) => onChange({ ...config, maxMinutes: n(v) })}
-				/>
-				<Field
-					label="Bits / 100 (min)"
-					value={config.bitsPer100Minutes}
-					onChange={(v) => onChange({ ...config, bitsPer100Minutes: n(v) })}
-				/>
-				<Field
-					label="Sub T1 (min)"
-					value={config.sub.t1}
-					onChange={(v) => onChange({ ...config, sub: { ...config.sub, t1: n(v) } })}
-				/>
-				<Field
-					label="Sub T2 (min)"
-					value={config.sub.t2}
-					onChange={(v) => onChange({ ...config, sub: { ...config.sub, t2: n(v) } })}
-				/>
-				<Field
-					label="Sub T3 (min)"
-					value={config.sub.t3}
-					onChange={(v) => onChange({ ...config, sub: { ...config.sub, t3: n(v) } })}
-				/>
-				<Field
-					label="Prime (min)"
-					value={config.sub.prime}
-					onChange={(v) => onChange({ ...config, sub: { ...config.sub, prime: n(v) } })}
-				/>
-				<Field
-					label="Gift sub (min)"
-					value={config.giftSubMinutes}
-					onChange={(v) => onChange({ ...config, giftSubMinutes: n(v) })}
-				/>
+			{/* Session bounds — where the timer starts and its ceiling. */}
+			<div className="mt-4">
+				<div className="eyebrow text-[0.65rem]">Session bounds</div>
+				<div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+					<Field
+						label="Start (min)"
+						value={config.startMinutes}
+						onChange={(v) => onChange({ ...config, startMinutes: n(v) })}
+					/>
+					<Field
+						label="Cap (min, 0=∞)"
+						value={config.maxMinutes}
+						onChange={(v) => onChange({ ...config, maxMinutes: n(v) })}
+					/>
+				</div>
+			</div>
+
+			{/* Subs & gifts — the tier ladder plus gifted subs. */}
+			<div className="mt-4">
+				<div className="eyebrow text-[0.65rem]">Subs &amp; gifts</div>
+				<div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+					<Field
+						label="Sub T1 (min)"
+						value={config.sub.t1}
+						onChange={(v) => onChange({ ...config, sub: { ...config.sub, t1: n(v) } })}
+					/>
+					<Field
+						label="Sub T2 (min)"
+						value={config.sub.t2}
+						onChange={(v) => onChange({ ...config, sub: { ...config.sub, t2: n(v) } })}
+					/>
+					<Field
+						label="Sub T3 (min)"
+						value={config.sub.t3}
+						onChange={(v) => onChange({ ...config, sub: { ...config.sub, t3: n(v) } })}
+					/>
+					<Field
+						label="Prime (min)"
+						value={config.sub.prime}
+						onChange={(v) => onChange({ ...config, sub: { ...config.sub, prime: n(v) } })}
+					/>
+					<Field
+						label="Gift sub (min)"
+						value={config.giftSubMinutes}
+						onChange={(v) => onChange({ ...config, giftSubMinutes: n(v) })}
+					/>
+				</div>
+			</div>
+
+			{/* Bits & channel points — cheers plus per-reward redemption rules. */}
+			<div className="mt-4">
+				<div className="eyebrow text-[0.65rem]">Bits &amp; channel points</div>
+				<div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+					<Field
+						label="Bits / 100 (min)"
+						value={config.bitsPer100Minutes}
+						onChange={(v) => onChange({ ...config, bitsPer100Minutes: n(v) })}
+					/>
+				</div>
 			</div>
 
 			{/* channel point rules */}
-			<div className="mt-5">
+			<div className="mt-4">
 				<div className="flex items-center justify-between">
 					<div className="text-sm font-medium">Channel-point rewards</div>
 					<Button
@@ -122,33 +143,37 @@ export function TimerConfigPanel({
 				</div>
 				<div className="mt-2 flex flex-col gap-2">
 					{config.channelPoints.map((rule, i) => (
-						<div key={i} className="flex items-center gap-2">
-							<Input
-								className="h-9 flex-1 rounded-lg"
-								aria-label="Channel-point reward title (exact)"
-								placeholder="Reward title (exact)"
-								value={rule.rewardTitle}
-								onChange={(e) => {
-									const cp = [...config.channelPoints];
-									cp[i] = { ...cp[i]!, rewardTitle: e.target.value };
-									onChange({ ...config, channelPoints: cp });
-								}}
-							/>
-							<Input
-								className="h-9 w-24 rounded-lg"
-								type="number"
-								aria-label="Minutes added per redemption"
-								value={String(rule.minutes)}
-								onChange={(e) => {
-									const cp = [...config.channelPoints];
-									cp[i] = { ...cp[i]!, minutes: n(e.target.value) };
-									onChange({ ...config, channelPoints: cp });
-								}}
-							/>
+						<div key={i} className="flex items-end gap-2">
+							<label className="flex flex-1 flex-col gap-1 text-xs text-muted-foreground">
+								Reward title (exact)
+								<Input
+									className="h-9 rounded-lg"
+									placeholder="Reward title (exact)"
+									value={rule.rewardTitle}
+									onChange={(e) => {
+										const cp = [...config.channelPoints];
+										cp[i] = { ...cp[i]!, rewardTitle: e.target.value };
+										onChange({ ...config, channelPoints: cp });
+									}}
+								/>
+							</label>
+							<label className="flex w-24 flex-col gap-1 text-xs text-muted-foreground">
+								Minutes
+								<Input
+									className="h-9 rounded-lg"
+									type="number"
+									value={String(rule.minutes)}
+									onChange={(e) => {
+										const cp = [...config.channelPoints];
+										cp[i] = { ...cp[i]!, minutes: n(e.target.value) };
+										onChange({ ...config, channelPoints: cp });
+									}}
+								/>
+							</label>
 							<Button
 								variant="destructive"
 								size="icon-sm"
-								className="rounded-lg"
+								className="mb-px rounded-lg"
 								aria-label="Remove rule"
 								onClick={() =>
 									onChange({
@@ -406,56 +431,66 @@ function EmojiEditor({ emojis, onChange }: { emojis: string[]; onChange: (e: str
 				</Button>
 			</div>
 
-			{/* Twitch channel emotes */}
-			<div className="mt-3">
-				{!showEmotes ? (
-					<Button
-						variant="outline"
-						size="sm"
-						className="rounded-lg"
-						onClick={() => setShowEmotes(true)}
-					>
-						<Twitch className="size-3.5" />
-						Load my Twitch emotes
-					</Button>
-				) : emotes.isLoading ? (
-					<p className="text-xs text-muted-foreground">Loading channel emotes…</p>
-				) : emotes.isError ? (
-					<p className="text-xs text-destructive">
-						{emotes.error instanceof Error ? emotes.error.message : "Couldn't load emotes."} Connect
-						Twitch in the panel above, then retry.
-					</p>
-				) : emotes.data && emotes.data.length > 0 ? (
-					<div className="max-h-44 overflow-y-auto rounded-lg border border-border bg-background/50 p-2">
-						<div className="flex flex-wrap gap-1.5">
-							{emotes.data.map((em) => {
-								const active = emojis.includes(em.url);
-								return (
-									<button
-										key={em.id}
-										type="button"
-										title={em.name}
-										disabled={!active && emojis.length >= MAX_EMOJIS}
-										className={`inline-flex size-10 items-center justify-center rounded-lg border p-1 transition disabled:opacity-40 ${
-											active
-												? "border-primary/60 bg-primary/15"
-												: "border-border hover:border-primary/40 hover:bg-accent"
-										}`}
-										onClick={() =>
-											active ? onChange(emojis.filter((x) => x !== em.url)) : add([em.url])
-										}
-									>
-										{/* eslint-disable-next-line @next/next/no-img-element */}
-										<img src={em.url} alt={em.name} className="size-full object-contain" />
-									</button>
-								);
-							})}
+			{/* Twitch channel emotes — tucked behind a disclosure to keep the
+			    common emoji-picking flow above the fold. */}
+			<details className="group mt-3 rounded-lg border border-border bg-background/30">
+				<summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-sm font-medium [&::-webkit-details-marker]:hidden">
+					<Twitch className="size-3.5 text-muted-foreground" />
+					Customize emotes
+					<span className="ml-auto text-xs font-normal text-muted-foreground">
+						{showEmotes ? "" : "Add your channel’s Twitch emotes"}
+					</span>
+				</summary>
+				<div className="px-3 pb-3">
+					{!showEmotes ? (
+						<Button
+							variant="outline"
+							size="sm"
+							className="rounded-lg"
+							onClick={() => setShowEmotes(true)}
+						>
+							<Twitch className="size-3.5" />
+							Load my Twitch emotes
+						</Button>
+					) : emotes.isLoading ? (
+						<p className="text-xs text-muted-foreground">Loading channel emotes…</p>
+					) : emotes.isError ? (
+						<p className="text-xs text-destructive">
+							{emotes.error instanceof Error ? emotes.error.message : "Couldn't load emotes."}{" "}
+							Connect Twitch in the panel above, then retry.
+						</p>
+					) : emotes.data && emotes.data.length > 0 ? (
+						<div className="max-h-44 overflow-y-auto rounded-lg border border-border bg-background/50 p-2">
+							<div className="flex flex-wrap gap-1.5">
+								{emotes.data.map((em) => {
+									const active = emojis.includes(em.url);
+									return (
+										<button
+											key={em.id}
+											type="button"
+											title={em.name}
+											disabled={!active && emojis.length >= MAX_EMOJIS}
+											className={`inline-flex size-10 items-center justify-center rounded-lg border p-1 transition disabled:opacity-40 ${
+												active
+													? "border-primary/60 bg-primary/15"
+													: "border-border hover:border-primary/40 hover:bg-accent"
+											}`}
+											onClick={() =>
+												active ? onChange(emojis.filter((x) => x !== em.url)) : add([em.url])
+											}
+										>
+											{/* eslint-disable-next-line @next/next/no-img-element */}
+											<img src={em.url} alt={em.name} className="size-full object-contain" />
+										</button>
+									);
+								})}
+							</div>
 						</div>
-					</div>
-				) : (
-					<p className="text-xs text-muted-foreground">No channel emotes found.</p>
-				)}
-			</div>
+					) : (
+						<p className="text-xs text-muted-foreground">No channel emotes found.</p>
+					)}
+				</div>
+			</details>
 		</div>
 	);
 }
