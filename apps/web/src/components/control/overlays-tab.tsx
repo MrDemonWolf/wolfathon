@@ -11,7 +11,7 @@ import {
 	AlertDialogTrigger,
 } from "@wolfathon/ui/components/alert-dialog";
 import { Button } from "@wolfathon/ui/components/button";
-import { Copy, Eye, EyeOff, Gauge, Loader2, RotateCcw, Trophy } from "lucide-react";
+import { Check, Copy, Eye, EyeOff, Gauge, Loader2, RotateCcw, Trophy } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -62,7 +62,7 @@ export function OverlaysTab() {
 
 	return (
 		<div className="flex flex-col gap-4">
-			<div className="rounded-xl panel-card p-5">
+			<div className="rounded-2xl panel-card p-5">
 				<h2 className="font-heading text-lg font-bold">Overlays</h2>
 				<p className="mt-1 text-sm text-muted-foreground">
 					Add each as an OBS <span className="text-foreground">Browser</span> source with a
@@ -76,55 +76,59 @@ export function OverlaysTab() {
 				return <OverlayCard key={s.path} {...s} url={url} loading={isLoading} />;
 			})}
 
-			<div className="flex items-center justify-between gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-5">
-				<div>
-					<h3 className="font-heading text-sm font-bold">Reset overlay URLs</h3>
-					<p className="mt-0.5 text-sm text-muted-foreground">
-						Rotates the token. Use if a URL leaked. Old URLs stop working immediately.
-					</p>
+			{/* Danger footer — destructive reset sits directly under the source list. */}
+			<div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-5">
+				<div className="eyebrow text-[0.65rem] text-destructive">Danger</div>
+				<div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+					<div className="min-w-0">
+						<h3 className="font-heading text-sm font-bold">Reset overlay URLs</h3>
+						<p className="mt-0.5 text-sm text-muted-foreground">
+							Rotates the token. Use if a URL leaked. Old URLs stop working immediately.
+						</p>
+					</div>
+					<AlertDialog>
+						<AlertDialogTrigger
+							render={
+								<Button
+									variant="destructive"
+									className="shrink-0 rounded-lg"
+									disabled={rotate.isPending}
+								>
+									{rotate.isPending ? (
+										<Loader2 className="size-4 animate-spin" />
+									) : (
+										<RotateCcw className="size-4" />
+									)}
+									Reset
+								</Button>
+							}
+						/>
+						<AlertDialogContent>
+							<AlertDialogTitle>Reset overlay URLs?</AlertDialogTitle>
+							<AlertDialogDescription>
+								The current URLs stop working immediately — every OBS source using them goes blank
+								until you paste the new ones. Only do this if a URL leaked.
+							</AlertDialogDescription>
+							<AlertDialogFooter>
+								<AlertDialogClose
+									render={
+										<Button variant="outline" className="rounded-lg">
+											Cancel
+										</Button>
+									}
+								/>
+								<AlertDialogClose
+									onClick={() => rotate.mutate()}
+									render={
+										<Button variant="destructive" className="rounded-lg">
+											Reset URLs
+										</Button>
+									}
+								/>
+							</AlertDialogFooter>
+						</AlertDialogContent>
+					</AlertDialog>
 				</div>
-				<AlertDialog>
-					<AlertDialogTrigger
-						render={
-							<Button
-								variant="destructive"
-								className="shrink-0 rounded-lg"
-								disabled={rotate.isPending}
-							>
-								{rotate.isPending ? (
-									<Loader2 className="size-4 animate-spin" />
-								) : (
-									<RotateCcw className="size-4" />
-								)}
-								Reset
-							</Button>
-						}
-					/>
-					<AlertDialogContent>
-						<AlertDialogTitle>Reset overlay URLs?</AlertDialogTitle>
-						<AlertDialogDescription>
-							The current URLs stop working immediately — every OBS source using them goes blank
-							until you paste the new ones. Only do this if a URL leaked.
-						</AlertDialogDescription>
-						<AlertDialogFooter>
-							<AlertDialogClose
-								render={
-									<Button variant="outline" className="rounded-lg">
-										Cancel
-									</Button>
-								}
-							/>
-							<AlertDialogClose
-								onClick={() => rotate.mutate()}
-								render={
-									<Button variant="destructive" className="rounded-lg">
-										Reset URLs
-									</Button>
-								}
-							/>
-						</AlertDialogFooter>
-					</AlertDialogContent>
-				</AlertDialog>
 			</div>
 		</div>
 	);
@@ -160,7 +164,7 @@ function OverlayCard({
 	}
 
 	return (
-		<div className="rounded-xl panel-card p-5">
+		<div className="rounded-2xl panel-card p-5">
 			<div className="flex items-center gap-2">
 				<Icon className="size-5 text-primary" />
 				<h3 className="font-heading text-lg font-bold">{title}</h3>
@@ -185,7 +189,7 @@ function OverlayCard({
 					{revealed ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
 				</Button>
 				<Button variant="outline" className="rounded-lg" onClick={copy} disabled={!url}>
-					<Copy className="size-4" />
+					{copied ? <Check className="size-4 text-primary" /> : <Copy className="size-4" />}
 					{copied ? "Copied" : "Copy"}
 				</Button>
 			</div>
