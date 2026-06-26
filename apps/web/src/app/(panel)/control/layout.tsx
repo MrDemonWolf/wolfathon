@@ -8,7 +8,6 @@ const SECTIONS = [
 	{ href: "/control", label: "Rewards" },
 	{ href: "/control/timer", label: "Timer" },
 	{ href: "/control/twitch", label: "Twitch" },
-	{ href: "/control/streamelements", label: "StreamElements" },
 	{ href: "/control/overlays", label: "Overlays" },
 ] as const;
 

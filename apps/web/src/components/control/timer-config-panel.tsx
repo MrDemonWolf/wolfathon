@@ -248,12 +248,12 @@ export function TimerConfigPanel({
 				</p>
 			</div>
 
-			{/* StreamElements tips */}
+			{/* Tips (Ko-fi integration is not wired up yet — these rates are pre-set for it). */}
 			<div className="mt-5">
-				<div className="text-sm font-medium">StreamElements tips</div>
+				<div className="text-sm font-medium">Tips</div>
 				<p className="mt-1 text-xs text-muted-foreground">
-					Tips add time and advance the reward goals at these rates. Connect your channel in the{" "}
-					<span className="text-foreground">StreamElements</span> tab.
+					Tip integration (Ko-fi) is coming soon. These rates control how much time a tip adds and
+					how it advances the reward goals once it’s connected.
 				</p>
 				<div className="mt-2 grid grid-cols-2 gap-3 sm:max-w-md">
 					<Field
