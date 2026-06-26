@@ -21,10 +21,16 @@ export const TWITCH_SCOPES = [
 	"channel:read:subscriptions",
 	"bits:read",
 	"channel:read:redemptions",
+	// Read chat so the giveaway `!enter` raffle can ingest entries via EventSub.
+	"user:read:chat",
 ] as const;
 
-/** EventSub subscription types we create on connect (all condition broadcaster_user_id). */
-const SUBSCRIPTIONS: { type: string; version: string }[] = [
+/**
+ * EventSub subscription types we create on connect. Most condition only on the
+ * broadcaster; `channel.chat.message` additionally needs `user_id` (the user
+ * whose chat view we read — the broadcaster reading their own chat).
+ */
+const SUBSCRIPTIONS: { type: string; version: string; needsUserId?: boolean }[] = [
 	{ type: "channel.subscribe", version: "1" },
 	{ type: "channel.subscription.message", version: "1" },
 	{ type: "channel.subscription.gift", version: "1" },
@@ -34,6 +40,9 @@ const SUBSCRIPTIONS: { type: string; version: string }[] = [
 	// timer config `autoPauseOnOffline`); no scope needed.
 	{ type: "stream.offline", version: "1" },
 	{ type: "stream.online", version: "1" },
+	// Giveaway raffle entries. High volume — the webhook handler filters to the
+	// `!enter` command before touching the giveaway doc.
+	{ type: "channel.chat.message", version: "1", needsUserId: true },
 ];
 
 /** Persisted Twitch state (secret — never public). */
@@ -310,7 +319,10 @@ export async function createSubscriptions(args: {
 			body: JSON.stringify({
 				type: sub.type,
 				version: sub.version,
-				condition: { broadcaster_user_id: args.broadcasterId },
+				condition: {
+					broadcaster_user_id: args.broadcasterId,
+					...(sub.needsUserId ? { user_id: args.broadcasterId } : {}),
+				},
 				transport: { method: "webhook", callback: args.callback, secret: args.secret },
 			}),
 		});

@@ -9,7 +9,7 @@ import { toast } from "sonner";
 
 import { controlTrpc, queryClient } from "@/utils/trpc";
 
-const SCOPES = "channel:read:subscriptions, bits:read, channel:read:redemptions";
+const SCOPES = "channel:read:subscriptions, bits:read, channel:read:redemptions, user:read:chat";
 
 /** Full, selectable URL with a one-click copy — the values must be transcribed exactly. */
 function CopyUrl({ value, label }: { value: string; label: string }) {

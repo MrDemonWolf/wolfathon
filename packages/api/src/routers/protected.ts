@@ -14,6 +14,7 @@ import {
 import { newOverlayToken } from "../settings";
 import { readSettings, readState, writeSettings, writeState } from "../store";
 import { type ThemeError, validateOverlayTheme } from "../theme";
+import { giveawayRouter } from "./giveaway";
 import { timerRouter } from "./timer";
 import { twitchRouter } from "./twitch";
 
@@ -234,6 +235,7 @@ export const protectedRouter = router({
 
 	timer: timerRouter,
 	twitch: twitchRouter,
+	giveaway: giveawayRouter,
 });
 
 export type ProtectedRouter = typeof protectedRouter;

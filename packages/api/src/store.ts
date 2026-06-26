@@ -1,6 +1,7 @@
 import { type Db, trackerState } from "@wolfathon/db";
 import { eq } from "drizzle-orm";
 
+import { type GiveawayDoc, defaultGiveawayDoc } from "./giveaway";
 import { type Data, recompute, sampleData } from "./state";
 import { type SettingsDoc, defaultSettingsDoc } from "./settings";
 import { type TimerDoc, defaultTimerDoc, withTimerConfigDefaults } from "./timer";
@@ -9,14 +10,16 @@ import { type TwitchDoc, defaultTwitchDoc } from "./twitch";
 /**
  * The whole app is stored as a few singleton JSON rows in `tracker_state`,
  * keyed by id:
- *   "default" → rewards (goals)
- *   "timer"   → subathon timer config + state
- *   "twitch"  → Twitch credentials/tokens (secret; never public)
+ *   "default"  → rewards (goals)
+ *   "timer"    → subathon timer config + state
+ *   "twitch"   → Twitch credentials/tokens (secret; never public)
+ *   "giveaway" → giveaway gifters / entrants / winners (operator-only)
  */
 const STATE_ID = "default";
 const TIMER_ID = "timer";
 const TWITCH_ID = "twitch";
 const SETTINGS_ID = "settings";
+const GIVEAWAY_ID = "giveaway";
 
 /**
  * Generic doc read with lazy seeding. Returns the parsed JSON, or seeds (and
@@ -90,4 +93,14 @@ export async function readSettings(db: Db): Promise<SettingsDoc> {
 
 export async function writeSettings(db: Db, doc: SettingsDoc): Promise<SettingsDoc> {
 	return writeDoc(db, SETTINGS_ID, doc);
+}
+
+// ---- giveaway -------------------------------------------------------------
+
+export async function readGiveaway(db: Db): Promise<GiveawayDoc> {
+	return readDoc(db, GIVEAWAY_ID, defaultGiveawayDoc);
+}
+
+export async function writeGiveaway(db: Db, doc: GiveawayDoc): Promise<GiveawayDoc> {
+	return writeDoc(db, GIVEAWAY_ID, doc);
 }
