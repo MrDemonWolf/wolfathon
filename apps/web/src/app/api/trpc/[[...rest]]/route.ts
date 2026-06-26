@@ -7,8 +7,8 @@ import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 /**
  * Operator API (protected). Served same-origin from the web app so the
  * Cloudflare Access cookie + `Cf-Access-Jwt-Assertion` header are present on
- * every request. Place this path AND `/control` behind a Cloudflare Access
- * application (see README → "Cloudflare Access").
+ * every request. Place this path AND the operator panel (the app root) behind a
+ * Cloudflare Access application (see README → "Cloudflare Access").
  */
 
 /** Bindings configured for the web Worker in `packages/infra/alchemy.run.ts`. */

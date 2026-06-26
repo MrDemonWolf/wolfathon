@@ -139,7 +139,7 @@ export function TimerTab() {
 				<div className="flex items-center justify-between">
 					<h2 className="font-heading text-lg font-bold">Live preview</h2>
 					<Link
-						href="/control/overlays"
+						href="/overlays"
 						className="rounded text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 					>
 						Get URL →

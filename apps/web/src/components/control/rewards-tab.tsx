@@ -188,9 +188,12 @@ export function RewardsTab() {
 			</div>
 			<div className="flex flex-col gap-3 lg:sticky lg:top-6 lg:self-start">
 				<div className="flex items-center justify-between">
-					<h2 className="font-heading text-lg font-bold">Live preview</h2>
+					<div>
+						<h2 className="font-heading text-lg font-bold">Live preview</h2>
+						<p className="text-xs text-muted-foreground">Exactly what your OBS source shows.</p>
+					</div>
 					<Link
-						href="/control/overlays"
+						href="/overlays"
 						className="rounded text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 					>
 						Get URL →

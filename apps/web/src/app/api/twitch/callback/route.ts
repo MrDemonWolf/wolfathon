@@ -8,8 +8,9 @@ import { NextResponse } from "next/server";
  * Twitch OAuth redirect callback (Authorization Code flow).
  *
  * The broadcaster is sent here by Twitch after consent. This path is PUBLIC (it
- * must NOT sit behind Cloudflare Access — keep the Access app scoped to
- * `/control` and `/api/trpc`). CSRF is enforced via the `state` token that
+ * must NOT sit behind Cloudflare Access — gate the operator panel (app root)
+ * and `/api/trpc`, but exclude this callback path). CSRF is enforced via the
+ * `state` token that
  * `twitch.startAuth` stored on the D1 row; the client_secret stays server-side.
  */
 
@@ -38,7 +39,7 @@ function timingSafeEqual(a: string, b: string): boolean {
 export async function GET(req: Request) {
 	const url = new URL(req.url);
 	const back = (status: string) =>
-		NextResponse.redirect(new URL(`/control?twitch=${status}`, url.origin));
+		NextResponse.redirect(new URL(`/twitch?twitch=${status}`, url.origin));
 
 	const code = url.searchParams.get("code");
 	const state = url.searchParams.get("state");
