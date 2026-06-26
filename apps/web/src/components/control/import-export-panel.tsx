@@ -4,6 +4,7 @@ import { Button } from "@wolfathon/ui/components/button";
 import {
 	AlertTriangle,
 	CheckCircle2,
+	ChevronRight,
 	ClipboardCopy,
 	Download,
 	FileUp,
@@ -137,153 +138,179 @@ export function ImportExportPanel({
 	}
 
 	return (
-		<div className="rounded-2xl panel-card p-5">
-			<h2 className="font-heading text-lg font-bold">Import / Export</h2>
-			<p className="mt-1 text-sm text-muted-foreground">
-				Paste or upload {config.title}, validate, then replace in one click.
-			</p>
-
-			<textarea
-				value={text}
-				onChange={(e) => updateText(e.target.value)}
-				spellCheck={false}
-				placeholder={config.exampleJson}
-				className="mt-4 min-h-44 w-full resize-y rounded-lg border border-input bg-background/60 p-3 font-mono text-xs leading-relaxed outline-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50"
-			/>
-
-			<div className="mt-3 flex flex-wrap gap-2">
-				<Button className="rounded-lg" onClick={runValidate} disabled={!text.trim() || busy}>
-					<ShieldCheck className="size-4" />
-					Validate
-				</Button>
-				<Button
-					variant="secondary"
-					className="rounded-lg"
-					onClick={requestImport}
-					disabled={!text.trim() || busy}
-				>
-					<FileUp className="size-4" />
-					Import (replace)
-				</Button>
-				<Button variant="outline" className="rounded-lg" onClick={() => fileRef.current?.click()}>
-					<FileUp className="size-4" />
-					Upload .json
-				</Button>
-				<span className="mx-1 w-px self-stretch bg-border" />
-				<Button
-					variant="outline"
-					className="rounded-lg"
-					onClick={exportNow}
-					disabled={!config.currentJson()}
-				>
-					<Download className="size-4" />
-					Export
-				</Button>
-				<Button
-					variant="outline"
-					className="rounded-lg"
-					onClick={copyCurrent}
-					disabled={!config.currentJson()}
-				>
-					<ClipboardCopy className="size-4" />
-					Copy current JSON
-				</Button>
-				<Button
-					variant="outline"
-					className="rounded-lg"
-					onClick={copyClaudePrompt}
-					disabled={!config.claudePrompt()}
-				>
-					<Sparkles className="size-4" />
-					Copy Claude prompt
-				</Button>
-				<input
-					ref={fileRef}
-					type="file"
-					accept=".json,application/json"
-					className="hidden"
-					onChange={onFile}
-				/>
-			</div>
-
-			{result?.ok && (
-				<div className="mt-4 rounded-xl border border-primary/40 bg-primary/5 p-3">
-					<div className="flex items-center gap-2 text-sm font-medium text-primary">
-						<CheckCircle2 className="size-4" />
-						Looks good
-					</div>
-					<div className="mt-2 flex flex-wrap gap-1.5">
-						{result.summary.map((s, i) => (
-							<span
-								key={`${s}-${i}`}
-								className="rounded-full bg-secondary px-2 py-0.5 text-xs text-secondary-foreground"
-							>
-								{s}
-							</span>
-						))}
-					</div>
+		<details className="rounded-2xl panel-card p-5 [&[open]>summary_.chevron]:rotate-90">
+			<summary className="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
+				<div className="min-w-0">
+					<h2 className="font-heading text-lg font-bold">Backup, import &amp; export</h2>
+					<p className="mt-1 text-sm text-muted-foreground">
+						Paste, upload, or back up {config.title}. Occasional — tucked away until you need it.
+					</p>
 				</div>
-			)}
+				<ChevronRight className="chevron size-5 shrink-0 text-muted-foreground transition-transform" />
+			</summary>
 
-			{result && !result.ok && (
-				<div className="mt-4 rounded-xl border border-destructive/40 bg-destructive/10 p-3">
-					<div className="flex items-center gap-2 text-sm font-medium text-destructive">
-						<AlertTriangle className="size-4" />
-						Nothing was changed. Fix these and try again:
-					</div>
-					<ul className="mt-2 space-y-1 text-xs text-destructive">
-						{result.errors.map((err, i) => (
-							<li key={i}>
-								<span className="font-medium">{err.label}:</span> {err.message}
-							</li>
-						))}
-					</ul>
-				</div>
-			)}
+			<div className="mt-5">
+				{/* Import — the live action: paste/upload, validate, replace. */}
+				<div className="rounded-xl border border-primary/30 bg-primary/[0.06] p-4">
+					<div className="eyebrow text-[0.65rem]">Import</div>
+					<p className="mt-0.5 text-sm text-muted-foreground">
+						Paste or upload {config.title}, validate, then replace in one click.
+					</p>
 
-			{confirming && result?.ok && (
-				<div className="mt-4 rounded-xl border border-amber-400/40 bg-amber-400/10 p-4">
-					<div className="flex items-center gap-2 text-sm font-medium text-amber-300">
-						<AlertTriangle className="size-4" />
-						{config.confirmText}
-					</div>
-					<div className="mt-3 flex gap-2">
-						<Button className="rounded-lg" onClick={confirmImport} disabled={busy}>
-							Yes, replace
+					<textarea
+						value={text}
+						onChange={(e) => updateText(e.target.value)}
+						spellCheck={false}
+						placeholder={config.exampleJson}
+						className="mt-3 min-h-44 w-full resize-y rounded-lg border border-input bg-background/60 p-3 font-mono text-xs leading-relaxed outline-none focus-visible:border-ring focus-visible:ring-1 focus-visible:ring-ring/50"
+					/>
+
+					<div className="mt-3 flex flex-wrap gap-2">
+						<Button className="rounded-lg" onClick={runValidate} disabled={!text.trim() || busy}>
+							<ShieldCheck className="size-4" />
+							Validate
 						</Button>
 						<Button
-							variant="ghost"
+							variant="secondary"
 							className="rounded-lg"
-							onClick={() => setConfirming(false)}
-							disabled={busy}
+							onClick={requestImport}
+							disabled={!text.trim() || busy}
 						>
-							Cancel
+							<FileUp className="size-4" />
+							Import (replace)
+						</Button>
+						<Button
+							variant="outline"
+							className="rounded-lg"
+							onClick={() => fileRef.current?.click()}
+						>
+							<FileUp className="size-4" />
+							Upload .json
+						</Button>
+						<input
+							ref={fileRef}
+							type="file"
+							accept=".json,application/json"
+							className="hidden"
+							onChange={onFile}
+						/>
+					</div>
+
+					{/* Validation / result feedback — inline, right under the textarea + buttons. */}
+					{result?.ok && (
+						<div className="mt-3 rounded-xl border border-primary/40 bg-primary/5 p-3">
+							<div className="flex items-center gap-2 text-sm font-medium text-primary">
+								<CheckCircle2 className="size-4" />
+								Looks good
+							</div>
+							<div className="mt-2 flex flex-wrap gap-1.5">
+								{result.summary.map((s, i) => (
+									<span
+										key={`${s}-${i}`}
+										className="rounded-full bg-secondary px-2 py-0.5 text-xs text-secondary-foreground"
+									>
+										{s}
+									</span>
+								))}
+							</div>
+						</div>
+					)}
+
+					{result && !result.ok && (
+						<div className="mt-3 rounded-xl border border-destructive/40 bg-destructive/10 p-3">
+							<div className="flex items-center gap-2 text-sm font-medium text-destructive">
+								<AlertTriangle className="size-4" />
+								Nothing was changed. Fix these and try again:
+							</div>
+							<ul className="mt-2 space-y-1 text-xs text-destructive">
+								{result.errors.map((err, i) => (
+									<li key={i}>
+										<span className="font-medium">{err.label}:</span> {err.message}
+									</li>
+								))}
+							</ul>
+						</div>
+					)}
+
+					{confirming && result?.ok && (
+						<div className="mt-3 rounded-xl border border-amber-400/40 bg-amber-400/10 p-4">
+							<div className="flex items-center gap-2 text-sm font-medium text-amber-300">
+								<AlertTriangle className="size-4" />
+								{config.confirmText}
+							</div>
+							<div className="mt-3 flex gap-2">
+								<Button className="rounded-lg" onClick={confirmImport} disabled={busy}>
+									Yes, replace
+								</Button>
+								<Button
+									variant="ghost"
+									className="rounded-lg"
+									onClick={() => setConfirming(false)}
+									disabled={busy}
+								>
+									Cancel
+								</Button>
+							</div>
+						</div>
+					)}
+				</div>
+
+				{/* Export — config / copy JSON / copy Claude prompt. */}
+				<div className="mt-4">
+					<div className="eyebrow text-[0.65rem]">Export</div>
+					<div className="mt-2 flex flex-wrap gap-2">
+						<Button
+							variant="outline"
+							className="rounded-lg"
+							onClick={exportNow}
+							disabled={!config.currentJson()}
+						>
+							<Download className="size-4" />
+							Export
+						</Button>
+						<Button
+							variant="outline"
+							className="rounded-lg"
+							onClick={copyCurrent}
+							disabled={!config.currentJson()}
+						>
+							<ClipboardCopy className="size-4" />
+							Copy current JSON
+						</Button>
+						<Button
+							variant="outline"
+							className="rounded-lg"
+							onClick={copyClaudePrompt}
+							disabled={!config.claudePrompt()}
+						>
+							<Sparkles className="size-4" />
+							Copy Claude prompt
 						</Button>
 					</div>
 				</div>
-			)}
 
-			{/* Schema reference (collapsible) */}
-			<button
-				type="button"
-				onClick={() => setShowSchema((v) => !v)}
-				className="mt-4 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-			>
-				{showSchema ? "Hide schema & example" : "Show schema & example"}
-			</button>
-			{showSchema && (
-				<div className="mt-2">
-					{config.noteLine && <p className="text-xs text-muted-foreground">{config.noteLine}</p>}
-					<ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
-						{config.schemaBullets.map((b, i) => (
-							<li key={i}>{b}</li>
-						))}
-					</ul>
-					<pre className="mt-3 max-h-64 overflow-auto rounded-lg border border-border bg-background/60 p-3 font-mono text-xs leading-relaxed">
-						{config.exampleJson}
-					</pre>
-				</div>
-			)}
-		</div>
+				{/* Schema reference (collapsible) */}
+				<button
+					type="button"
+					onClick={() => setShowSchema((v) => !v)}
+					className="mt-4 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+				>
+					{showSchema ? "Hide schema & example" : "Show schema & example"}
+				</button>
+				{showSchema && (
+					<div className="mt-2">
+						{config.noteLine && <p className="text-xs text-muted-foreground">{config.noteLine}</p>}
+						<ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted-foreground">
+							{config.schemaBullets.map((b, i) => (
+								<li key={i}>{b}</li>
+							))}
+						</ul>
+						<pre className="mt-3 max-h-64 overflow-auto rounded-lg border border-border bg-background/60 p-3 font-mono text-xs leading-relaxed">
+							{config.exampleJson}
+						</pre>
+					</div>
+				)}
+			</div>
+		</details>
 	);
 }
