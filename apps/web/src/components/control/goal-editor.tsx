@@ -188,7 +188,7 @@ export function GoalEditor({
 					return (
 						<li
 							key={g.id}
-							className={`rounded-xl border px-3 py-2.5 transition-colors ${
+							className={`rounded-xl border px-3 py-2 transition-colors ${
 								isNext
 									? "border-primary/50 bg-primary/5"
 									: g.unlocked
@@ -266,7 +266,7 @@ export function GoalEditor({
 							</div>
 
 							{/* Quiet second line: private note + optional future target. */}
-							<div className="mt-2 flex flex-wrap items-center gap-2 pl-10">
+							<div className="mt-1.5 flex flex-wrap items-center gap-2 pl-10">
 								<Input
 									className="h-8 min-w-0 flex-1 rounded-lg text-sm"
 									aria-label={`Goal ${i + 1} private note`}

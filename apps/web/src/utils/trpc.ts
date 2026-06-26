@@ -50,7 +50,7 @@ export const publicTrpc = createTRPCOptionsProxy<PublicRouter>({
 /**
  * Operator client → same-origin `/api/trpc` route handler, which sits behind
  * Cloudflare Access. Same-origin means the Access cookie rides along.
- * Used by `/control`.
+ * Used by the operator panel (served at the app root).
  */
 const controlClient = createTRPCClient<ProtectedRouter>({
 	links: [
