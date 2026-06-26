@@ -3,12 +3,17 @@
 import { type Goal, MAX_TARGET } from "@wolfathon/api/state";
 import { Button } from "@wolfathon/ui/components/button";
 import { Input } from "@wolfathon/ui/components/input";
-import { ArrowDown, ArrowUp, Check, Lock, LockOpen, Plus, Trophy, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, Lock, LockOpen, Minus, Plus, Trophy, X } from "lucide-react";
 
 /**
  * Controlled goal list — every edit is local (the Rewards tab holds the draft
- * and persists on Save). `currentSubs` is used only to flag targets that sit
- * at/below the count (they'll auto-bump on save).
+ * and persists on Save). `currentSubs` is used for the live next-goal progress
+ * counter and to flag future targets that sit at/below the count.
+ *
+ * The live `subs / target` counter lives ONLY in the banner for the next goal:
+ * that's the one target the overlay actually uses (`nextTarget`), and the one
+ * the operator nudges just before unlocking. Future rows keep an optional
+ * pre-plan target; unlocked + next rows show none (banner owns it).
  */
 export function GoalEditor({
 	goals,
@@ -19,8 +24,7 @@ export function GoalEditor({
 	currentSubs: number;
 	onChange: (goals: Goal[]) => void;
 }) {
-	const currentIndex = goals.findIndex((g) => !g.unlocked);
-	const nextIndex = currentIndex === -1 ? -1 : currentIndex;
+	const nextIndex = goals.findIndex((g) => !g.unlocked);
 	const next = nextIndex === -1 ? undefined : goals[nextIndex];
 	const allUnlocked = goals.length > 0 && !next;
 
@@ -30,9 +34,9 @@ export function GoalEditor({
 	function move(i: number, dir: -1 | 1) {
 		const t = i + dir;
 		if (t < 0 || t >= goals.length) return;
-		const next = [...goals];
-		[next[i], next[t]] = [next[t]!, next[i]!];
-		onChange(next);
+		const reordered = [...goals];
+		[reordered[i], reordered[t]] = [reordered[t]!, reordered[i]!];
+		onChange(reordered);
 	}
 
 	function add() {
@@ -43,6 +47,20 @@ export function GoalEditor({
 	function unlockNext() {
 		if (nextIndex === -1) return;
 		patch(nextIndex, { unlocked: true });
+	}
+
+	const clampTarget = (v: number) => Math.min(MAX_TARGET, Math.max(0, Math.floor(v)));
+
+	// Next-goal progress (banner only). A 0/undefined target = no milestone yet.
+	const target = next?.target;
+	const pct = target ? Math.min(100, Math.round((currentSubs / target) * 100)) : 0;
+	const reached = !!target && currentSubs >= target;
+	const remaining = target ? Math.max(0, target - currentSubs) : 0;
+
+	function bumpTarget(delta: number) {
+		if (nextIndex === -1) return;
+		const base = target ?? currentSubs;
+		patch(nextIndex, { target: clampTarget(base + delta) });
 	}
 
 	return (
@@ -62,44 +80,126 @@ export function GoalEditor({
 			</div>
 			<p className="mt-1 text-sm text-muted-foreground">
 				Unlock top to bottom. Only the <span className="text-foreground">reward</span> name shows on
-				stream; the note is internal. <span className="text-foreground">Target</span> is the sub
-				milestone for the progress bar.
+				stream — the note stays private. Set the sub target on the highlighted next goal below.
 			</p>
 
-			{/* Next reward + unlock */}
-			<div className="mt-4 flex flex-col gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between">
-				<div className="min-w-0">
-					<div className="text-xs tracking-wide text-muted-foreground uppercase">Next reward</div>
-					<div className="truncate font-heading text-xl font-bold">
-						{allUnlocked ? "All goals unlocked 🐺" : next?.reward?.trim() || "—"}
+			{/* Next reward — the live hub: name, progress, target stepper, unlock. */}
+			<div className="mt-4 rounded-xl border border-primary/30 bg-primary/[0.06] p-4">
+				<div className="flex items-start justify-between gap-4">
+					<div className="min-w-0">
+						<div className="eyebrow text-[0.65rem]">Next reward</div>
+						<div className="mt-0.5 truncate font-heading text-2xl font-extrabold leading-tight">
+							{allUnlocked ? "All goals unlocked 🐺" : next?.reward?.trim() || "Untitled goal"}
+						</div>
 					</div>
+					<Button
+						size="lg"
+						className="h-11 shrink-0 rounded-lg px-5 text-sm"
+						disabled={!next}
+						onClick={unlockNext}
+					>
+						<Trophy className="size-4" />
+						Unlock next
+					</Button>
 				</div>
-				<Button
-					size="lg"
-					className="h-11 rounded-lg px-5 text-sm"
-					disabled={!next}
-					onClick={unlockNext}
-				>
-					<Trophy className="size-4" />
-					Unlock next
-				</Button>
+
+				{next && (
+					<div className="mt-4">
+						<div className="flex flex-wrap items-center justify-between gap-3">
+							{/* Live counter */}
+							<div className="flex items-baseline gap-1.5 font-heading tabular-nums">
+								<span className="text-2xl font-extrabold text-primary">{currentSubs}</span>
+								<span className="text-muted-foreground">/</span>
+								<span className="text-2xl font-bold">{target || "—"}</span>
+								<span className="ml-1 self-center text-sm font-sans font-medium text-muted-foreground">
+									subs
+								</span>
+							</div>
+							{/* Target stepper — nudge it before unlocking */}
+							<div className="flex items-center gap-1.5">
+								<span className="mr-1 text-xs text-muted-foreground">Target</span>
+								<Button
+									variant="outline"
+									size="icon-sm"
+									className="rounded-lg"
+									aria-label="Lower target by one"
+									onClick={() => bumpTarget(-1)}
+								>
+									<Minus className="size-4" />
+								</Button>
+								<Input
+									className="h-9 w-20 rounded-lg text-center text-sm font-semibold tabular-nums"
+									type="number"
+									min={0}
+									aria-label="Next goal sub target"
+									placeholder="—"
+									value={target ?? ""}
+									onChange={(e) => {
+										const v = e.target.value;
+										patch(nextIndex, {
+											target: v === "" ? undefined : clampTarget(Number(v) || 0),
+										});
+									}}
+								/>
+								<Button
+									variant="outline"
+									size="icon-sm"
+									className="rounded-lg"
+									aria-label="Raise target by one"
+									onClick={() => bumpTarget(1)}
+								>
+									<Plus className="size-4" />
+								</Button>
+							</div>
+						</div>
+
+						{/* Progress bar */}
+						<div
+							className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted"
+							role="progressbar"
+							aria-valuemin={0}
+							aria-valuemax={target || undefined}
+							aria-valuenow={target ? Math.min(currentSubs, target) : undefined}
+						>
+							<div
+								className="h-full rounded-full bg-primary transition-[width] duration-500 ease-out"
+								style={{ width: `${pct}%` }}
+							/>
+						</div>
+
+						<p className="mt-2 text-xs text-muted-foreground">
+							{!target
+								? "No target yet — add one to show a progress bar on stream."
+								: reached
+									? "Target reached — unlock when you're ready. 🎉"
+									: `${remaining} more ${remaining === 1 ? "sub" : "subs"} to go.`}
+						</p>
+					</div>
+				)}
 			</div>
 
 			{/* Goal rows */}
 			<ul className="mt-4 flex flex-col gap-2">
 				{goals.map((g, i) => {
 					const isNext = i === nextIndex;
+					// Optional pre-plan target lives on future (locked, not-next) rows only.
+					const showRowTarget = !g.unlocked && !isNext;
 					const passed = g.target != null && g.target <= currentSubs && !g.unlocked;
 					return (
 						<li
 							key={g.id}
-							className={`rounded-xl border px-3 py-2.5 ${
-								isNext ? "border-primary/50 bg-primary/5" : "border-border bg-background/40"
+							className={`rounded-xl border px-3 py-2.5 transition-colors ${
+								isNext
+									? "border-primary/50 bg-primary/5"
+									: g.unlocked
+										? "border-border bg-background/30"
+										: "border-border bg-background/40"
 							}`}
 						>
 							<div className="flex items-center gap-2">
 								<button
 									type="button"
+									title={g.unlocked ? "Unlocked — click to re-lock" : "Locked — click to unlock"}
 									aria-label={g.unlocked ? "Mark locked" : "Mark unlocked"}
 									className={`grid size-8 shrink-0 place-items-center rounded-lg transition ${
 										g.unlocked
@@ -111,7 +211,9 @@ export function GoalEditor({
 									{g.unlocked ? <LockOpen className="size-4" /> : <Lock className="size-4" />}
 								</button>
 								<Input
-									className={`h-9 flex-1 rounded-lg ${g.reward.trim() ? "" : "ring-1 ring-destructive/60"}`}
+									className={`h-9 flex-1 rounded-lg ${g.unlocked ? "text-muted-foreground" : ""} ${
+										g.reward.trim() ? "" : "ring-1 ring-destructive/60"
+									}`}
 									aria-invalid={!g.reward.trim()}
 									aria-label={`Goal ${i + 1} reward`}
 									placeholder="Reward (shown on stream)"
@@ -119,6 +221,17 @@ export function GoalEditor({
 									maxLength={80}
 									onChange={(e) => patch(i, { reward: e.target.value })}
 								/>
+								{isNext && (
+									<span className="shrink-0 rounded-md bg-primary/15 px-2 py-1 text-xs font-semibold text-primary">
+										Next
+									</span>
+								)}
+								{g.unlocked && (
+									<span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-xs text-primary">
+										<Check className="size-3.5" />
+										Unlocked
+									</span>
+								)}
 								<div className="flex shrink-0 items-center gap-1">
 									<Button
 										variant="ghost"
@@ -151,42 +264,37 @@ export function GoalEditor({
 									</Button>
 								</div>
 							</div>
+
+							{/* Quiet second line: private note + optional future target. */}
 							<div className="mt-2 flex flex-wrap items-center gap-2 pl-10">
 								<Input
 									className="h-8 min-w-0 flex-1 rounded-lg text-sm"
-									aria-label={`Goal ${i + 1} internal note`}
-									placeholder="Note (internal)"
+									aria-label={`Goal ${i + 1} private note`}
+									placeholder="Private note (optional)"
 									value={g.note ?? ""}
 									onChange={(e) => patch(i, { note: e.target.value })}
 								/>
-								<div className="flex items-center gap-1.5">
-									<Input
-										className="h-8 w-20 rounded-lg text-sm tabular-nums"
-										type="number"
-										min={0}
-										aria-label={`Goal ${i + 1} sub target`}
-										placeholder="—"
-										value={g.target ?? ""}
-										onChange={(e) => {
-											const v = e.target.value;
-											patch(i, {
-												target:
-													v === ""
-														? undefined
-														: Math.min(MAX_TARGET, Math.max(0, Math.floor(Number(v) || 0))),
-											});
-										}}
-									/>
-									<span className="text-xs text-muted-foreground">subs</span>
-								</div>
-								{g.unlocked && (
-									<span className="inline-flex items-center gap-1 text-xs text-primary">
-										<Check className="size-3.5" />
-										unlocked
-									</span>
+								{showRowTarget && (
+									<div className="flex items-center gap-1.5">
+										<Input
+											className="h-8 w-20 rounded-lg text-sm tabular-nums"
+											type="number"
+											min={0}
+											aria-label={`Goal ${i + 1} sub target`}
+											placeholder="—"
+											value={g.target ?? ""}
+											onChange={(e) => {
+												const v = e.target.value;
+												patch(i, {
+													target: v === "" ? undefined : clampTarget(Number(v) || 0),
+												});
+											}}
+										/>
+										<span className="text-xs text-muted-foreground">target</span>
+									</div>
 								)}
-								{passed && (
-									<span className="text-xs text-amber-400">≤ {currentSubs} — bumps on save</span>
+								{passed && showRowTarget && (
+									<span className="text-xs text-amber-400">below current — adjusts on save</span>
 								)}
 							</div>
 						</li>
