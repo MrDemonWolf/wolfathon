@@ -64,7 +64,7 @@ export type TimerConfig = {
 	 * `stream.online` EventSub. Default on.
 	 */
 	autoPauseOnOffline: boolean;
-	/** Minutes added per $1 of a StreamElements tip. */
+	/** Minutes added per $1 of a tip (Ko-fi integration TBD; rate is pre-configurable). */
 	tipMinutesPerDollar: number;
 	/** Dollars of tips that count as one sub toward the reward goals (0 = tips don't advance goals). */
 	tipDollarsPerSub: number;
