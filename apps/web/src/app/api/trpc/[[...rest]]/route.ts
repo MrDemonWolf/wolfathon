@@ -1,6 +1,7 @@
 import { createContext } from "@wolfathon/api/context";
 import { protectedRouter } from "@wolfathon/api/routers/index";
 import { createDb } from "@wolfathon/db";
+import { type WebBindings } from "@wolfathon/env/web";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 
@@ -11,19 +12,8 @@ import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
  * Cloudflare Access application (see README → "Cloudflare Access").
  */
 
-/** Bindings configured for the web Worker in `packages/infra/alchemy.run.ts`. */
-type WebEnv = {
-	DB: D1Database;
-	CF_ACCESS_TEAM_DOMAIN?: string;
-	CF_ACCESS_AUD?: string;
-	ACCESS_DISABLED?: string;
-	NEXT_PUBLIC_SERVER_URL?: string;
-	TWITCH_CLIENT_ID?: string;
-	TWITCH_CLIENT_SECRET?: string;
-};
-
 function handler(req: Request) {
-	const env = getCloudflareContext().env as unknown as WebEnv;
+	const env = getCloudflareContext().env as unknown as WebBindings;
 	const db = createDb(env.DB);
 
 	return fetchRequestHandler({

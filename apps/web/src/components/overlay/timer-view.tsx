@@ -1,7 +1,7 @@
 "use client";
 
 import { expandHex, FONT_STACKS, gradientCss, type ThemeCorners } from "@wolfathon/api/theme";
-import type { PublicTimer } from "@wolfathon/api/timer";
+import { pad2, type PublicTimer, splitDuration } from "@wolfathon/api/timer";
 import { Flag, Pause, Play } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -275,14 +275,8 @@ function withAlpha(hex: string, aa: string): string {
 }
 
 function format(ms: number): { d: string; h: string; m: string; s: string } {
-	const total = Math.max(0, Math.floor(ms / 1000));
-	const pad = (n: number) => String(n).padStart(2, "0");
-	return {
-		d: String(Math.floor(total / 86400)),
-		h: pad(Math.floor((total % 86400) / 3600)),
-		m: pad(Math.floor((total % 3600) / 60)),
-		s: pad(total % 60),
-	};
+	const { d, h, m, s } = splitDuration(ms);
+	return { d: String(d), h: pad2(h), m: pad2(m), s: pad2(s) };
 }
 
 /** Deterministic pseudo-random in [0,1) — keeps SSR/client markup identical. */

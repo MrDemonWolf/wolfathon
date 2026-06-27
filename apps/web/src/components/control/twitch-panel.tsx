@@ -3,6 +3,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { env } from "@wolfathon/env/web";
 import { Button } from "@wolfathon/ui/components/button";
+import { useCopyToClipboard } from "@wolfathon/ui/hooks/use-copy-to-clipboard";
 import { AlertTriangle, CheckCircle2, Copy, Loader2, Plug, Unplug, Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -13,14 +14,7 @@ const SCOPES = "channel:read:subscriptions, bits:read, channel:read:redemptions,
 
 /** Full, selectable URL with a one-click copy — the values must be transcribed exactly. */
 function CopyUrl({ value, label }: { value: string; label: string }) {
-	const [copied, setCopied] = useState(false);
-	async function copy() {
-		if (!value) return;
-		await navigator.clipboard.writeText(value);
-		setCopied(true);
-		toast.success(`${label} copied`);
-		setTimeout(() => setCopied(false), 1500);
-	}
+	const { copied, copy } = useCopyToClipboard();
 	return (
 		<div className="flex items-center gap-2">
 			<code className="min-w-0 flex-1 rounded-lg border border-border bg-background/60 px-3 py-2 font-mono text-xs break-all">
@@ -30,7 +24,7 @@ function CopyUrl({ value, label }: { value: string; label: string }) {
 				variant="outline"
 				size="sm"
 				className="h-9 shrink-0 rounded-lg"
-				onClick={copy}
+				onClick={() => copy(value, `${label} copied`)}
 				disabled={!value}
 			>
 				<Copy className="size-3.5" />
@@ -124,8 +118,17 @@ export function TwitchPanel() {
 							<div className="min-w-0">
 								<div className="truncate font-medium">Connected as {status?.broadcasterLogin}</div>
 								<div className="text-xs text-muted-foreground">
-									{status?.subscriptionCount} EventSub subscriptions active
+									{status?.subscriptionCount} of {status?.expectedSubscriptionCount} EventSub
+									subscriptions active
 								</div>
+								{status?.failedSubscriptionTypes?.length ? (
+									<div className="mt-1 flex items-start gap-1.5 text-xs text-destructive">
+										<AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+										<span>
+											Missing: {status.failedSubscriptionTypes.join(", ")} — reconnect to retry.
+										</span>
+									</div>
+								) : null}
 							</div>
 						</>
 					) : (

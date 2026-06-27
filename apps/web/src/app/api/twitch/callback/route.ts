@@ -1,6 +1,7 @@
 import { createDb } from "@wolfathon/db";
-import { exchangeCode, finalizeConnection } from "@wolfathon/api/twitch";
+import { exchangeCode, finalizeConnection, timingSafeEqual } from "@wolfathon/api/twitch";
 import { readTwitch, writeTwitch } from "@wolfathon/api/store";
+import { type WebBindings } from "@wolfathon/env/web";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { NextResponse } from "next/server";
 
@@ -14,27 +15,7 @@ import { NextResponse } from "next/server";
  * `twitch.startAuth` stored on the D1 row; the client_secret stays server-side.
  */
 
-type WebEnv = {
-	DB: D1Database;
-	NEXT_PUBLIC_SERVER_URL?: string;
-	TWITCH_CLIENT_ID?: string;
-	TWITCH_CLIENT_SECRET?: string;
-};
-
 export const dynamic = "force-dynamic";
-
-/**
- * Timing-safe string compare for the OAuth `state` token. Node's
- * `crypto.timingSafeEqual` isn't guaranteed on the Workers runtime, so XOR-
- * accumulate over char codes instead. The length check leaks only length, which
- * is fixed for our random state tokens.
- */
-function timingSafeEqual(a: string, b: string): boolean {
-	if (a.length !== b.length) return false;
-	let diff = 0;
-	for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-	return diff === 0;
-}
 
 export async function GET(req: Request) {
 	const url = new URL(req.url);
@@ -46,7 +27,7 @@ export async function GET(req: Request) {
 	// Twitch sends ?error=access_denied when the broadcaster cancels consent.
 	if (url.searchParams.get("error") || !code || !state) return back("error");
 
-	const env = getCloudflareContext().env as unknown as WebEnv;
+	const env = getCloudflareContext().env as unknown as WebBindings;
 	if (!env.TWITCH_CLIENT_ID || !env.TWITCH_CLIENT_SECRET || !env.NEXT_PUBLIC_SERVER_URL) {
 		return back("error");
 	}

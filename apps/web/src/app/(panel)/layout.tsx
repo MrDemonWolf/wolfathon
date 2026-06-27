@@ -54,7 +54,7 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
 				{children}
 			</main>
 
-			<footer className="border-t border-[#00aced]/10 px-4 py-6">
+			<footer className="border-t border-primary/10 px-4 py-6">
 				<div className="mx-auto flex max-w-6xl items-center justify-center gap-4 text-center text-sm text-muted-foreground">
 					<p>
 						© {new Date().getFullYear()} Wolfathon by{" "}

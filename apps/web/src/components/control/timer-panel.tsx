@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { currentRemainingMs, type TimerDoc } from "@wolfathon/api/timer";
+import { currentRemainingMs, pad2, splitDuration, type TimerDoc } from "@wolfathon/api/timer";
 import { Button } from "@wolfathon/ui/components/button";
 import { Input } from "@wolfathon/ui/components/input";
 import { Pause, Play, RotateCcw } from "lucide-react";
@@ -10,13 +10,10 @@ import { toast } from "sonner";
 
 import { controlTrpc } from "@/utils/trpc";
 
+/** HH:MM:SS, with hours rolled up from any whole days (so 25h shows "25:00:00"). */
 function fmt(ms: number): string {
-	const total = Math.max(0, Math.floor(ms / 1000));
-	const h = Math.floor(total / 3600);
-	const m = Math.floor((total % 3600) / 60);
-	const s = total % 60;
-	const pad = (n: number) => String(n).padStart(2, "0");
-	return `${pad(h)}:${pad(m)}:${pad(s)}`;
+	const { d, h, m, s } = splitDuration(ms);
+	return `${pad2(d * 24 + h)}:${pad2(m)}:${pad2(s)}`;
 }
 
 export function TimerPanel({
@@ -207,7 +204,10 @@ export function TimerPanel({
 			<details className="group mt-4 rounded-xl border border-border bg-background/40 px-4 py-3">
 				<summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium text-muted-foreground marker:content-none">
 					Testing tools
-					<span className="text-xs text-muted-foreground transition-transform group-open:rotate-180">
+					<span
+						aria-hidden="true"
+						className="text-xs text-muted-foreground transition-transform group-open:rotate-180"
+					>
 						▾
 					</span>
 				</summary>

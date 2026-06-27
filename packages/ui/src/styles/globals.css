@@ -38,7 +38,6 @@
 	--radius: 0.625rem;
 	/* Subtle top-edge highlight still used by a couple of inset shadows. */
 	--glass-edge: rgba(255, 255, 255, 0.08);
-	--glass-stroke: var(--border);
 	--sidebar: #111726;
 	--sidebar-foreground: #f1f5f9;
 	--sidebar-primary: #00aced;

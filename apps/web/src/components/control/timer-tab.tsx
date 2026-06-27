@@ -48,7 +48,7 @@ export function TimerTab() {
 		<div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
 			<div className="flex flex-col gap-6">
 				{isError && !data ? (
-					<div className="rounded-xl panel-card p-5">
+					<div role="status" className="rounded-xl panel-card p-5">
 						<h2 className="font-heading text-lg font-bold">Couldn&apos;t load timer settings</h2>
 						<p className="mt-1 text-sm text-muted-foreground">
 							The timer failed to load. Check your connection and try again.
@@ -58,7 +58,7 @@ export function TimerTab() {
 						</Button>
 					</div>
 				) : !data && isLoading ? (
-					<div className="rounded-xl panel-card p-5 text-sm text-muted-foreground">
+					<div role="status" className="rounded-xl panel-card p-5 text-sm text-muted-foreground">
 						Loading timer…
 					</div>
 				) : (

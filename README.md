@@ -58,7 +58,7 @@ Keep the rewards flowing. Keep the clock ticking.
 4. Open the surfaces:
 
    - Control panel: `http://localhost:3001/control`
-   - Overlay URLs (tokenized): control panel → **Overlays** tab
+   - Overlay URLs (tokenized): control panel → **Settings → Overlays**
    - API (overlay data + Twitch webhook): `http://localhost:3000`
 
    Local development (`bun run dev`) bypasses Cloudflare Access automatically,
@@ -70,18 +70,20 @@ Keep the rewards flowing. Keep the clock ticking.
 
 ### OBS browser sources
 
-Open the control panel → **Overlays** tab and copy each source URL straight into
-OBS. Add each as a **Browser** source with a transparent background, sized as
-noted below — the overlays paint only the panel, nothing else full-screen.
+Open the control panel → **Settings → Overlays** and copy each source URL
+straight into OBS. Add each as a **Browser** source with a transparent
+background, sized as noted below — the overlays paint only the panel, nothing
+else full-screen.
 
 Each URL carries a secret `?t=<token>` — the public overlay API serves nothing
 without it, so an OBS source works while a guessed bare path does not. The
-**Reset** button on the Overlays tab rotates the token and instantly kills the
-old URLs (re-paste the new ones into OBS).
+**Reset** button on Settings → Overlays rotates the token and instantly kills the
+old URLs (re-paste the new ones into OBS). If a source ever shows a small
+"Overlay token invalid" hint in the corner, its URL is stale — re-copy it.
 
 | Source  | URL                    | Size (W×H)  | Shows                                                        |
 | ------- | ---------------------- | ----------- | ------------------------------------------------------------ |
-| Timer   | `/overlay/timer?t=…`   | `720×150`   | Compact countdown bar (D/H/M/S); emotes flood it on each add |
+| Timer   | `/overlay/timer?t=…`   | `1310×200`  | Compact countdown bar (D/H/M/S); emotes flood it on each add |
 | Rewards | `/overlay/rewards?t=…` | `1920×1080` | Current reward name + unlock celebration                     |
 
 The timer is a self-contained widget that fills its source, so resize the
@@ -119,7 +121,11 @@ authorization. The **Twitch** tab walks you through it:
 4. On connect, the server creates EventSub webhook subscriptions for
    `channel.subscribe`, `channel.subscription.message`,
    `channel.subscription.gift`, `channel.cheer`,
-   `channel.channel_points_custom_reward_redemption.add`, and `stream.offline`.
+   `channel.channel_points_custom_reward_redemption.add`,
+   `channel.chat.message` (raffle entries), and `stream.offline` /
+   `stream.online`. The Twitch status shows the live count as "X of N
+   subscriptions"; if a partial connect leaves some out, it names exactly which
+   types failed so you can reconnect to retry just those.
 
 The `stream.offline` / `stream.online` subscriptions **auto-pause the timer when
 your stream ends and resume it when you go live again**, so an outage or a

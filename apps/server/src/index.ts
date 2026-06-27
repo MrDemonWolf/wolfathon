@@ -2,18 +2,14 @@ import { trpcServer } from "@hono/trpc-server";
 import { createContext } from "@wolfathon/api/context";
 import { applyGiveawayEvent, parseGiveawayEvent } from "@wolfathon/api/giveaway";
 import { publicRouter } from "@wolfathon/api/routers/index";
-import { subsFromEvent } from "@wolfathon/api/state";
-import { applyEvent, autoPause, autoResume } from "@wolfathon/api/timer";
+import { autoPause, autoResume } from "@wolfathon/api/timer";
 import { parseEvent, verifyEventsubSignature } from "@wolfathon/api/twitch";
 import {
-	readGiveaway,
-	readState,
-	readTimer,
+	applyTimerEventAndBumpSubs,
+	mutateGiveaway,
+	mutateTimer,
+	mutateTwitch,
 	readTwitch,
-	writeGiveaway,
-	writeState,
-	writeTimer,
-	writeTwitch,
 } from "@wolfathon/api/store";
 import { createDb } from "@wolfathon/db";
 import { env } from "@wolfathon/env/server";
@@ -30,7 +26,11 @@ import { logger } from "hono/logger";
  */
 const app = new Hono();
 
-app.use(logger());
+// Redact the overlay token (`?t=...`) from request logs — the public Worker logs
+// every path, and the token is the overlays' only credential (see sec audit).
+app.use(
+	logger((message, ...rest) => console.log(message.replace(/\?\S+/, "?[redacted]"), ...rest)),
+);
 app.use(
 	"/*",
 	cors({
@@ -107,35 +107,41 @@ app.post("/twitch/eventsub", async (c) => {
 		const recent = twitch.recentEventIds ?? [];
 		if (messageId && recent.includes(messageId)) return c.body(null, 204); // already processed
 
+		// Idempotency: record the message id BEFORE applying side effects, so a
+		// retried delivery short-circuits the dedup check above. Trade-off: if the
+		// handler crashes mid-apply, the event is dropped (lost time) rather than
+		// double-counted on retry — the safer failure mode, since over-counting
+		// silently inflates the timer and is unrecoverable, and Twitch's
+		// at-least-once delivery already tolerates the occasional loss. mutateTwitch
+		// is compare-and-swap, so concurrent deliveries can't clobber each other's ids.
+		if (messageId) {
+			await mutateTwitch(db, (doc) => ({
+				...doc,
+				recentEventIds: [messageId, ...(doc.recentEventIds ?? [])].slice(0, 50),
+			}));
+		}
+
 		const now = Date.now();
 		if (isStreamState) {
 			// Stream went down / came back — auto-pause so an outage doesn't burn
 			// subathon time, then auto-resume on return. Opt-in (default on); resume
 			// only fires when the pause was automatic, never overriding a manual one.
-			const timer = await readTimer(db);
-			if (timer.config.autoPauseOnOffline) {
+			await mutateTimer(db, (timer) => {
+				if (!timer.config.autoPauseOnOffline) return timer;
 				const state =
 					type === "stream.offline" ? autoPause(timer.state, now) : autoResume(timer.state, now);
-				if (state !== timer.state) await writeTimer(db, { ...timer, state });
-			}
+				return state === timer.state ? timer : { ...timer, state };
+			});
 		}
 		if (timerEvent) {
-			const timer = await readTimer(db);
-			const { state } = applyEvent(timer.config, timer.state, timerEvent, now);
-			await writeTimer(db, { ...timer, state });
-			// Sub/gift events also bump the goals' running sub count.
-			const subs = subsFromEvent(timerEvent);
-			if (subs > 0) {
-				const data = await readState(db);
-				await writeState(db, { ...data, currentSubs: (data.currentSubs ?? 0) + subs });
-			}
+			await applyTimerEventAndBumpSubs(db, timerEvent, now);
 		}
 		if (maybeGiveaway) {
-			const giveaway = await readGiveaway(db);
-			const gEvent = parseGiveawayEvent(type, event, giveaway.config.command);
-			if (gEvent) await writeGiveaway(db, applyGiveawayEvent(giveaway, gEvent, now));
+			await mutateGiveaway(db, (giveaway) => {
+				const gEvent = parseGiveawayEvent(type, event, giveaway.config.command);
+				return gEvent ? applyGiveawayEvent(giveaway, gEvent, now) : giveaway;
+			});
 		}
-		await writeTwitch(db, { ...twitch, recentEventIds: [messageId, ...recent].slice(0, 50) });
 		return c.body(null, 204);
 	}
 	return c.body(null, 204);
