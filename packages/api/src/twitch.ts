@@ -351,7 +351,13 @@ async function hmacHex(secret: string, message: string): Promise<string> {
 	return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function timingSafeEqual(a: string, b: string): boolean {
+/**
+ * Constant-time string compare. Node's `crypto.timingSafeEqual` isn't guaranteed
+ * on the Workers runtime, so XOR-accumulate over char codes instead. The length
+ * check leaks only length, which is fixed for the fixed-width tokens we compare
+ * (HMAC hex signatures, random OAuth `state`). Shared with the OAuth callback.
+ */
+export function timingSafeEqual(a: string, b: string): boolean {
 	if (a.length !== b.length) return false;
 	let diff = 0;
 	for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
