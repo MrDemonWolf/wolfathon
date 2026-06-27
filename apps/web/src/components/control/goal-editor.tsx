@@ -1,6 +1,6 @@
 "use client";
 
-import { type Goal, MAX_TARGET } from "@wolfathon/api/state";
+import { bumpPassedGoals, type Goal, MAX_TARGET } from "@wolfathon/api/state";
 import { Button } from "@wolfathon/ui/components/button";
 import { Input } from "@wolfathon/ui/components/input";
 import { ArrowDown, ArrowUp, Check, Lock, LockOpen, Minus, Plus, Trophy, X } from "lucide-react";
@@ -27,6 +27,11 @@ export function GoalEditor({
 	const nextIndex = goals.findIndex((g) => !g.unlocked);
 	const next = nextIndex === -1 ? undefined : goals[nextIndex];
 	const allUnlocked = goals.length > 0 && !next;
+
+	// Mirror the server's save-time bump so each row can show the exact target it
+	// will land on (the bump runs a floor across the whole list, so resolve here).
+	// ponytail: recompute per render — the list is tiny, no memo needed.
+	const resolved = bumpPassedGoals(goals, currentSubs).goals;
 
 	const patch = (i: number, p: Partial<Goal>) =>
 		onChange(goals.map((g, j) => (j === i ? { ...g, ...p } : g)));
@@ -294,7 +299,12 @@ export function GoalEditor({
 									</div>
 								)}
 								{passed && showRowTarget && (
-									<span className="text-xs text-amber-400">below current — adjusts on save</span>
+									<span
+										className="text-xs font-medium whitespace-nowrap text-amber-400"
+										title={`Below your current count (${currentSubs}). Saving raises it to ${resolved[i]?.target ?? g.target} so the goal stays ahead instead of starting already met.`}
+									>
+										→ saves as {resolved[i]?.target ?? g.target}
+									</span>
 								)}
 							</div>
 						</li>
