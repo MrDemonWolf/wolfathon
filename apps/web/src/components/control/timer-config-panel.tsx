@@ -54,253 +54,308 @@ export function TimerConfigPanel({
 		return Number.isFinite(x) ? x : 0;
 	};
 
+	const [section, setSection] = useState<"rules" | "behaviour" | "theme">("rules");
+	const TABS = [
+		{ id: "rules", label: "Time rules" },
+		{ id: "behaviour", label: "Behaviour" },
+		{ id: "theme", label: "Theme" },
+	] as const;
+
 	return (
 		<div className="rounded-2xl panel-card p-5">
-			<h2 className="font-heading text-lg font-bold">Time rules</h2>
-			<p className="mt-1 text-sm text-muted-foreground">
-				Minutes added per event. Each field below is labelled with the event it covers.
-			</p>
-
-			{/* Session bounds — where the timer starts and its ceiling. */}
-			<div className="mt-4">
-				<div className="eyebrow text-[0.65rem]">Session bounds</div>
-				<div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
-					<Field
-						label="Start (min)"
-						value={config.startMinutes}
-						onChange={(v) => onChange({ ...config, startMinutes: n(v) })}
-					/>
-					<Field
-						label="Cap (min, 0=∞)"
-						value={config.maxMinutes}
-						onChange={(v) => onChange({ ...config, maxMinutes: n(v) })}
-					/>
-				</div>
+			<div className="flex flex-col gap-1">
+				<h2 className="font-heading text-lg font-bold">Timer setup</h2>
+				<p className="text-sm text-muted-foreground">
+					How time is earned, how the overlay behaves, and how it looks.
+				</p>
 			</div>
 
-			{/* Subs & gifts — the tier ladder plus gifted subs. */}
-			<div className="mt-4">
-				<div className="eyebrow text-[0.65rem]">Subs &amp; gifts</div>
-				<div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
-					<Field
-						label="Sub T1 (min)"
-						value={config.sub.t1}
-						onChange={(v) => onChange({ ...config, sub: { ...config.sub, t1: n(v) } })}
-					/>
-					<Field
-						label="Sub T2 (min)"
-						value={config.sub.t2}
-						onChange={(v) => onChange({ ...config, sub: { ...config.sub, t2: n(v) } })}
-					/>
-					<Field
-						label="Sub T3 (min)"
-						value={config.sub.t3}
-						onChange={(v) => onChange({ ...config, sub: { ...config.sub, t3: n(v) } })}
-					/>
-					<Field
-						label="Prime (min)"
-						value={config.sub.prime}
-						onChange={(v) => onChange({ ...config, sub: { ...config.sub, prime: n(v) } })}
-					/>
-					<Field
-						label="Gift sub (min)"
-						value={config.giftSubMinutes}
-						onChange={(v) => onChange({ ...config, giftSubMinutes: n(v) })}
-					/>
-				</div>
-			</div>
+			<nav
+				aria-label="Timer setup sections"
+				className="segmented mt-4 inline-flex w-fit gap-1 rounded-[0.95rem] p-1"
+			>
+				{TABS.map((t) => {
+					const active = section === t.id;
+					return (
+						<button
+							key={t.id}
+							type="button"
+							aria-current={active ? "true" : undefined}
+							onClick={() => setSection(t.id)}
+							className={`rounded-[0.7rem] px-4 py-1.5 text-sm font-medium transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
+								active
+									? "segmented-on text-primary-foreground"
+									: "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+							}`}
+						>
+							{t.label}
+						</button>
+					);
+				})}
+			</nav>
 
-			{/* Bits & channel points — cheers plus per-reward redemption rules. */}
-			<div className="mt-4">
-				<div className="eyebrow text-[0.65rem]">Bits &amp; channel points</div>
-				<div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
-					<Field
-						label="Bits / 100 (min)"
-						value={config.bitsPer100Minutes}
-						onChange={(v) => onChange({ ...config, bitsPer100Minutes: n(v) })}
-					/>
-				</div>
-			</div>
+			{section === "rules" && (
+				<div className="mt-2">
+					<p className="mt-1 text-sm text-muted-foreground">
+						Minutes added per event. Each field below is labelled with the event it covers.
+					</p>
 
-			{/* channel point rules */}
-			<div className="mt-4">
-				<div className="flex items-center justify-between">
-					<div className="text-sm font-medium">Channel-point rewards</div>
-					<Button
-						variant="outline"
-						size="sm"
-						className="rounded-lg"
-						onClick={() =>
-							onChange({
-								...config,
-								channelPoints: [...config.channelPoints, { rewardTitle: "", minutes: 5 }],
-							})
-						}
-					>
-						<Plus className="size-3.5" />
-						Add
-					</Button>
-				</div>
-				<div className="mt-2 flex flex-col gap-2">
-					{config.channelPoints.map((rule, i) => (
-						<div key={i} className="flex items-end gap-2">
-							<label className="flex flex-1 flex-col gap-1 text-xs text-muted-foreground">
-								Reward title (exact)
-								<Input
-									className="h-9 rounded-lg"
-									placeholder="Reward title (exact)"
-									value={rule.rewardTitle}
-									onChange={(e) => {
-										const cp = [...config.channelPoints];
-										cp[i] = { ...cp[i]!, rewardTitle: e.target.value };
-										onChange({ ...config, channelPoints: cp });
-									}}
-								/>
-							</label>
-							<label className="flex w-24 flex-col gap-1 text-xs text-muted-foreground">
-								Minutes
-								<Input
-									className="h-9 rounded-lg"
-									type="number"
-									value={String(rule.minutes)}
-									onChange={(e) => {
-										const cp = [...config.channelPoints];
-										cp[i] = { ...cp[i]!, minutes: n(e.target.value) };
-										onChange({ ...config, channelPoints: cp });
-									}}
-								/>
-							</label>
+					{/* Session bounds — where the timer starts and its ceiling. */}
+					<div className="mt-4">
+						<div className="eyebrow text-[0.65rem]">Session bounds</div>
+						<div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+							<Field
+								label="Start (min)"
+								value={config.startMinutes}
+								onChange={(v) => onChange({ ...config, startMinutes: n(v) })}
+							/>
+							<Field
+								label="Cap (min, 0=∞)"
+								value={config.maxMinutes}
+								onChange={(v) => onChange({ ...config, maxMinutes: n(v) })}
+							/>
+						</div>
+					</div>
+
+					{/* Subs & gifts — the tier ladder plus gifted subs. */}
+					<div className="mt-4">
+						<div className="eyebrow text-[0.65rem]">Subs &amp; gifts</div>
+						<div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+							<Field
+								label="Sub T1 (min)"
+								value={config.sub.t1}
+								onChange={(v) => onChange({ ...config, sub: { ...config.sub, t1: n(v) } })}
+							/>
+							<Field
+								label="Sub T2 (min)"
+								value={config.sub.t2}
+								onChange={(v) => onChange({ ...config, sub: { ...config.sub, t2: n(v) } })}
+							/>
+							<Field
+								label="Sub T3 (min)"
+								value={config.sub.t3}
+								onChange={(v) => onChange({ ...config, sub: { ...config.sub, t3: n(v) } })}
+							/>
+							<Field
+								label="Prime (min)"
+								value={config.sub.prime}
+								onChange={(v) => onChange({ ...config, sub: { ...config.sub, prime: n(v) } })}
+							/>
+							<Field
+								label="Gift sub (min)"
+								value={config.giftSubMinutes}
+								onChange={(v) => onChange({ ...config, giftSubMinutes: n(v) })}
+							/>
+						</div>
+					</div>
+
+					{/* Bits & channel points — cheers plus per-reward redemption rules. */}
+					<div className="mt-4">
+						<div className="eyebrow text-[0.65rem]">Bits &amp; channel points</div>
+						<div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-3">
+							<Field
+								label="Bits / 100 (min)"
+								value={config.bitsPer100Minutes}
+								onChange={(v) => onChange({ ...config, bitsPer100Minutes: n(v) })}
+							/>
+						</div>
+					</div>
+
+					{/* channel point rules */}
+					<div className="mt-4">
+						<div className="flex items-center justify-between">
+							<div className="text-sm font-medium">Channel-point rewards</div>
 							<Button
-								variant="destructive"
-								size="icon-sm"
-								className="mb-px rounded-lg"
-								aria-label="Remove rule"
+								variant="outline"
+								size="sm"
+								className="rounded-lg"
 								onClick={() =>
 									onChange({
 										...config,
-										channelPoints: config.channelPoints.filter((_, j) => j !== i),
+										channelPoints: [...config.channelPoints, { rewardTitle: "", minutes: 5 }],
 									})
 								}
 							>
-								<X className="size-4" />
+								<Plus className="size-3.5" />
+								Add
 							</Button>
 						</div>
-					))}
-					{config.channelPoints.length === 0 && (
-						<p className="text-xs text-muted-foreground">
-							No channel-point rules. Add one and match the reward title exactly (or connect Twitch
-							and redeem once to capture its id).
+						<div className="mt-2 flex flex-col gap-2">
+							{config.channelPoints.map((rule, i) => (
+								<div key={i} className="flex items-end gap-2">
+									<label className="flex flex-1 flex-col gap-1 text-xs text-muted-foreground">
+										Reward title (exact)
+										<Input
+											className="h-9 rounded-lg"
+											placeholder="Reward title (exact)"
+											value={rule.rewardTitle}
+											onChange={(e) => {
+												const cp = [...config.channelPoints];
+												cp[i] = { ...cp[i]!, rewardTitle: e.target.value };
+												onChange({ ...config, channelPoints: cp });
+											}}
+										/>
+									</label>
+									<label className="flex w-24 flex-col gap-1 text-xs text-muted-foreground">
+										Minutes
+										<Input
+											className="h-9 rounded-lg"
+											type="number"
+											value={String(rule.minutes)}
+											onChange={(e) => {
+												const cp = [...config.channelPoints];
+												cp[i] = { ...cp[i]!, minutes: n(e.target.value) };
+												onChange({ ...config, channelPoints: cp });
+											}}
+										/>
+									</label>
+									<Button
+										variant="destructive"
+										size="icon-sm"
+										className="mb-px rounded-lg"
+										aria-label="Remove rule"
+										onClick={() =>
+											onChange({
+												...config,
+												channelPoints: config.channelPoints.filter((_, j) => j !== i),
+											})
+										}
+									>
+										<X className="size-4" />
+									</Button>
+								</div>
+							))}
+							{config.channelPoints.length === 0 && (
+								<p className="text-xs text-muted-foreground">
+									No channel-point rules. Add one and match the reward title exactly (or connect
+									Twitch and redeem once to capture its id).
+								</p>
+							)}
+						</div>
+					</div>
+				</div>
+			)}
+
+			{section === "behaviour" && (
+				<div className="mt-2">
+					{/* overlay emoji */}
+					<EmojiEditor
+						emojis={config.emojis}
+						onChange={(emojis) => onChange({ ...config, emojis })}
+					/>
+
+					{/* emote burst count */}
+					<div className="mt-4">
+						<label className="flex max-w-xs flex-col gap-1 text-sm font-medium">
+							Emotes per time-add
+							<Input
+								className="h-9 rounded-lg"
+								type="number"
+								min={0}
+								max={MAX_EMOTE_COUNT}
+								value={String(config.emoteCount)}
+								onChange={(e) =>
+									onChange({
+										...config,
+										emoteCount: Math.max(
+											0,
+											Math.min(MAX_EMOTE_COUNT, Math.round(n(e.target.value))),
+										),
+									})
+								}
+							/>
+							<span className="text-xs font-normal text-muted-foreground">
+								How many emotes flood the bar on each add (0–{MAX_EMOTE_COUNT}, 0 = off).
+							</span>
+						</label>
+					</div>
+
+					{/* editable eyebrow label */}
+					<div className="mt-4">
+						<label className="flex max-w-xs flex-col gap-1 text-sm font-medium">
+							Overlay label
+							<Input
+								className="h-9 rounded-lg"
+								maxLength={MAX_LABEL_LEN}
+								value={config.label}
+								onChange={(e) => onChange({ ...config, label: e.target.value })}
+								placeholder="SUBATHON"
+							/>
+							<span className="text-xs font-normal text-muted-foreground">
+								The eyebrow text above the countdown. Toggle its visibility under “Overlay theme”.
+							</span>
+						</label>
+					</div>
+
+					{/* alert: name who added the time */}
+					<div className="mt-4">
+						<label className="flex items-center gap-2 text-sm font-medium">
+							<input
+								type="checkbox"
+								className="size-4 accent-primary"
+								checked={config.showEventSource}
+								onChange={(e) => onChange({ ...config, showEventSource: e.target.checked })}
+							/>
+							Name who added the time on the alert
+						</label>
+						<p className="mt-1 text-xs text-muted-foreground">
+							e.g. “MrDemonWolf · Sub +5m”. Off shows just “+5m”. Anonymous cheers and gifts stay
+							anonymous.
 						</p>
-					)}
+					</div>
+
+					{/* auto-pause when the stream goes offline */}
+					<div className="mt-4">
+						<label className="flex items-center gap-2 text-sm font-medium">
+							<input
+								type="checkbox"
+								className="size-4 accent-primary"
+								checked={config.autoPauseOnOffline}
+								onChange={(e) => onChange({ ...config, autoPauseOnOffline: e.target.checked })}
+							/>
+							Auto-pause when the stream goes offline
+						</label>
+						<p className="mt-1 text-xs text-muted-foreground">
+							Pauses the timer on <code className="text-foreground">stream.offline</code> so an
+							outage or ended stream doesn’t burn time, and resumes it when you go live again.
+							Requires Twitch connected. A manual pause is never overridden.
+						</p>
+					</div>
+
+					{/* Tips (Ko-fi integration is not wired up yet — these rates are pre-set for it). */}
+					<div className="mt-5">
+						<div className="text-sm font-medium">Tips</div>
+						<p className="mt-1 text-xs text-muted-foreground">
+							Tip integration (Ko-fi) is coming soon. These rates control how much time a tip adds
+							and how it advances the reward goals once it’s connected.
+						</p>
+						<div className="mt-2 grid grid-cols-2 gap-3 sm:max-w-md">
+							<Field
+								label="Minutes per $1"
+								value={config.tipMinutesPerDollar}
+								onChange={(v) => onChange({ ...config, tipMinutesPerDollar: n(v) })}
+							/>
+							<Field
+								label="$ per goal sub (0 = off)"
+								value={config.tipDollarsPerSub}
+								onChange={(v) => onChange({ ...config, tipDollarsPerSub: n(v) })}
+							/>
+						</div>
+					</div>
 				</div>
-			</div>
+			)}
 
-			{/* overlay emoji */}
-			<EmojiEditor emojis={config.emojis} onChange={(emojis) => onChange({ ...config, emojis })} />
-
-			{/* emote burst count */}
-			<div className="mt-4">
-				<label className="flex max-w-xs flex-col gap-1 text-sm font-medium">
-					Emotes per time-add
-					<Input
-						className="h-9 rounded-lg"
-						type="number"
-						min={0}
-						max={MAX_EMOTE_COUNT}
-						value={String(config.emoteCount)}
-						onChange={(e) =>
-							onChange({
-								...config,
-								emoteCount: Math.max(0, Math.min(MAX_EMOTE_COUNT, Math.round(n(e.target.value)))),
-							})
-						}
-					/>
-					<span className="text-xs font-normal text-muted-foreground">
-						How many emotes flood the bar on each add (0–{MAX_EMOTE_COUNT}, 0 = off).
-					</span>
-				</label>
-			</div>
-
-			{/* editable eyebrow label */}
-			<div className="mt-4">
-				<label className="flex max-w-xs flex-col gap-1 text-sm font-medium">
-					Overlay label
-					<Input
-						className="h-9 rounded-lg"
-						maxLength={MAX_LABEL_LEN}
-						value={config.label}
-						onChange={(e) => onChange({ ...config, label: e.target.value })}
-						placeholder="SUBATHON"
-					/>
-					<span className="text-xs font-normal text-muted-foreground">
-						The eyebrow text above the countdown. Toggle its visibility under “Overlay theme”.
-					</span>
-				</label>
-			</div>
-
-			{/* alert: name who added the time */}
-			<div className="mt-4">
-				<label className="flex items-center gap-2 text-sm font-medium">
-					<input
-						type="checkbox"
-						className="size-4 accent-primary"
-						checked={config.showEventSource}
-						onChange={(e) => onChange({ ...config, showEventSource: e.target.checked })}
-					/>
-					Name who added the time on the alert
-				</label>
-				<p className="mt-1 text-xs text-muted-foreground">
-					e.g. “MrDemonWolf · Sub +5m”. Off shows just “+5m”. Anonymous cheers and gifts stay
-					anonymous.
-				</p>
-			</div>
-
-			{/* auto-pause when the stream goes offline */}
-			<div className="mt-4">
-				<label className="flex items-center gap-2 text-sm font-medium">
-					<input
-						type="checkbox"
-						className="size-4 accent-primary"
-						checked={config.autoPauseOnOffline}
-						onChange={(e) => onChange({ ...config, autoPauseOnOffline: e.target.checked })}
-					/>
-					Auto-pause when the stream goes offline
-				</label>
-				<p className="mt-1 text-xs text-muted-foreground">
-					Pauses the timer on <code className="text-foreground">stream.offline</code> so an outage
-					or ended stream doesn’t burn time, and resumes it when you go live again. Requires Twitch
-					connected. A manual pause is never overridden.
-				</p>
-			</div>
-
-			{/* Tips (Ko-fi integration is not wired up yet — these rates are pre-set for it). */}
-			<div className="mt-5">
-				<div className="text-sm font-medium">Tips</div>
-				<p className="mt-1 text-xs text-muted-foreground">
-					Tip integration (Ko-fi) is coming soon. These rates control how much time a tip adds and
-					how it advances the reward goals once it’s connected.
-				</p>
-				<div className="mt-2 grid grid-cols-2 gap-3 sm:max-w-md">
-					<Field
-						label="Minutes per $1"
-						value={config.tipMinutesPerDollar}
-						onChange={(v) => onChange({ ...config, tipMinutesPerDollar: n(v) })}
-					/>
-					<Field
-						label="$ per goal sub (0 = off)"
-						value={config.tipDollarsPerSub}
-						onChange={(v) => onChange({ ...config, tipDollarsPerSub: n(v) })}
+			{section === "theme" && (
+				<div className="mt-4">
+					{/* overlay colours + chrome */}
+					<ThemeEditor
+						theme={config.theme}
+						onChange={(theme) => onChange({ ...config, theme })}
+						labelToggleText='Show "SUBATHON" label'
+						statusToggleText="Show play/pause icon"
 					/>
 				</div>
-			</div>
-
-			{/* overlay colours + chrome */}
-			<ThemeEditor
-				theme={config.theme}
-				onChange={(theme) => onChange({ ...config, theme })}
-				labelToggleText='Show "SUBATHON" label'
-				statusToggleText="Show play/pause icon"
-			/>
+			)}
 		</div>
 	);
 }
@@ -457,7 +512,7 @@ function EmojiEditor({ emojis, onChange }: { emojis: string[]; onChange: (e: str
 					) : emotes.isError ? (
 						<p className="text-xs text-destructive">
 							{emotes.error instanceof Error ? emotes.error.message : "Couldn't load emotes."}{" "}
-							Connect Twitch in the panel above, then retry.
+							Connect Twitch in Settings → Twitch, then retry.
 						</p>
 					) : emotes.data && emotes.data.length > 0 ? (
 						<div className="max-h-44 overflow-y-auto rounded-lg border border-border bg-background/50 p-2">
