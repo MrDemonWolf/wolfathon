@@ -1,22 +1,22 @@
 "use client";
 
+import { Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { WolfMark } from "@/components/wolf-mark";
 
 /**
- * Chrome for the operator panel. The control panel IS the app now: its sections
- * (rewards / timer / twitch / overlays) live at the root and switch via the
- * navbar tabs below. The `/overlay` route lives outside this group and stays
- * bare/transparent for OBS. Cloudflare Access gates this whole group + /api/trpc.
+ * Chrome for the operator panel. The live sections (rewards / timer / giveaways)
+ * live at the root and switch via the navbar tabs below; set-once config (Twitch,
+ * overlay URLs, backup) sits behind the Settings gear at /settings. The `/overlay`
+ * route lives outside this group and stays bare/transparent for OBS. Cloudflare
+ * Access gates this whole group + /api/trpc.
  */
 const SECTIONS = [
 	{ href: "/", label: "Rewards" },
 	{ href: "/timer", label: "Timer" },
 	{ href: "/giveaways", label: "Giveaways" },
-	{ href: "/twitch", label: "Twitch" },
-	{ href: "/overlays", label: "Overlays" },
 ] as const;
 
 export default function PanelLayout({ children }: { children: React.ReactNode }) {
@@ -25,8 +25,8 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
 
 	return (
 		<div className="app-bg flex min-h-svh flex-col text-foreground">
-			<header className="sticky top-0 z-30 px-4 pt-3">
-				<div className="glass-bar mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl px-4 py-2.5">
+			<header className="sticky top-0 z-30 px-4 pt-4 pb-1">
+				<div className="glass-bar mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl px-5 py-3.5">
 					<Link href="/" className="group flex items-center gap-2.5">
 						<WolfMark className="size-8 transition-transform group-hover:scale-110" />
 						<span className="font-heading text-lg font-extrabold tracking-tight">Wolfathon</span>
@@ -40,6 +40,11 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
 								</NavLink>
 							);
 						})}
+						<span aria-hidden className="mx-1 h-5 w-px bg-border" />
+						<NavLink href="/settings" active={pathname.startsWith("/settings")}>
+							<Settings className="size-3.5" />
+							Settings
+						</NavLink>
 					</nav>
 				</div>
 			</header>
@@ -95,7 +100,7 @@ function NavLink({
 		<Link
 			href={href}
 			aria-current={active ? "page" : undefined}
-			className={`rounded-[0.7rem] px-3 py-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
+			className={`inline-flex items-center gap-1.5 rounded-[0.7rem] px-3 py-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
 				active
 					? "bg-primary/15 font-medium text-foreground"
 					: "text-muted-foreground hover:bg-accent hover:text-foreground"
