@@ -1,10 +1,16 @@
 import { type Db, trackerState } from "@wolfathon/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { type GiveawayDoc, defaultGiveawayDoc } from "./giveaway";
-import { type Data, recompute, sampleData } from "./state";
+import { type Data, recompute, sampleData, subsFromEvent } from "./state";
 import { type SettingsDoc, defaultSettingsDoc } from "./settings";
-import { type TimerDoc, defaultTimerDoc, withTimerConfigDefaults } from "./timer";
+import {
+	applyEvent,
+	defaultTimerDoc,
+	type TimerDoc,
+	type TimerEvent,
+	withTimerConfigDefaults,
+} from "./timer";
 import { type TwitchDoc, defaultTwitchDoc } from "./twitch";
 
 /**
@@ -46,6 +52,96 @@ export async function writeDoc<T>(db: Db, id: string, data: T): Promise<T> {
 	return data;
 }
 
+/**
+ * Storage ops the optimistic-concurrency loop needs, split out so the retry
+ * logic ({@link mutateWithCas}) is unit-testable without faking the whole Drizzle
+ * query builder. `token` is the compare-and-swap witness (the exact JSON string
+ * we read); a write only lands if the row still holds it.
+ *
+ * ponytail: this tiny interface exists purely to make the lost-update loop
+ * testable — the only real impl is the D1 one below.
+ */
+type CasOps<T> = {
+	read: () => Promise<{ value: T; token: string } | null>;
+	cas: (token: string, next: T) => Promise<boolean>;
+	seed: (value: T) => Promise<void>;
+};
+
+/**
+ * Read-modify-write retry loop with optimistic concurrency. Reads the current
+ * value, applies `fn`, and compare-and-swaps it back; if another writer changed
+ * the row in between, the CAS fails and we re-read and re-apply. Pure of any DB
+ * specifics — see {@link mutateDoc} for the D1 wiring and store.test.ts for the
+ * lost-update regression test.
+ */
+export async function mutateWithCas<T>(
+	ops: CasOps<T>,
+	fallback: () => T,
+	fn: (current: T) => T,
+	maxAttempts = 8,
+): Promise<T> {
+	for (let attempt = 0; attempt < maxAttempts; attempt++) {
+		const current = await ops.read();
+		if (!current) {
+			// Row absent — seed it (ignoring a concurrent seed), then loop to apply.
+			await ops.seed(fallback());
+			continue;
+		}
+		const next = fn(current.value);
+		if (await ops.cas(current.token, next)) return next;
+		// Lost the CAS race; another delivery wrote first — re-read and retry.
+	}
+	throw new Error(`mutateWithCas: exceeded ${maxAttempts} attempts`);
+}
+
+/**
+ * Concurrency-safe read-modify-write of one singleton doc row.
+ *
+ * Cloudflare Workers serve many requests in one isolate and every D1 `await`
+ * yields the event loop, so a burst of Twitch EventSub deliveries can interleave:
+ * two handlers that both `readDoc` before either writes would each compute from
+ * the same stale value, and the second `writeDoc` would clobber the first —
+ * silently dropping a timer add or a sub. {@link mutateDoc} compare-and-swaps on
+ * the previously-read JSON blob (the `data` column), so a write only lands if the
+ * row is unchanged; otherwise it re-reads and re-applies.
+ *
+ * ponytail: CAS-per-doc fixes the real hazard (the per-row lost update). It does
+ * NOT make the webhook's multi-doc write (timer + state + giveaway + twitch) a
+ * single atomic transaction — that would need a Durable Object. Each doc
+ * converges independently, which is what the headline timer/sub numbers need.
+ */
+export function mutateDoc<T>(
+	db: Db,
+	id: string,
+	fallback: () => T,
+	fn: (current: T) => T,
+): Promise<T> {
+	return mutateWithCas<T>(
+		{
+			read: async () => {
+				const row = await db.select().from(trackerState).where(eq(trackerState.id, id)).get();
+				return row ? { value: JSON.parse(row.data) as T, token: row.data } : null;
+			},
+			cas: async (token, next) => {
+				const res = await db
+					.update(trackerState)
+					.set({ data: JSON.stringify(next), updatedAt: Date.now() })
+					.where(and(eq(trackerState.id, id), eq(trackerState.data, token)))
+					.run();
+				return res.meta.changes > 0;
+			},
+			seed: async (value) => {
+				await db
+					.insert(trackerState)
+					.values({ id, data: JSON.stringify(value), updatedAt: Date.now() })
+					.onConflictDoNothing();
+			},
+		},
+		fallback,
+		fn,
+	);
+}
+
 // ---- rewards (goals) ------------------------------------------------------
 
 /**
@@ -65,6 +161,11 @@ export async function writeState(db: Db, data: Data): Promise<Data> {
 	return writeDoc(db, STATE_ID, recompute(data));
 }
 
+/** Concurrency-safe rewards mutation (recompute on read and write, like read/writeState). */
+export function mutateState(db: Db, fn: (data: Data) => Data): Promise<Data> {
+	return mutateDoc(db, STATE_ID, sampleData, (raw) => recompute(fn(recompute(raw))));
+}
+
 // ---- timer ----------------------------------------------------------------
 
 export async function readTimer(db: Db): Promise<TimerDoc> {
@@ -75,6 +176,11 @@ export async function writeTimer(db: Db, doc: TimerDoc): Promise<TimerDoc> {
 	return writeDoc(db, TIMER_ID, doc);
 }
 
+/** Concurrency-safe timer mutation (config defaults backfilled on read, like readTimer). */
+export function mutateTimer(db: Db, fn: (doc: TimerDoc) => TimerDoc): Promise<TimerDoc> {
+	return mutateDoc(db, TIMER_ID, defaultTimerDoc, (raw) => fn(withTimerConfigDefaults(raw)));
+}
+
 // ---- twitch (secret) ------------------------------------------------------
 
 export async function readTwitch(db: Db): Promise<TwitchDoc> {
@@ -83,6 +189,11 @@ export async function readTwitch(db: Db): Promise<TwitchDoc> {
 
 export async function writeTwitch(db: Db, doc: TwitchDoc): Promise<TwitchDoc> {
 	return writeDoc(db, TWITCH_ID, doc);
+}
+
+/** Concurrency-safe Twitch-doc mutation (used for the EventSub idempotency marker). */
+export function mutateTwitch(db: Db, fn: (doc: TwitchDoc) => TwitchDoc): Promise<TwitchDoc> {
+	return mutateDoc(db, TWITCH_ID, defaultTwitchDoc, fn);
 }
 
 // ---- settings (overlay token) ---------------------------------------------
@@ -103,4 +214,37 @@ export async function readGiveaway(db: Db): Promise<GiveawayDoc> {
 
 export async function writeGiveaway(db: Db, doc: GiveawayDoc): Promise<GiveawayDoc> {
 	return writeDoc(db, GIVEAWAY_ID, doc);
+}
+
+/** Concurrency-safe giveaway mutation (gifters / entrants / winners). */
+export function mutateGiveaway(
+	db: Db,
+	fn: (doc: GiveawayDoc) => GiveawayDoc,
+): Promise<GiveawayDoc> {
+	return mutateDoc(db, GIVEAWAY_ID, defaultGiveawayDoc, fn);
+}
+
+// ---- combined apply -------------------------------------------------------
+
+/**
+ * Apply one timer event and bump the goals' running sub count, the way both the
+ * tRPC `timer.applyEvent` mutation and the EventSub webhook need it. Goes through
+ * the concurrency-safe mutate* helpers so overlapping Twitch deliveries can't
+ * drop a time-add or a sub. Returns the updated timer doc.
+ */
+export async function applyTimerEventAndBumpSubs(
+	db: Db,
+	event: TimerEvent,
+	now: number,
+): Promise<TimerDoc> {
+	const doc = await mutateTimer(db, (timer) => ({
+		...timer,
+		state: applyEvent(timer.config, timer.state, event, now).state,
+	}));
+	// Sub/gift events also advance the reward goals' running sub count.
+	const subs = subsFromEvent(event);
+	if (subs > 0) {
+		await mutateState(db, (data) => ({ ...data, currentSubs: (data.currentSubs ?? 0) + subs }));
+	}
+	return doc;
 }
