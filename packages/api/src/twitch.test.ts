@@ -70,6 +70,66 @@ test("the test notification is signed so our own verifier accepts it", async () 
 	});
 });
 
+/** Compute the `sha256=…` header the way Twitch (and our verifier) does. */
+async function sign(secret: string, message: string): Promise<string> {
+	const enc = new TextEncoder();
+	const key = await crypto.subtle.importKey(
+		"raw",
+		enc.encode(secret),
+		{ name: "HMAC", hash: "SHA-256" },
+		false,
+		["sign"],
+	);
+	const sig = await crypto.subtle.sign("HMAC", key, enc.encode(message));
+	return `sha256=${[...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("")}`;
+}
+
+const HMAC_SECRET = "0123456789abcdef0123456789abcdef";
+
+test("verifyEventsubSignature accepts a correctly-signed fresh message", async () => {
+	const id = "msg-ok";
+	const body = '{"hello":"world"}';
+	const ts = new Date().toISOString();
+	const headers = new Headers({
+		"twitch-eventsub-message-id": id,
+		"twitch-eventsub-message-timestamp": ts,
+		"twitch-eventsub-message-signature": await sign(HMAC_SECRET, id + ts + body),
+	});
+	expect(await verifyEventsubSignature(headers, body, HMAC_SECRET)).toBe(true);
+});
+
+test("verifyEventsubSignature rejects stale and future timestamps despite a valid signature", async () => {
+	const id = "msg-old";
+	const body = "{}";
+	for (const skewMs of [-11 * 60 * 1000, 11 * 60 * 1000]) {
+		const ts = new Date(Date.now() + skewMs).toISOString();
+		// Sign the SAME stale/future ts, so rejection comes from the age guard, not a mismatch.
+		const headers = new Headers({
+			"twitch-eventsub-message-id": id,
+			"twitch-eventsub-message-timestamp": ts,
+			"twitch-eventsub-message-signature": await sign(HMAC_SECRET, id + ts + body),
+		});
+		expect(await verifyEventsubSignature(headers, body, HMAC_SECRET)).toBe(false);
+	}
+});
+
+test("verifyEventsubSignature rejects when any required header is missing", async () => {
+	const id = "msg-miss";
+	const body = "{}";
+	const ts = new Date().toISOString();
+	const full: Record<string, string> = {
+		"twitch-eventsub-message-id": id,
+		"twitch-eventsub-message-timestamp": ts,
+		"twitch-eventsub-message-signature": await sign(HMAC_SECRET, id + ts + body),
+	};
+	for (const omit of Object.keys(full)) {
+		const headers = new Headers(
+			Object.fromEntries(Object.entries(full).filter(([k]) => k !== omit)),
+		);
+		expect(await verifyEventsubSignature(headers, body, HMAC_SECRET)).toBe(false);
+	}
+});
+
 test("the authorize URL carries the code flow params, scopes, and state", () => {
 	const url = new URL(
 		buildAuthorizeUrl({
