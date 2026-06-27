@@ -3,16 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-/** Each control section is its own route; this bar navigates between them. */
+/** Live operating sections — touched during the stream. Set-once config lives under /control/settings. */
 const SECTIONS = [
 	{ href: "/control", label: "Rewards" },
 	{ href: "/control/timer", label: "Timer" },
 	{ href: "/control/giveaways", label: "Giveaways" },
-	{ href: "/control/twitch", label: "Twitch" },
-	{ href: "/control/overlays", label: "Overlays" },
 ] as const;
 
-export default function ControlLayout({ children }: { children: React.ReactNode }) {
+export default function ControlLiveLayout({ children }: { children: React.ReactNode }) {
 	const pathname = usePathname();
 
 	return (

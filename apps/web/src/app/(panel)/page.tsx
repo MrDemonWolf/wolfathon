@@ -27,7 +27,7 @@ export default function Home() {
 						Open control panel
 					</Link>
 					<Link
-						href="/control/overlays"
+						href="/control/settings/overlays"
 						className="inline-flex items-center gap-2 rounded-lg border border-border px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none"
 					>
 						Get overlay URLs →
@@ -53,7 +53,7 @@ export default function Home() {
 				</Link>
 
 				<Link
-					href="/control/overlays"
+					href="/control/settings/overlays"
 					className="group rounded-xl panel-card p-6 transition-colors hover:border-primary/50 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 				>
 					<div className="flex gap-2">

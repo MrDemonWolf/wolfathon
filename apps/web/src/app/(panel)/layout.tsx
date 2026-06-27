@@ -1,5 +1,6 @@
 "use client";
 
+import { Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -15,8 +16,8 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
 
 	return (
 		<div className="app-bg flex min-h-svh flex-col text-foreground">
-			<header className="sticky top-0 z-30 px-4 pt-3">
-				<div className="glass-bar mx-auto flex max-w-6xl items-center justify-between rounded-2xl px-4 py-2.5">
+			<header className="sticky top-0 z-30 px-4 pt-4 pb-1">
+				<div className="glass-bar mx-auto flex max-w-6xl items-center justify-between rounded-2xl px-5 py-3.5">
 					<Link href="/" className="group flex items-center gap-2.5">
 						<WolfMark className="size-8 transition-transform group-hover:scale-110" />
 						<span className="font-heading text-lg font-extrabold tracking-tight">Wolfathon</span>
@@ -24,12 +25,13 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
 					<nav className="flex items-center gap-1 text-sm">
 						<NavLink
 							href="/control"
-							active={pathname.startsWith("/control") && pathname !== "/control/overlays"}
+							active={pathname.startsWith("/control") && !pathname.startsWith("/control/settings")}
 						>
 							Control
 						</NavLink>
-						<NavLink href="/control/overlays" active={pathname === "/control/overlays"}>
-							Overlays
+						<NavLink href="/control/settings" active={pathname.startsWith("/control/settings")}>
+							<Settings className="size-3.5" />
+							Settings
 						</NavLink>
 					</nav>
 				</div>
@@ -83,7 +85,7 @@ function NavLink({
 		<Link
 			href={href}
 			aria-current={active ? "page" : undefined}
-			className={`rounded-[0.7rem] px-3 py-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
+			className={`inline-flex items-center gap-1.5 rounded-[0.7rem] px-3 py-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
 				active
 					? "bg-primary/15 font-medium text-foreground"
 					: "text-muted-foreground hover:bg-accent hover:text-foreground"

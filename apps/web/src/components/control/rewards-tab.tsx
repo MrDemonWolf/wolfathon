@@ -8,18 +8,12 @@ import { toast } from "sonner";
 
 import { controlTrpc, queryClient } from "@/utils/trpc";
 
-import { buildClaudePrompt } from "./claude-prompt";
 import { DirtyBar } from "./dirty-bar";
-import { EXAMPLE_JSON, REWARDS_SCHEMA_BULLETS } from "./example";
 import { GoalEditor } from "./goal-editor";
-import { type IEConfig, ImportExportPanel } from "./import-export-panel";
 import { OverlayPreview } from "./overlay-preview";
 import { SubsControl } from "./subs-control";
 import { ThemeEditor } from "./theme-editor";
-import { guard, useDraft } from "./use-draft";
-import { nowStamp } from "./util";
-
-const label = (index: number) => (index < 0 ? "Document" : `Goal #${index + 1}`);
+import { useDraft } from "./use-draft";
 
 /** The bits we diff for dirty-state (currentIndex is server-derived). */
 function persisted(d: Data) {
@@ -80,54 +74,6 @@ export function RewardsTab() {
 		);
 	}
 
-	const validate = useMutation(controlTrpc.state.validate.mutationOptions());
-	const importMut = useMutation(controlTrpc.state.import.mutationOptions());
-
-	const ie: IEConfig = {
-		title: "rewards",
-		noteLine: "reward shows on stream; note + target are internal.",
-		exampleJson: EXAMPLE_JSON,
-		schemaBullets: REWARDS_SCHEMA_BULLETS,
-		exportFilename: () => `wolfathon-goals-${nowStamp()}.json`,
-		currentJson: () => (data ? JSON.stringify(data, null, 2) : null),
-		claudePrompt: () =>
-			data
-				? buildClaudePrompt({
-						kind: "rewards list",
-						schemaBullets: REWARDS_SCHEMA_BULLETS,
-						exampleJson: EXAMPLE_JSON,
-						currentJson: JSON.stringify(data, null, 2),
-					})
-				: null,
-		confirmText: "This wipes current goals and resets progress. Continue?",
-		validate: (v) =>
-			guard(
-				async () => {
-					const r = await validate.mutateAsync(v);
-					return r.ok
-						? ({ ok: true, summary: r.rewards } as const)
-						: ({
-								ok: false,
-								errors: r.errors.map((e) => ({ label: label(e.index), message: e.message })),
-							} as const);
-				},
-				(errors) => ({ ok: false, errors }),
-			),
-		doImport: (v) =>
-			guard(
-				async () => {
-					const r = await importMut.mutateAsync(v);
-					return r.ok
-						? ({ ok: true } as const)
-						: ({
-								ok: false,
-								errors: r.errors.map((e) => ({ label: label(e.index), message: e.message })),
-							} as const);
-				},
-				(errors) => ({ ok: false, errors }),
-			),
-	};
-
 	const summary = draft
 		? `${draft.goals.filter((g) => g.reward.trim()).length} goals · ${draft.currentSubs} subs`
 		: undefined;
@@ -173,14 +119,9 @@ export function RewardsTab() {
 						</div>
 					</>
 				)}
-				<ImportExportPanel
-					config={ie}
-					busy={validate.isPending || importMut.isPending || replace.isPending}
-					onImported={invalidate}
-				/>
 				<DirtyBar
 					dirty={dirty}
-					saving={replace.isPending || importMut.isPending}
+					saving={replace.isPending}
 					onSave={save}
 					onDiscard={discard}
 					summary={summary}
@@ -190,7 +131,7 @@ export function RewardsTab() {
 				<div className="flex items-center justify-between">
 					<h2 className="font-heading text-lg font-bold">Live preview</h2>
 					<Link
-						href="/control/overlays"
+						href="/control/settings/overlays"
 						className="rounded text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 					>
 						Get URL →
