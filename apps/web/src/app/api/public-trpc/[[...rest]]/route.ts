@@ -1,6 +1,7 @@
 import { createContext } from "@wolfathon/api/context";
 import { publicRouter } from "@wolfathon/api/routers/index";
 import { createDb } from "@wolfathon/db";
+import { type WebBindings } from "@wolfathon/env/web";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 
@@ -13,13 +14,11 @@ import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
  * this route hard-404s when `NODE_ENV === "production"`. It must never become a
  * second public surface in prod.
  */
-type WebEnv = { DB: D1Database };
-
 function handler(req: Request) {
 	if (process.env.NODE_ENV === "production") {
 		return new Response("Not found", { status: 404 });
 	}
-	const env = getCloudflareContext().env as unknown as WebEnv;
+	const env = getCloudflareContext().env as unknown as WebBindings;
 	const db = createDb(env.DB);
 
 	return fetchRequestHandler({

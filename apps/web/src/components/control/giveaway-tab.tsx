@@ -2,7 +2,17 @@
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { GiveawayDoc } from "@wolfathon/api/giveaway";
+import {
+	AlertDialog,
+	AlertDialogClose,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogTitle,
+	AlertDialogTrigger,
+} from "@wolfathon/ui/components/alert-dialog";
 import { Button } from "@wolfathon/ui/components/button";
+import { Checkbox } from "@wolfathon/ui/components/checkbox";
 import { Input } from "@wolfathon/ui/components/input";
 import { Label } from "@wolfathon/ui/components/label";
 import { Crown, Dice5, Gift, Loader2, Trash2 } from "lucide-react";
@@ -23,14 +33,23 @@ export function GiveawayTab() {
 		// Poll so live gifters / entrants appear without a manual refresh.
 		refetchInterval: 3000,
 	});
-	const { data } = useQuery(rawOptions);
+	const { data, isError, refetch } = useQuery(rawOptions);
 	const invalidate = () => queryClient.invalidateQueries({ queryKey: rawOptions.queryKey });
+	// Every mutation surfaces failures — the panel polls every 3s, so a silently
+	// rejected save/draw/reset would otherwise just look like nothing happened.
+	const onError = (e: { message: string }) => toast.error(e.message);
 
 	const setConfig = useMutation(
-		controlTrpc.giveaway.setConfig.mutationOptions({ onSuccess: invalidate }),
+		controlTrpc.giveaway.setConfig.mutationOptions({ onSuccess: invalidate, onError }),
 	);
 	const addGift = useMutation(
-		controlTrpc.giveaway.addGiftWinner.mutationOptions({ onSuccess: invalidate }),
+		controlTrpc.giveaway.addGiftWinner.mutationOptions({
+			onSuccess: () => {
+				toast.success("Winner added");
+				invalidate();
+			},
+			onError,
+		}),
 	);
 	const draw = useMutation(
 		controlTrpc.giveaway.drawRaffle.mutationOptions({
@@ -39,22 +58,35 @@ export function GiveawayTab() {
 				else toast.error("No entrants left to draw");
 				invalidate();
 			},
+			onError,
 		}),
 	);
 	const addEntrant = useMutation(
-		controlTrpc.giveaway.addEntrant.mutationOptions({ onSuccess: invalidate }),
+		controlTrpc.giveaway.addEntrant.mutationOptions({ onSuccess: invalidate, onError }),
 	);
 	const setShipped = useMutation(
-		controlTrpc.giveaway.setShipped.mutationOptions({ onSuccess: invalidate }),
+		controlTrpc.giveaway.setShipped.mutationOptions({ onSuccess: invalidate, onError }),
 	);
 	const setNote = useMutation(
-		controlTrpc.giveaway.setNote.mutationOptions({ onSuccess: invalidate }),
+		controlTrpc.giveaway.setNote.mutationOptions({ onSuccess: invalidate, onError }),
 	);
 	const removeWinner = useMutation(
-		controlTrpc.giveaway.removeWinner.mutationOptions({ onSuccess: invalidate }),
+		controlTrpc.giveaway.removeWinner.mutationOptions({
+			onSuccess: () => {
+				toast.success("Winner removed");
+				invalidate();
+			},
+			onError,
+		}),
 	);
 	const resetRound = useMutation(
-		controlTrpc.giveaway.resetRound.mutationOptions({ onSuccess: invalidate }),
+		controlTrpc.giveaway.resetRound.mutationOptions({
+			onSuccess: () => {
+				toast.success("Round reset");
+				invalidate();
+			},
+			onError,
+		}),
 	);
 
 	// Editable config draft (command + threshold), seeded from server.
@@ -67,8 +99,23 @@ export function GiveawayTab() {
 		setThreshold((t) => (t === 5 ? data.config.giftThreshold : t));
 	}, [data]);
 
+	if (!data && isError) {
+		return (
+			<div role="status" className="rounded-2xl panel-card p-5">
+				<h2 className="font-heading text-lg font-bold">Couldn&apos;t load the giveaway</h2>
+				<p className="mt-1 text-sm text-muted-foreground">Check your connection and try again.</p>
+				<Button variant="outline" className="mt-3" onClick={() => refetch()}>
+					Retry
+				</Button>
+			</div>
+		);
+	}
 	if (!data) {
-		return <p className="text-sm text-muted-foreground">Loading giveaway…</p>;
+		return (
+			<p role="status" className="text-sm text-muted-foreground">
+				Loading giveaway…
+			</p>
+		);
 	}
 
 	const cfg = data.config;
@@ -214,6 +261,7 @@ export function GiveawayTab() {
 						value={manual}
 						onChange={(e) => setManual(e.target.value)}
 						placeholder="add entrant login"
+						aria-label="Entrant Twitch login"
 					/>
 					<Button
 						variant="outline"
@@ -233,17 +281,29 @@ export function GiveawayTab() {
 			<div className="rounded-2xl panel-card p-5">
 				<div className="flex items-center justify-between">
 					<h3 className="font-heading font-bold">Winners ({data.winners.length})</h3>
-					<Button
-						variant="destructive"
-						size="sm"
-						onClick={() => {
-							if (confirm("Clear all gifters, entrants, and winners for a new round?"))
-								resetRound.mutate();
-						}}
-						disabled={resetRound.isPending}
-					>
-						Reset round
-					</Button>
+					<AlertDialog>
+						<AlertDialogTrigger
+							render={
+								<Button variant="destructive" size="sm" disabled={resetRound.isPending}>
+									Reset round
+								</Button>
+							}
+						/>
+						<AlertDialogContent>
+							<AlertDialogTitle>Reset round?</AlertDialogTitle>
+							<AlertDialogDescription>
+								This clears all gifters, entrants, and winners to start a new round. This cannot be
+								undone.
+							</AlertDialogDescription>
+							<AlertDialogFooter>
+								<AlertDialogClose render={<Button variant="outline">Cancel</Button>} />
+								<AlertDialogClose
+									onClick={() => resetRound.mutate()}
+									render={<Button variant="destructive">Reset round</Button>}
+								/>
+							</AlertDialogFooter>
+						</AlertDialogContent>
+					</AlertDialog>
 				</div>
 				{data.winners.length === 0 ? (
 					<p className="mt-3 text-sm text-muted-foreground">No winners yet.</p>
@@ -254,12 +314,12 @@ export function GiveawayTab() {
 								key={w.id}
 								className="flex flex-wrap items-center gap-3 rounded-lg border border-border px-3 py-2"
 							>
-								<input
-									type="checkbox"
+								<Checkbox
 									checked={w.shipped}
-									onChange={(e) => setShipped.mutate({ id: w.id, shipped: e.target.checked })}
+									onCheckedChange={(checked) =>
+										setShipped.mutate({ id: w.id, shipped: checked === true })
+									}
 									aria-label={`Mark ${w.name} shipped`}
-									className="size-4 accent-[var(--primary)]"
 								/>
 								<span className="text-sm font-medium">{w.name}</span>
 								<span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
@@ -269,6 +329,7 @@ export function GiveawayTab() {
 									className="h-8 min-w-0 flex-1"
 									defaultValue={w.note ?? ""}
 									placeholder="shipping note (address, USA/EU…)"
+									aria-label={`Shipping note for ${w.name}`}
 									onBlur={(e) => {
 										if (e.target.value !== (w.note ?? ""))
 											setNote.mutate({ id: w.id, note: e.target.value });

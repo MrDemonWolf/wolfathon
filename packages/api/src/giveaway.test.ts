@@ -1,11 +1,17 @@
 import { expect, test } from "bun:test";
 
 import {
+	addWinner,
+	applyConfig,
 	applyGiveawayEvent,
 	defaultGiveawayDoc,
 	drawRaffle,
 	parseGiveawayEvent,
 	qualifyingGifters,
+	removeWinner,
+	resetRound,
+	setShipped,
+	setWinnerNote,
 } from "./giveaway";
 
 test("gifts accumulate and cross the threshold in order", () => {
@@ -83,4 +89,98 @@ test("parse extracts entries and non-anonymous gifts, ignores the rest", () => {
 	expect(
 		parseGiveawayEvent("channel.subscription.gift", { is_anonymous: true, total: 10 }, "!enter"),
 	).toBeNull();
+});
+
+test("parse defaults a missing/non-numeric gift total to 1", () => {
+	expect(
+		parseGiveawayEvent(
+			"channel.subscription.gift",
+			{ user_login: "Fox", user_name: "Fox" },
+			"!enter",
+		),
+	).toEqual({ kind: "gift", login: "fox", name: "Fox", count: 1 });
+	expect(
+		parseGiveawayEvent("channel.subscription.gift", { user_login: "Fox", total: "abc" }, "!enter"),
+	).toEqual({ kind: "gift", login: "fox", name: "fox", count: 1 });
+});
+
+test("parse drops gift/chat events with no login (the dedup-key safeguard)", () => {
+	// gift with user_login missing
+	expect(
+		parseGiveawayEvent("channel.subscription.gift", { user_name: "Fox", total: 5 }, "!enter"),
+	).toBeNull();
+	// matching command but no chatter login
+	expect(
+		parseGiveawayEvent(
+			"channel.chat.message",
+			{ chatter_user_name: "Eve", message: { text: "!enter" } },
+			"!enter",
+		),
+	).toBeNull();
+});
+
+test("applyConfig clamps, trims, and preserves prior values", () => {
+	const base = defaultGiveawayDoc(); // command "!enter", threshold 5, slots 2/2, open false
+	// whitespace-only command keeps the prior command
+	expect(applyConfig(base, { command: "   " }).config.command).toBe("!enter");
+	// over-long command truncates to MAX_COMMAND_LENGTH (32)
+	expect(applyConfig(base, { command: "!".padEnd(40, "x") }).config.command).toHaveLength(32);
+	// giftThreshold clamps to [1, 1000]
+	expect(applyConfig(base, { giftThreshold: 5000 }).config.giftThreshold).toBe(1000);
+	expect(applyConfig(base, { giftThreshold: 0 }).config.giftThreshold).toBe(1);
+	// non-finite slot falls back to current; fractional rounds
+	expect(applyConfig(base, { giftWinnerSlots: NaN }).config.giftWinnerSlots).toBe(2);
+	expect(applyConfig(base, { giftWinnerSlots: Infinity }).config.giftWinnerSlots).toBe(2);
+	expect(applyConfig(base, { raffleWinnerSlots: 3.7 }).config.raffleWinnerSlots).toBe(4);
+	// open is preserved when the patch omits it
+	expect(applyConfig(base, {}).config.open).toBe(false);
+});
+
+test("addWinner appends once per login and never duplicates", () => {
+	const base = defaultGiveawayDoc();
+	const one = addWinner(base, { login: "kit", name: "Kit", source: "gift" }, 100);
+	expect(one.winners).toHaveLength(1);
+	expect(one.winners[0]).toMatchObject({
+		login: "kit",
+		name: "Kit",
+		source: "gift",
+		shipped: false,
+	});
+	// same login again is a no-op
+	const two = addWinner(one, { login: "kit", name: "Kit", source: "raffle" }, 200);
+	expect(two.winners).toHaveLength(1);
+});
+
+test("setShipped, setWinnerNote, and removeWinner only touch the matching winner", () => {
+	let doc = defaultGiveawayDoc();
+	doc = addWinner(doc, { login: "a", name: "A", source: "gift" }, 1);
+	doc = addWinner(doc, { login: "b", name: "B", source: "raffle" }, 2);
+	const [a, b] = doc.winners;
+
+	doc = setShipped(doc, a!.id, true);
+	expect(doc.winners.find((w) => w.id === a!.id)!.shipped).toBe(true);
+	expect(doc.winners.find((w) => w.id === b!.id)!.shipped).toBe(false);
+
+	// blank note clears to undefined; real text is trimmed and stored
+	doc = setWinnerNote(doc, a!.id, "   ");
+	expect(doc.winners.find((w) => w.id === a!.id)!.note).toBeUndefined();
+	doc = setWinnerNote(doc, a!.id, "  ship to EU  ");
+	expect(doc.winners.find((w) => w.id === a!.id)!.note).toBe("ship to EU");
+
+	doc = removeWinner(doc, a!.id);
+	expect(doc.winners.map((w) => w.id)).toEqual([b!.id]);
+});
+
+test("resetRound clears gifters/entrants/winners but keeps config", () => {
+	let doc = defaultGiveawayDoc();
+	doc.config.open = true;
+	doc = applyGiveawayEvent(doc, { kind: "gift", login: "g", name: "G", count: 9 }, 1);
+	doc = applyGiveawayEvent(doc, { kind: "entry", login: "e", name: "E" }, 2);
+	doc = addWinner(doc, { login: "w", name: "W", source: "gift" }, 3);
+
+	const reset = resetRound(doc);
+	expect(reset.gifters).toHaveLength(0);
+	expect(reset.entrants).toHaveLength(0);
+	expect(reset.winners).toHaveLength(0);
+	expect(reset.config).toEqual(doc.config);
 });

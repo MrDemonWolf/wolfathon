@@ -246,6 +246,24 @@ export function withTimerConfigDefaults(doc: TimerDoc): TimerDoc {
 	return { ...doc, config: { ...defaultTimerConfig(), ...doc.config } };
 }
 
+/** Zero-pad to two digits (e.g. 5 → "05"). Shared by the overlay + control formatters. */
+export const pad2 = (n: number) => String(n).padStart(2, "0");
+
+/**
+ * Split a duration in ms into whole days / hours / minutes / seconds (clamped at
+ * zero). Shared so the overlay countdown and the control panel format from one
+ * implementation instead of three copies of the same divmod.
+ */
+export function splitDuration(ms: number): { d: number; h: number; m: number; s: number } {
+	const total = Math.max(0, Math.floor(ms / 1000));
+	return {
+		d: Math.floor(total / 86400),
+		h: Math.floor((total % 86400) / 3600),
+		m: Math.floor((total % 3600) / 60),
+		s: total % 60,
+	};
+}
+
 /** Current remaining ms, whether running or paused. */
 export function currentRemainingMs(state: TimerState, now: number): number {
 	if (state.running && state.endsAt != null) return Math.max(0, state.endsAt - now);

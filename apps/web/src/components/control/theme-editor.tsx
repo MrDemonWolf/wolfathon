@@ -19,7 +19,9 @@ import {
 	type ThemePreset,
 } from "@wolfathon/api/theme";
 import { Button } from "@wolfathon/ui/components/button";
+import { Checkbox } from "@wolfathon/ui/components/checkbox";
 import { Plus, RotateCcw, X } from "lucide-react";
+import { useId } from "react";
 
 const PRESET_LABELS: Record<ThemePreset, string> = {
 	brand: "Brand",
@@ -298,15 +300,14 @@ function Toggle({
 	onChange: (v: boolean) => void;
 	label: string;
 }) {
+	// htmlFor → the Checkbox button (a labelable element) so clicking the text toggles.
+	const id = useId();
 	return (
-		<label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
-			<input
-				type="checkbox"
-				checked={checked}
-				onChange={(e) => onChange(e.target.checked)}
-				className="size-5 accent-primary"
-			/>
-			{label}
-		</label>
+		<div className="flex items-center gap-2 text-xs text-muted-foreground">
+			<Checkbox id={id} checked={checked} onCheckedChange={(v) => onChange(v === true)} />
+			<label htmlFor={id} className="cursor-pointer">
+				{label}
+			</label>
+		</div>
 	);
 }

@@ -4,14 +4,17 @@ import {
 	applyEvent,
 	autoPause,
 	autoResume,
+	currentRemainingMs,
 	defaultTimerConfig,
 	defaultTimerDoc,
 	defaultTimerState,
 	eventLabel,
+	eventMinutes,
 	pause,
 	resolveThemeGradient,
 	start,
 	TIMER_THEME_PRESETS,
+	tipSubs,
 	toPublicTimer,
 	validateTimerConfig,
 	withTimerConfigDefaults,
@@ -32,6 +35,50 @@ test("the cap limits remaining time", () => {
 	const state = defaultTimerState(config);
 	const { state: next } = applyEvent(config, state, { kind: "manualMinutes", minutes: 100 }, 0);
 	expect(next.remainingMs).toBe(65 * MIN);
+});
+
+test("the cap also applies while the timer is running (endsAt branch)", () => {
+	const config = { ...defaultTimerConfig(), startMinutes: 60, maxMinutes: 65 };
+	const running = start(defaultTimerState(config), 0); // endsAt = 60min
+	const { state: next } = applyEvent(config, running, { kind: "manualMinutes", minutes: 100 }, 0);
+	expect(currentRemainingMs(next, 0)).toBe(65 * MIN);
+	expect(next.endsAt).toBe(65 * MIN);
+});
+
+test("time can't go negative while running (zero floor on the endsAt branch)", () => {
+	const config = defaultTimerConfig(); // 60min, no cap
+	const running = start(defaultTimerState(config), 0); // endsAt = 60min
+	const { state: next } = applyEvent(config, running, { kind: "manualMinutes", minutes: -1000 }, 0);
+	expect(currentRemainingMs(next, 0)).toBe(0);
+	expect(next.endsAt).toBe(0);
+});
+
+test("eventMinutes resolves channel points by id, then case-insensitive title, else 0", () => {
+	const config = {
+		...defaultTimerConfig(),
+		channelPoints: [{ rewardId: "abc", rewardTitle: "Hydrate", minutes: 10 }],
+	};
+	// rewardId match wins even if the title differs
+	expect(eventMinutes(config, { kind: "points", rewardId: "abc", rewardTitle: "ignored" })).toBe(
+		10,
+	);
+	// no id → case-insensitive title fallback
+	expect(eventMinutes(config, { kind: "points", rewardTitle: "hydrate" })).toBe(10);
+	// unknown reward → 0
+	expect(eventMinutes(config, { kind: "points", rewardId: "zzz", rewardTitle: "nope" })).toBe(0);
+});
+
+test("eventMinutes scales tips by the dollar rate and clamps negatives", () => {
+	const config = { ...defaultTimerConfig(), tipMinutesPerDollar: 2 };
+	expect(eventMinutes(config, { kind: "tip", amount: 5 })).toBe(10);
+	expect(eventMinutes(config, { kind: "tip", amount: -5 })).toBe(0);
+});
+
+test("tipSubs converts dollars to goal subs and is safe at the edges", () => {
+	const config = defaultTimerConfig();
+	expect(tipSubs(20, { ...config, tipDollarsPerSub: 5 })).toBe(4);
+	expect(tipSubs(20, { ...config, tipDollarsPerSub: 0 })).toBe(0); // rate 0 → tips don't advance goals
+	expect(tipSubs(-5, { ...config, tipDollarsPerSub: 5 })).toBe(0); // negative clamps to 0
 });
 
 test("bits prorate by hundreds", () => {

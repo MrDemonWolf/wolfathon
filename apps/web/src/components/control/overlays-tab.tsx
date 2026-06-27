@@ -11,6 +11,7 @@ import {
 	AlertDialogTrigger,
 } from "@wolfathon/ui/components/alert-dialog";
 import { Button } from "@wolfathon/ui/components/button";
+import { useCopyToClipboard } from "@wolfathon/ui/hooks/use-copy-to-clipboard";
 import { Check, Copy, Eye, EyeOff, Gauge, Loader2, RotateCcw, Trophy } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -22,7 +23,8 @@ const SOURCES = [
 		icon: Gauge,
 		title: "Subathon timer",
 		path: "/overlay/timer",
-		size: "720×150",
+		// Matches the capsule's locked 131:20 aspect so the bar nearly fills the source.
+		size: "1310×200",
 		blurb:
 			"Compact countdown bar that fills its source — auto-adds time from subs, gifts, bits, and channel points; emotes flood the bar on each add.",
 	},
@@ -149,19 +151,13 @@ function OverlayCard({
 	url: string;
 	loading: boolean;
 }) {
-	const [copied, setCopied] = useState(false);
+	const { copied, copy } = useCopyToClipboard();
 	// Mask the token by default — the operator may be screen-sharing this gated
 	// panel on stream, and a visible `?t=` would leak the secret to chat.
 	const [revealed, setRevealed] = useState(false);
 	const display = url ? (revealed ? url : url.replace(/\?t=.*/, "?t=••••••••••••")) : "";
-
-	async function copy() {
-		if (!url) return;
-		await navigator.clipboard.writeText(url); // always copies the real token
-		setCopied(true);
-		toast.success(`${title} URL copied`);
-		setTimeout(() => setCopied(false), 1500);
-	}
+	// Stable id so the Reveal control is programmatically tied to the value it toggles.
+	const fieldId = `overlay-url-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
 
 	return (
 		<div className="rounded-2xl panel-card p-5">
@@ -174,7 +170,12 @@ function OverlayCard({
 			</div>
 			<p className="mt-1 text-sm text-muted-foreground">{blurb}</p>
 			<div className="mt-3 flex items-center gap-2">
-				<code className="min-w-0 flex-1 truncate rounded-lg border border-border bg-background/60 px-3 py-2 font-mono text-xs">
+				{/* aria-live announces the masked↔revealed swap to assistive tech. */}
+				<code
+					id={fieldId}
+					aria-live="polite"
+					className="min-w-0 flex-1 truncate rounded-lg border border-border bg-background/60 px-3 py-2 font-mono text-xs"
+				>
 					{display || (loading ? "Loading…" : "…")}
 				</code>
 				<Button
@@ -185,10 +186,16 @@ function OverlayCard({
 					disabled={!url}
 					aria-label={revealed ? "Hide token" : "Reveal token"}
 					aria-pressed={revealed}
+					aria-controls={fieldId}
 				>
 					{revealed ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
 				</Button>
-				<Button variant="outline" className="rounded-lg" onClick={copy} disabled={!url}>
+				<Button
+					variant="outline"
+					className="rounded-lg"
+					onClick={() => copy(url, `${title} URL copied`)}
+					disabled={!url}
+				>
 					{copied ? <Check className="size-4 text-primary" /> : <Copy className="size-4" />}
 					{copied ? "Copied" : "Copy"}
 				</Button>

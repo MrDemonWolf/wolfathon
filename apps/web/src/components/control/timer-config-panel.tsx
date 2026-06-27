@@ -11,7 +11,7 @@ import {
 import { Button } from "@wolfathon/ui/components/button";
 import { Input } from "@wolfathon/ui/components/input";
 import { Plus, RotateCcw, Twitch, X } from "lucide-react";
-import { useState } from "react";
+import { type KeyboardEvent, useState } from "react";
 
 import { ThemeEditor } from "./theme-editor";
 
@@ -61,6 +61,23 @@ export function TimerConfigPanel({
 		{ id: "theme", label: "Theme" },
 	] as const;
 
+	// Roving tab navigation (WAI-ARIA tabs pattern): arrows/Home/End move the
+	// selection and focus, matching the visible segmented control.
+	function onTabKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+		const ids = TABS.map((t) => t.id);
+		const i = ids.indexOf(section);
+		let next: number;
+		if (e.key === "ArrowRight" || e.key === "ArrowDown") next = (i + 1) % ids.length;
+		else if (e.key === "ArrowLeft" || e.key === "ArrowUp") next = (i - 1 + ids.length) % ids.length;
+		else if (e.key === "Home") next = 0;
+		else if (e.key === "End") next = ids.length - 1;
+		else return;
+		e.preventDefault();
+		const id = ids[next];
+		setSection(id);
+		document.getElementById(`tab-${id}`)?.focus();
+	}
+
 	return (
 		<div className="rounded-2xl panel-card p-5">
 			<div className="flex flex-col gap-1">
@@ -70,8 +87,10 @@ export function TimerConfigPanel({
 				</p>
 			</div>
 
-			<nav
+			<div
+				role="tablist"
 				aria-label="Timer setup sections"
+				onKeyDown={onTabKeyDown}
 				className="segmented mt-4 inline-flex w-fit gap-1 rounded-[0.95rem] p-1"
 			>
 				{TABS.map((t) => {
@@ -79,8 +98,12 @@ export function TimerConfigPanel({
 					return (
 						<button
 							key={t.id}
+							id={`tab-${t.id}`}
 							type="button"
-							aria-current={active ? "true" : undefined}
+							role="tab"
+							aria-selected={active}
+							aria-controls={`panel-${t.id}`}
+							tabIndex={active ? 0 : -1}
 							onClick={() => setSection(t.id)}
 							className={`rounded-[0.7rem] px-4 py-1.5 text-sm font-medium transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
 								active
@@ -92,10 +115,16 @@ export function TimerConfigPanel({
 						</button>
 					);
 				})}
-			</nav>
+			</div>
 
 			{section === "rules" && (
-				<div className="mt-2">
+				<div
+					role="tabpanel"
+					id="panel-rules"
+					aria-labelledby="tab-rules"
+					tabIndex={0}
+					className="mt-2"
+				>
 					<p className="mt-1 text-sm text-muted-foreground">
 						Minutes added per event. Each field below is labelled with the event it covers.
 					</p>
@@ -237,7 +266,13 @@ export function TimerConfigPanel({
 			)}
 
 			{section === "behaviour" && (
-				<div className="mt-2">
+				<div
+					role="tabpanel"
+					id="panel-behaviour"
+					aria-labelledby="tab-behaviour"
+					tabIndex={0}
+					className="mt-2"
+				>
 					{/* overlay emoji */}
 					<EmojiEditor
 						emojis={config.emojis}
@@ -322,9 +357,15 @@ export function TimerConfigPanel({
 						</p>
 					</div>
 
-					{/* Tips (Ko-fi integration is not wired up yet — these rates are pre-set for it). */}
-					<div className="mt-5">
-						<div className="text-sm font-medium">Tips</div>
+					{/* Tips (Ko-fi integration is not wired up yet — fields are disabled + dimmed so the
+					    operator can't mistake these pre-set rates for a live, configured feature). */}
+					<div className="mt-5 opacity-60">
+						<div className="flex items-center gap-2">
+							<div className="text-sm font-medium">Tips</div>
+							<span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
+								Coming soon
+							</span>
+						</div>
 						<p className="mt-1 text-xs text-muted-foreground">
 							Tip integration (Ko-fi) is coming soon. These rates control how much time a tip adds
 							and how it advances the reward goals once it’s connected.
@@ -334,11 +375,13 @@ export function TimerConfigPanel({
 								label="Minutes per $1"
 								value={config.tipMinutesPerDollar}
 								onChange={(v) => onChange({ ...config, tipMinutesPerDollar: n(v) })}
+								disabled
 							/>
 							<Field
 								label="$ per goal sub (0 = off)"
 								value={config.tipDollarsPerSub}
 								onChange={(v) => onChange({ ...config, tipDollarsPerSub: n(v) })}
+								disabled
 							/>
 						</div>
 					</div>
@@ -346,7 +389,13 @@ export function TimerConfigPanel({
 			)}
 
 			{section === "theme" && (
-				<div className="mt-4">
+				<div
+					role="tabpanel"
+					id="panel-theme"
+					aria-labelledby="tab-theme"
+					tabIndex={0}
+					className="mt-4"
+				>
 					{/* overlay colours + chrome */}
 					<ThemeEditor
 						theme={config.theme}
@@ -554,10 +603,12 @@ function Field({
 	label,
 	value,
 	onChange,
+	disabled,
 }: {
 	label: string;
 	value: number;
 	onChange: (v: string) => void;
+	disabled?: boolean;
 }) {
 	return (
 		<label className="flex flex-col gap-1 text-xs text-muted-foreground">
@@ -567,6 +618,7 @@ function Field({
 				type="number"
 				value={String(value)}
 				onChange={(e) => onChange(e.target.value)}
+				disabled={disabled}
 			/>
 		</label>
 	);

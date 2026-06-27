@@ -97,23 +97,23 @@ The Client ID + Secret live in the **environment**, not the control panel.
 
 ### C. Connect it in Wolfathon
 
-1. Open the control panel → **Twitch** tab. It should say
+1. Open the control panel → **Settings → Twitch**. It should say
    **"Loaded from environment ✓"**. ☐
 2. Click **Connect Twitch** → you're sent to Twitch → **Authorize**. ☐
 3. Twitch sends you back; the panel flips to **Connected**. ☐
 
-**You'll know it worked when:** the Twitch tab says "Connected as <you>" with a
-subscription count. Test it: **Timer** tab → click **Sub T1** — the clock jumps
-up by your configured minutes.
+**You'll know it worked when:** Settings → Twitch says "Connected as <you>" with
+an "X of N subscriptions" count. Test it: **Timer** tab → click **Sub T1** — the
+clock jumps up by your configured minutes.
 
 ---
 
 ## Quick reference
 
-| Thing                 | Where                                                         |
-| --------------------- | ------------------------------------------------------------- |
-| Cloudflare Zero Trust | https://one.dash.cloudflare.com                               |
-| Twitch apps           | https://dev.twitch.tv/console/apps                            |
-| OAuth Redirect URL    | https://wolfathon.mrdemonwolf.workers.dev/api/twitch/callback |
-| Your panel            | https://wolfathon.mrdemonwolf.workers.dev/control             |
-| Overlay URLs (OBS)    | Control panel → **Overlays** tab (tokenized; copy from there) |
+| Thing                 | Where                                                                |
+| --------------------- | -------------------------------------------------------------------- |
+| Cloudflare Zero Trust | https://one.dash.cloudflare.com                                      |
+| Twitch apps           | https://dev.twitch.tv/console/apps                                   |
+| OAuth Redirect URL    | https://wolfathon.mrdemonwolf.workers.dev/api/twitch/callback        |
+| Your panel            | https://wolfathon.mrdemonwolf.workers.dev/control                    |
+| Overlay URLs (OBS)    | Control panel → **Settings → Overlays** (tokenized; copy from there) |
