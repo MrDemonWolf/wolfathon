@@ -56,6 +56,8 @@ export type TwitchDoc = {
 	expiresAt?: number;
 	webhookSecret?: string;
 	subscriptionIds?: string[];
+	/** EventSub types that failed to (re)create on the last connect — empty/absent = all good. */
+	failedSubscriptionTypes?: string[];
 	/** Recent EventSub message ids for idempotency. */
 	recentEventIds?: string[];
 	connected?: boolean;
@@ -71,6 +73,10 @@ export type TwitchStatus = {
 	connected: boolean;
 	broadcasterLogin?: string;
 	subscriptionCount: number;
+	/** How many EventSub subscriptions a full connect creates (for "X of N" display). */
+	expectedSubscriptionCount: number;
+	/** Subscription types that failed to create — non-empty means a degraded connect. */
+	failedSubscriptionTypes: string[];
 };
 
 /** `hasCredentials` reflects the env-provided app creds, not the DB. */
@@ -80,6 +86,8 @@ export function toStatus(doc: TwitchDoc, hasCredentials: boolean): TwitchStatus 
 		connected: Boolean(doc.connected),
 		broadcasterLogin: doc.broadcasterLogin,
 		subscriptionCount: doc.subscriptionIds?.length ?? 0,
+		expectedSubscriptionCount: SUBSCRIPTIONS.length,
+		failedSubscriptionTypes: doc.failedSubscriptionTypes ?? [],
 	};
 }
 
@@ -215,12 +223,15 @@ export async function finalizeConnection(args: {
 	await args.persist(base);
 
 	const appToken = await getAppToken(clientId, clientSecret);
-	// Reconcile against ALL of the app's live subscriptions, not just the ones we
-	// tracked — clears orphans left by an earlier partial failure so re-create
-	// can't 409. ponytail: one page (~5 subs); add cursor paging only if this app
-	// ever holds >100 subscriptions.
+	// Reconcile only THIS broadcaster's subscriptions — clears orphans left by an
+	// earlier partial failure so re-create can't 409, without ever deleting another
+	// broadcaster's subs (the app token can see every sub it created). The list API
+	// has no broadcaster filter, so we filter the page client-side by condition.
+	// ponytail: one page (~9 subs); add cursor paging only if this app ever holds
+	// >100 subscriptions.
 	const existing = await listSubscriptions(clientId, appToken);
-	if (existing.length) await deleteSubscriptions(clientId, appToken, existing);
+	const mine = existing.filter((s) => s.broadcasterId === broadcaster.id).map((s) => s.id);
+	if (mine.length) await deleteSubscriptions(clientId, appToken, mine);
 
 	const { ids, errors } = await createSubscriptions({
 		clientId,
@@ -230,8 +241,14 @@ export async function finalizeConnection(args: {
 		secret: webhookSecret,
 	});
 
+	// errors are "type: status text" — keep just the type so the panel can name
+	// exactly which subscriptions are missing on a degraded (partial) connect.
+	const failedSubscriptionTypes = errors
+		.map((e) => e.split(":")[0]?.trim() ?? "")
+		.filter((t) => t.length > 0);
+
 	return {
-		doc: { ...base, subscriptionIds: ids, connected: ids.length > 0 },
+		doc: { ...base, subscriptionIds: ids, failedSubscriptionTypes, connected: ids.length > 0 },
 		errors,
 	};
 }
@@ -272,13 +289,30 @@ export async function getChannelEmotes(
 
 // ---- EventSub management --------------------------------------------------
 
-export async function listSubscriptions(clientId: string, appToken: string): Promise<string[]> {
+/** One of the app's live EventSub subscriptions, with enough to scope by broadcaster. */
+export type EventsubSubscription = { id: string; type: string; broadcasterId?: string };
+
+/**
+ * List the app's live EventSub subscriptions. The Helix list endpoint has no
+ * broadcaster filter (only status / type / id), so callers filter the returned
+ * `broadcasterId` (from each sub's condition) themselves — see finalizeConnection.
+ */
+export async function listSubscriptions(
+	clientId: string,
+	appToken: string,
+): Promise<EventsubSubscription[]> {
 	const res = await fetch(`${HELIX}/eventsub/subscriptions`, {
 		headers: { "client-id": clientId, authorization: `Bearer ${appToken}` },
 	});
 	if (!res.ok) return [];
-	const data = (await res.json()) as { data: { id: string }[] };
-	return data.data.map((s) => s.id);
+	const data = (await res.json()) as {
+		data: { id: string; type: string; condition?: { broadcaster_user_id?: string } }[];
+	};
+	return data.data.map((s) => ({
+		id: s.id,
+		type: s.type,
+		broadcasterId: s.condition?.broadcaster_user_id,
+	}));
 }
 
 export async function deleteSubscriptions(
