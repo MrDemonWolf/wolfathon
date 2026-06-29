@@ -36,9 +36,9 @@ export function TwitchPanel() {
 		const result = params.get("twitch");
 		if (!result) return;
 		if (result === "connected") toast.success("Twitch connected");
-		else if (result === "partial")
-			toast.error("Connected, but some events failed — try Reconnect");
-		else if (result === "no_subs") toast.error("Connected, but no events were set up — try Reconnect");
+		else if (result === "partial") toast.error("Connected, but some events failed — try Reconnect");
+		else if (result === "no_subs")
+			toast.error("Connected, but no events were set up — try Reconnect");
 		else if (result === "state_error") toast.error("Sign-in expired — try Connect again");
 		else toast.error("Twitch sign-in failed");
 		invalidate();
