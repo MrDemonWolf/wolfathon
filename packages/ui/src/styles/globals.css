@@ -309,11 +309,69 @@
 	animation: wolf-flood 2s ease-out both;
 }
 
+/* Tiny looping previews for the operator's "Emote direction" picker — mirror
+   the real overlay motion so the control shows where emotes will actually go:
+   up rises, "left" = right→left, "right" = left→right. */
+@keyframes wolf-prev-up {
+	0% {
+		transform: translateY(150%);
+		opacity: 0;
+	}
+	25%,
+	75% {
+		opacity: 1;
+	}
+	100% {
+		transform: translateY(-150%);
+		opacity: 0;
+	}
+}
+@keyframes wolf-prev-right {
+	0% {
+		transform: translateX(-170%);
+		opacity: 0;
+	}
+	25%,
+	75% {
+		opacity: 1;
+	}
+	100% {
+		transform: translateX(170%);
+		opacity: 0;
+	}
+}
+@keyframes wolf-prev-left {
+	0% {
+		transform: translateX(170%);
+		opacity: 0;
+	}
+	25%,
+	75% {
+		opacity: 1;
+	}
+	100% {
+		transform: translateX(-170%);
+		opacity: 0;
+	}
+}
+.animate-wolf-prev-up {
+	animation: wolf-prev-up 1.9s ease-in-out infinite;
+}
+.animate-wolf-prev-right {
+	animation: wolf-prev-right 1.9s ease-in-out infinite;
+}
+.animate-wolf-prev-left {
+	animation: wolf-prev-left 1.9s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.animate-wolf-drift,
 	.animate-wolf-burst,
 	.animate-wolf-fill,
-	.animate-wolf-fill-x {
+	.animate-wolf-fill-x,
+	.animate-wolf-prev-up,
+	.animate-wolf-prev-right,
+	.animate-wolf-prev-left {
 		animation: none;
 		opacity: 0;
 	}
