@@ -61,6 +61,10 @@ export type PublicData = {
 	showLabel: boolean;
 	/** Show the live status dot. */
 	showStatus: boolean;
+	/** Show the next-goal progress bar. */
+	showProgressBar: boolean;
+	/** Show the "N Unlocked" row of already-won rewards. */
+	showUnlocked: boolean;
 };
 
 export const MAX_TARGET = 10_000_000;
@@ -175,6 +179,8 @@ export function stripNotes(data: Data): PublicData {
 		corners: theme.corners,
 		showLabel: theme.showLabel,
 		showStatus: theme.showStatus,
+		showProgressBar: theme.showProgressBar,
+		showUnlocked: theme.showUnlocked,
 	};
 }
 

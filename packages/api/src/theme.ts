@@ -21,9 +21,24 @@ export type OverlayTheme = {
 	corners: ThemeCorners;
 	/** Show the eyebrow label ("SUBATHON" / "NEXT REWARD"). */
 	showLabel: boolean;
-	/** Show the status chip (timer play/pause). */
+	/** Show the status chip (timer play/pause) + rewards live dot. */
 	showStatus: boolean;
+	/** Show the unit labels under the countdown digits (D/H/M/S). */
+	showUnits: boolean;
+	/** Show the rewards-card progress bar toward the next goal. */
+	showProgressBar: boolean;
+	/** Show the rewards-card "N Unlocked" row of already-won rewards. */
+	showUnlocked: boolean;
 };
+
+/** Overlay-element visibility flags — the user-toggleable show/hide booleans. */
+export const OVERLAY_TOGGLE_KEYS = [
+	"showLabel",
+	"showStatus",
+	"showUnits",
+	"showProgressBar",
+	"showUnlocked",
+] as const satisfies readonly (keyof OverlayTheme)[];
 
 export const MAX_GRADIENT_STOPS = 6;
 /** Matches `#abc` or `#aabbcc`. */
@@ -85,6 +100,9 @@ export function defaultOverlayTheme(): OverlayTheme {
 		corners: "rounded",
 		showLabel: true,
 		showStatus: true,
+		showUnits: true,
+		showProgressBar: true,
+		showUnlocked: true,
 	};
 }
 
@@ -202,13 +220,11 @@ export function validateOverlayTheme(
 		}
 	}
 
-	if (t.showLabel !== undefined) {
-		if (typeof t.showLabel === "boolean") theme.showLabel = t.showLabel;
-		else errors.push({ path: `${at}.showLabel`, message: "must be a boolean" });
-	}
-	if (t.showStatus !== undefined) {
-		if (typeof t.showStatus === "boolean") theme.showStatus = t.showStatus;
-		else errors.push({ path: `${at}.showStatus`, message: "must be a boolean" });
+	// All the show/hide element toggles share one boolean shape.
+	for (const key of OVERLAY_TOGGLE_KEYS) {
+		if (t[key] === undefined) continue;
+		if (typeof t[key] === "boolean") theme[key] = t[key] as boolean;
+		else errors.push({ path: `${at}.${key}`, message: "must be a boolean" });
 	}
 
 	return theme;

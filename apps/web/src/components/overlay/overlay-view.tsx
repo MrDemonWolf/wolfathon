@@ -57,7 +57,8 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 	// Progress toward the NEXT goal only (never future ceilings — see stripNotes).
 	const currentSubs = data.currentSubs ?? 0;
 	const nextTarget = data.nextTarget;
-	const showProgress = current != null && nextTarget != null && nextTarget > 0;
+	const showProgress =
+		data.showProgressBar && current != null && nextTarget != null && nextTarget > 0;
 	const progressPct = showProgress
 		? Math.min(100, Math.round((currentSubs / nextTarget!) * 100))
 		: 0;
@@ -155,7 +156,7 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 								</div>
 							)}
 
-							{unlocked.length > 0 && (
+							{data.showUnlocked && unlocked.length > 0 && (
 								<>
 									<div
 										className="mt-[1.8cqw] flex items-center gap-[0.7cqw] text-[1.2cqw] font-semibold tracking-[0.18em] uppercase"

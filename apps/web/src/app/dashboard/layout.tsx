@@ -4,6 +4,7 @@ import { Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { SiteFooter } from "@/components/site-footer";
 import { WolfMark } from "@/components/wolf-mark";
 
 /**
@@ -22,12 +23,13 @@ const SECTIONS = [
 
 export default function PanelLayout({ children }: { children: React.ReactNode }) {
 	const pathname = usePathname();
-	const sha = process.env.NEXT_PUBLIC_COMMIT_SHA;
 
 	return (
 		<div className="app-bg flex min-h-svh flex-col text-foreground">
-			<header className="sticky top-0 z-30 px-4 pt-4 pb-1">
-				<div className="glass-bar mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl px-5 py-3.5">
+			{/* Full-bleed sticky bar: the glass background spans the viewport, the
+			    logo + nav stay aligned to the same max-w-6xl column as the content. */}
+			<header className="sticky top-0 z-30 border-b border-border bg-card/80 backdrop-blur-xl">
+				<div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3.5">
 					<Link href="/dashboard" className="group flex items-center gap-2.5">
 						<WolfMark className="size-8 transition-transform group-hover:scale-110" />
 						<span className="font-heading text-lg font-extrabold tracking-tight">Wolfathon</span>
@@ -56,35 +58,7 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
 				{children}
 			</main>
 
-			<footer className="border-t border-primary/10 px-4 py-6">
-				<div className="mx-auto flex max-w-6xl items-center justify-center gap-4 text-center text-sm text-muted-foreground">
-					<p>
-						© {new Date().getFullYear()} Wolfathon by{" "}
-						<a
-							href="https://mrdemonwolf.com"
-							target="_blank"
-							rel="noopener noreferrer"
-							className="text-foreground transition-colors hover:text-primary"
-						>
-							MrDemonWolf, Inc.
-						</a>
-					</p>
-					{sha && (
-						<>
-							<span className="hidden text-muted-foreground/50 sm:inline">·</span>
-							<a
-								href={`https://github.com/MrDemonWolf/wolfathon/commit/${sha}`}
-								target="_blank"
-								rel="noopener noreferrer"
-								title={`Deployed commit ${sha} — view on GitHub`}
-								className="hidden font-mono text-xs text-muted-foreground underline-offset-4 transition-colors hover:text-primary hover:underline sm:inline"
-							>
-								{sha.slice(0, 7)}
-							</a>
-						</>
-					)}
-				</div>
-			</footer>
+			<SiteFooter />
 		</div>
 	);
 }

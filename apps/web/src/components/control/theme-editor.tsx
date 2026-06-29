@@ -9,6 +9,7 @@ import {
 	HEX_COLOR,
 	MAX_GRADIENT_STOPS,
 	type OverlayTheme,
+	OVERLAY_TOGGLE_KEYS,
 	resolveTextColor,
 	resolveThemeGradient,
 	THEME_CORNERS,
@@ -43,6 +44,26 @@ const CORNER_PREVIEW: Record<ThemeCorners, string> = {
 	sharp: "rounded-[2px]",
 };
 
+// Corner-picker swatch radius. `rounded` uses a generous radius on a small tile
+// so it reads as the macOS-style continuous-rounded ("squircle") corner the
+// overlay actually draws — distinct from the full-circle pill.
+const CORNER_TILE: Record<ThemeCorners, string> = {
+	rounded: "rounded-[7px]",
+	pill: "rounded-full",
+	sharp: "rounded-[1px]",
+};
+
+// The user-toggleable overlay elements, with a short scope hint each. Keys map
+// 1:1 to OverlayTheme booleans (see OVERLAY_TOGGLE_KEYS in @wolfathon/api/theme).
+type ToggleKey = (typeof OVERLAY_TOGGLE_KEYS)[number];
+const ELEMENT_TOGGLES: { key: ToggleKey; label: string; hint: string }[] = [
+	{ key: "showLabel", label: "Eyebrow label", hint: '"SUBATHON" / "NEXT REWARD"' },
+	{ key: "showStatus", label: "Status indicator", hint: "Timer chip + live dot" },
+	{ key: "showUnits", label: "Unit labels", hint: "D / H / M / S under the timer" },
+	{ key: "showProgressBar", label: "Progress bar", hint: "Subs toward the next reward" },
+	{ key: "showUnlocked", label: "Unlocked rewards", hint: "Row of already-won rewards" },
+];
+
 /**
  * Shared overlay theme editor (timer + rewards). Controlled: holds no state,
  * just renders `theme` and calls `onChange` with the next theme.
@@ -50,13 +71,9 @@ const CORNER_PREVIEW: Record<ThemeCorners, string> = {
 export function ThemeEditor({
 	theme,
 	onChange,
-	labelToggleText = "Show eyebrow label",
-	statusToggleText = "Show status indicator",
 }: {
 	theme: OverlayTheme;
 	onChange: (t: OverlayTheme) => void;
-	labelToggleText?: string;
-	statusToggleText?: string;
 }) {
 	const stops = resolveThemeGradient(theme);
 	const autoText = theme.textColor === "auto";
@@ -123,7 +140,7 @@ export function ThemeEditor({
 							key={p}
 							type="button"
 							onClick={() => selectPreset(p)}
-							className={`flex flex-col items-center gap-1 rounded-lg border p-2 text-xs transition ${
+							className={`flex flex-col items-center gap-1 rounded-lg border p-2 text-xs transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
 								active
 									? "border-primary/60 bg-primary/10"
 									: "border-border hover:border-primary/40 hover:bg-accent"
@@ -236,7 +253,7 @@ export function ThemeEditor({
 								type="button"
 								onClick={() => onChange({ ...theme, font: f })}
 								style={{ fontFamily: FONT_STACKS[f] }}
-								className={`rounded-lg border px-2 py-2 text-sm font-semibold transition ${
+								className={`rounded-lg border px-2 py-2 text-sm font-semibold transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
 									active
 										? "border-primary/60 bg-primary/10"
 										: "border-border hover:border-primary/40 hover:bg-accent"
@@ -260,13 +277,16 @@ export function ThemeEditor({
 								key={c}
 								type="button"
 								onClick={() => onChange({ ...theme, corners: c })}
-								className={`flex items-center justify-center gap-2 rounded-lg border px-2 py-2 text-xs font-medium transition ${
+								className={`flex items-center justify-center gap-2 rounded-lg border px-2 py-2 text-xs font-medium transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
 									active
 										? "border-primary/60 bg-primary/10"
 										: "border-border hover:border-primary/40 hover:bg-accent"
 								}`}
 							>
-								<span className={`size-4 border-2 border-current ${CORNER_PREVIEW[c]}`} />
+								<span
+									className={`h-4 w-6 ring-1 ring-white/15 ${CORNER_TILE[c]}`}
+									style={{ backgroundImage: gradientCss(stops) }}
+								/>
 								{CORNER_LABELS[c]}
 							</button>
 						);
@@ -274,18 +294,29 @@ export function ThemeEditor({
 				</div>
 			</div>
 
-			{/* chrome toggles */}
-			<div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
-				<Toggle
-					checked={theme.showLabel}
-					onChange={(v) => onChange({ ...theme, showLabel: v })}
-					label={labelToggleText}
-				/>
-				<Toggle
-					checked={theme.showStatus}
-					onChange={(v) => onChange({ ...theme, showStatus: v })}
-					label={statusToggleText}
-				/>
+			{/* overlay elements — pick which pieces appear on the overlays */}
+			<div className="mt-5 border-t border-border pt-4">
+				<div className="text-xs font-medium">Overlay elements</div>
+				<p className="mt-1 text-xs text-muted-foreground">
+					Pick which pieces show on your overlays. Hidden ones simply don&apos;t render — the
+					numbers and reward names always stay.
+				</p>
+				<div className="mt-2 flex flex-col gap-2.5">
+					{ELEMENT_TOGGLES.map(({ key, label, hint }) => (
+						<div key={key} className="flex items-start gap-2 text-xs">
+							<Checkbox
+								id={`toggle-${key}`}
+								checked={theme[key]}
+								onCheckedChange={(v) => onChange({ ...theme, [key]: v === true })}
+								className="mt-0.5"
+							/>
+							<label htmlFor={`toggle-${key}`} className="cursor-pointer leading-tight">
+								<span className="font-medium text-foreground">{label}</span>
+								<span className="ml-1.5 text-muted-foreground">— {hint}</span>
+							</label>
+						</div>
+					))}
+				</div>
 			</div>
 		</div>
 	);
