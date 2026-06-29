@@ -59,6 +59,9 @@ export function TimerConfigPanel({
 		const x = Number(v);
 		return Number.isFinite(x) ? x : 0;
 	};
+	// Preview glyph for the direction picker — first real emoji, skipping Twitch
+	// emote URLs (which wouldn't render as text). Falls back to the wolf.
+	const previewEmote = config.emojis.find((e) => !e.startsWith("http")) ?? "🐺";
 
 	const [section, setSection] = useState<"rules" | "behaviour">("rules");
 	const TABS = [
@@ -314,7 +317,7 @@ export function TimerConfigPanel({
 					<div className="mt-4">
 						<div className="text-sm font-medium">Emote direction</div>
 						<p className="mt-1 text-xs text-muted-foreground">
-							Which way the burst travels across the bar on a time-add.
+							Which way the emotes travel when time is added.
 						</p>
 						<div
 							role="radiogroup"
@@ -330,18 +333,36 @@ export function TimerConfigPanel({
 										role="radio"
 										aria-checked={active}
 										onClick={() => onChange({ ...config, emoteDirection: dir })}
-										className={`flex items-center justify-center gap-2 rounded-lg border px-2 py-2 text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
+										className={`flex flex-col items-stretch gap-2 rounded-lg border p-2 text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
 											active
 												? "border-primary/60 bg-primary/10"
 												: "border-border hover:border-primary/40 hover:bg-accent"
 										}`}
 									>
-										{dir === "up" ? (
-											<ArrowUp className="size-4" />
-										) : (
-											<ArrowRight className={`size-4 ${dir === "left" ? "rotate-180" : ""}`} />
-										)}
-										{EMOTE_DIRECTION_LABELS[dir]}
+										{/* live preview — emote travels the real overlay direction;
+										    hidden under reduced motion, where the arrow carries it. */}
+										<span
+											aria-hidden
+											className="grid h-7 place-items-center overflow-hidden rounded-md bg-background/60 motion-reduce:hidden"
+										>
+											<span
+												className={
+													active
+														? `animate-wolf-prev-${dir} text-base leading-none`
+														: "text-base leading-none opacity-30"
+												}
+											>
+												{previewEmote}
+											</span>
+										</span>
+										<span className="flex items-center justify-center gap-2">
+											{dir === "up" ? (
+												<ArrowUp className="size-4" />
+											) : (
+												<ArrowRight className={`size-4 ${dir === "left" ? "rotate-180" : ""}`} />
+											)}
+											{EMOTE_DIRECTION_LABELS[dir]}
+										</span>
 									</button>
 								);
 							})}
