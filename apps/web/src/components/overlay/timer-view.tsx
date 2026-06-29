@@ -216,10 +216,12 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 						style={{ color: ink }}
 					>
 						<div className="mt-[1cqh] flex items-baseline gap-[2.4cqw] [text-shadow:0_0.2cqh_0.7cqw_rgba(0,0,0,0.3)]">
-							{Number(d) > 0 && <Segment value={d} unit="D" />}
-							{Number(d) > 0 || Number(h) > 0 ? <Segment value={h} unit="H" /> : null}
-							{remaining >= 60000 && <Segment value={m} unit="M" />}
-							<Segment value={s} unit="S" />
+							{Number(d) > 0 && <Segment value={d} unit="D" showUnit={data.showUnits} />}
+							{Number(d) > 0 || Number(h) > 0 ? (
+								<Segment value={h} unit="H" showUnit={data.showUnits} />
+							) : null}
+							{remaining >= 60000 && <Segment value={m} unit="M" showUnit={data.showUnits} />}
+							<Segment value={s} unit="S" showUnit={data.showUnits} />
 						</div>
 					</div>
 				</div>
@@ -244,12 +246,12 @@ function Glyph({ e, size }: { e: string; size: number }) {
 	return <span style={{ fontSize: `${size}cqw`, lineHeight: 1 }}>{e}</span>;
 }
 
-/** Display segment: numeric value + small subscript unit. */
-function Segment({ value, unit }: { value: string; unit: string }) {
+/** Display segment: numeric value + small subscript unit (unit optional). */
+function Segment({ value, unit, showUnit }: { value: string; unit: string; showUnit: boolean }) {
 	return (
 		<span className="relative inline-flex items-baseline">
 			<span className="text-[8.6cqw] leading-none">{value}</span>
-			<span className="ml-[0.5cqw] text-[2.4cqw] font-bold opacity-70">{unit}</span>
+			{showUnit && <span className="ml-[0.5cqw] text-[2.4cqw] font-bold opacity-70">{unit}</span>}
 		</span>
 	);
 }

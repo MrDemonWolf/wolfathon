@@ -126,6 +126,8 @@ export type PublicTimer = {
 	label: string;
 	/** Show the play/pause status chip. */
 	showStatus: boolean;
+	/** Show the unit labels under the countdown digits (D/H/M/S). */
+	showUnits: boolean;
 	/** Whether the alert should name who/what added the time. */
 	showEventSource: boolean;
 	/** The most recent time-add (drives the "+Xm" alert + source line). */
@@ -447,6 +449,7 @@ export function toPublicTimer(doc: TimerDoc, now: number, theme: OverlayTheme): 
 		showLabel: theme.showLabel,
 		label: doc.config.label ?? DEFAULT_TIMER_LABEL,
 		showStatus: theme.showStatus,
+		showUnits: theme.showUnits,
 		showEventSource: doc.config.showEventSource ?? true,
 		lastEvent: doc.state.lastEvent ?? null,
 	};

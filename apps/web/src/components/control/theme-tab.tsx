@@ -115,12 +115,7 @@ export function ThemeTab() {
 							One theme for both overlays — the subathon timer and the rewards card share these
 							colours, font and corners.
 						</p>
-						<ThemeEditor
-							theme={draft}
-							onChange={setDraft}
-							labelToggleText='Show eyebrow label ("SUBATHON" / "NEXT REWARD")'
-							statusToggleText="Show status indicator (timer chip + live dot)"
-						/>
+						<ThemeEditor theme={draft} onChange={setDraft} />
 					</div>
 				)}
 				<DirtyBar
