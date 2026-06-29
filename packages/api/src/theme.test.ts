@@ -6,9 +6,12 @@ import {
 	gradientCss,
 	luma,
 	type OverlayTheme,
+	OVERLAY_TOGGLE_KEYS,
 	resolveTextColor,
 	resolveThemeGradient,
 	THEME_PRESETS,
+	type ThemeError,
+	validateOverlayTheme,
 } from "./theme";
 
 test("expands #rgb shorthand to #rrggbb", () => {
@@ -69,6 +72,30 @@ test("resolveThemeGradient uses preset stops and falls back to brand for thin cu
 	expect(
 		resolveThemeGradient(themeWith({ preset: "custom", gradient: ["#111111", "#222222"] })),
 	).toEqual(["#111111", "#222222"]);
+});
+
+test("every overlay element toggle defaults to true (no element hidden out of the box)", () => {
+	const theme = defaultOverlayTheme();
+	for (const key of OVERLAY_TOGGLE_KEYS) {
+		expect(theme[key]).toBe(true);
+	}
+});
+
+test("validateOverlayTheme accepts each element toggle and rejects non-booleans", () => {
+	// all toggles off → all preserved, no errors
+	const off = Object.fromEntries(OVERLAY_TOGGLE_KEYS.map((k) => [k, false]));
+	const okErrors: ThemeError[] = [];
+	const okTheme = validateOverlayTheme(off, okErrors);
+	expect(okErrors).toEqual([]);
+	for (const key of OVERLAY_TOGGLE_KEYS) {
+		expect(okTheme[key]).toBe(false);
+	}
+
+	// a non-boolean toggle → one error per bad field, value falls back to default (true)
+	const badErrors: ThemeError[] = [];
+	const badTheme = validateOverlayTheme({ showUnits: "yes" }, badErrors);
+	expect(badErrors).toEqual([{ path: "theme.showUnits", message: "must be a boolean" }]);
+	expect(badTheme.showUnits).toBe(true);
 });
 
 test("gradientCss spreads stops 0→100% and falls back for a single stop", () => {
