@@ -268,6 +268,32 @@
 	animation-delay: var(--fill-delay, 0s);
 }
 
+/* Emotes sweeping across the bar (left→right or right→left) on a time-add.
+   Direction is just the from/to translateX pair set per-element in JS. */
+@keyframes wolf-fill-x {
+	0% {
+		transform: translateX(var(--fillx-from, -12cqw)) translateY(var(--fillx-sway, 0)) scale(0.4)
+			rotate(0deg);
+		opacity: 0;
+	}
+	14% {
+		opacity: 1;
+	}
+	86% {
+		opacity: 1;
+	}
+	100% {
+		transform: translateX(var(--fillx-to, 108cqw)) translateY(var(--fillx-sway, 0)) scale(1)
+			rotate(var(--fill-spin, 40deg));
+		opacity: 0;
+	}
+}
+
+.animate-wolf-fill-x {
+	animation: wolf-fill-x var(--fill-dur, 1.5s) cubic-bezier(0.3, 0.4, 0.4, 1) both;
+	animation-delay: var(--fill-delay, 0s);
+}
+
 /* Brief cyan wash across the bar interior on a time-add event. */
 @keyframes wolf-flood {
 	0%,
@@ -286,7 +312,8 @@
 @media (prefers-reduced-motion: reduce) {
 	.animate-wolf-drift,
 	.animate-wolf-burst,
-	.animate-wolf-fill {
+	.animate-wolf-fill,
+	.animate-wolf-fill-x {
 		animation: none;
 		opacity: 0;
 	}

@@ -12,12 +12,11 @@ import { DirtyBar } from "./dirty-bar";
 import { GoalEditor } from "./goal-editor";
 import { OverlayPreview } from "./overlay-preview";
 import { SubsControl } from "./subs-control";
-import { ThemeEditor } from "./theme-editor";
 import { useDraft } from "./use-draft";
 
-/** The bits we diff for dirty-state (currentIndex is server-derived). */
+/** The bits we diff for dirty-state (currentIndex is server-derived; theme is global → Settings). */
 function persisted(d: Data) {
-	return JSON.stringify({ goals: d.goals, currentSubs: d.currentSubs, theme: d.theme });
+	return JSON.stringify({ goals: d.goals, currentSubs: d.currentSubs });
 }
 
 export function RewardsTab() {
@@ -54,7 +53,6 @@ export function RewardsTab() {
 					...(g.target != null ? { target: g.target } : {}),
 				})),
 				currentSubs: draft.currentSubs,
-				theme: draft.theme,
 			},
 			{
 				onSuccess: (res) => {
@@ -108,15 +106,6 @@ export function RewardsTab() {
 							value={draft.currentSubs}
 							onChange={(currentSubs) => setDraft({ ...draft, currentSubs })}
 						/>
-						<div className="rounded-2xl panel-card p-5">
-							<h2 className="font-heading text-lg font-bold">Overlay theme</h2>
-							<ThemeEditor
-								theme={draft.theme}
-								onChange={(theme) => setDraft({ ...draft, theme })}
-								labelToggleText='Show "NEXT REWARD" label'
-								statusToggleText="Show live status dot"
-							/>
-						</div>
 					</>
 				)}
 				<DirtyBar

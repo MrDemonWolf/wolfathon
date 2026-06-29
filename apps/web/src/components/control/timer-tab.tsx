@@ -18,6 +18,10 @@ export function TimerTab() {
 	const { data, isLoading, isError, refetch } = useQuery(rawOptions);
 	const invalidate = () => queryClient.invalidateQueries({ queryKey: rawOptions.queryKey });
 
+	// Overlay theme is global (Settings → Theme) — pull it in just so the preview
+	// renders with the operator's real colours.
+	const { data: stateDoc } = useQuery(controlTrpc.state.getRaw.queryOptions());
+
 	const setConfig = useMutation(controlTrpc.timer.setConfig.mutationOptions());
 	const { draft, setDraft, dirty, discard, seed } = useDraft(
 		data,
@@ -85,7 +89,7 @@ export function TimerTab() {
 						Get URL →
 					</Link>
 				</div>
-				<TimerPreview doc={previewDoc} />
+				<TimerPreview doc={previewDoc} theme={stateDoc?.theme} />
 				{dirty && <p className="text-xs text-amber-400">Preview shows unsaved changes.</p>}
 			</div>
 		</div>
