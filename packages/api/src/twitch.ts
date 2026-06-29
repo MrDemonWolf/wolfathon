@@ -58,6 +58,8 @@ export type TwitchDoc = {
 	subscriptionIds?: string[];
 	/** EventSub types that failed to (re)create on the last connect — empty/absent = all good. */
 	failedSubscriptionTypes?: string[];
+	/** Full "type: status text" for each failed sub — the reason, for diagnosis. */
+	failedSubscriptionReasons?: string[];
 	/** Recent EventSub message ids for idempotency. */
 	recentEventIds?: string[];
 	connected?: boolean;
@@ -77,6 +79,8 @@ export type TwitchStatus = {
 	expectedSubscriptionCount: number;
 	/** Subscription types that failed to create — non-empty means a degraded connect. */
 	failedSubscriptionTypes: string[];
+	/** Full reason per failed sub ("type: status text") — for diagnosing a degraded connect. */
+	failedSubscriptionReasons: string[];
 };
 
 /** `hasCredentials` reflects the env-provided app creds, not the DB. */
@@ -88,6 +92,7 @@ export function toStatus(doc: TwitchDoc, hasCredentials: boolean): TwitchStatus 
 		subscriptionCount: doc.subscriptionIds?.length ?? 0,
 		expectedSubscriptionCount: SUBSCRIPTIONS.length,
 		failedSubscriptionTypes: doc.failedSubscriptionTypes ?? [],
+		failedSubscriptionReasons: doc.failedSubscriptionReasons ?? [],
 	};
 }
 
@@ -248,7 +253,13 @@ export async function finalizeConnection(args: {
 		.filter((t) => t.length > 0);
 
 	return {
-		doc: { ...base, subscriptionIds: ids, failedSubscriptionTypes, connected: ids.length > 0 },
+		doc: {
+			...base,
+			subscriptionIds: ids,
+			failedSubscriptionTypes,
+			failedSubscriptionReasons: errors,
+			connected: ids.length > 0,
+		},
 		errors,
 	};
 }
