@@ -19,6 +19,7 @@ const SECTIONS = [
 	{ href: "/dashboard", label: "Rewards" },
 	{ href: "/dashboard/timer", label: "Timer" },
 	{ href: "/dashboard/giveaways", label: "Giveaways" },
+	{ href: "/dashboard/wheel", label: "Wheel" },
 ] as const;
 
 export default function PanelLayout({ children }: { children: React.ReactNode }) {
