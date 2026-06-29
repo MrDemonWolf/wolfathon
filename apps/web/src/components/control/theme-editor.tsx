@@ -140,7 +140,7 @@ export function ThemeEditor({
 							key={p}
 							type="button"
 							onClick={() => selectPreset(p)}
-							className={`flex flex-col items-center gap-1 rounded-lg border p-2 text-xs transition ${
+							className={`flex flex-col items-center gap-1 rounded-lg border p-2 text-xs transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
 								active
 									? "border-primary/60 bg-primary/10"
 									: "border-border hover:border-primary/40 hover:bg-accent"
@@ -253,7 +253,7 @@ export function ThemeEditor({
 								type="button"
 								onClick={() => onChange({ ...theme, font: f })}
 								style={{ fontFamily: FONT_STACKS[f] }}
-								className={`rounded-lg border px-2 py-2 text-sm font-semibold transition ${
+								className={`rounded-lg border px-2 py-2 text-sm font-semibold transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
 									active
 										? "border-primary/60 bg-primary/10"
 										: "border-border hover:border-primary/40 hover:bg-accent"
@@ -277,7 +277,7 @@ export function ThemeEditor({
 								key={c}
 								type="button"
 								onClick={() => onChange({ ...theme, corners: c })}
-								className={`flex items-center justify-center gap-2 rounded-lg border px-2 py-2 text-xs font-medium transition ${
+								className={`flex items-center justify-center gap-2 rounded-lg border px-2 py-2 text-xs font-medium transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
 									active
 										? "border-primary/60 bg-primary/10"
 										: "border-border hover:border-primary/40 hover:bg-accent"

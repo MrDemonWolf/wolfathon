@@ -26,7 +26,7 @@ export default function LandingPage() {
 				>
 					Enter the den
 				</Link>
-				<p className="max-w-md text-xs leading-relaxed text-muted-foreground/70">{DISCLAIMER}</p>
+				<p className="max-w-md text-xs leading-relaxed text-muted-foreground/80">{DISCLAIMER}</p>
 			</main>
 			<SiteFooter />
 		</div>

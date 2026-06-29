@@ -1,3 +1,5 @@
+import { ExternalLink } from "lucide-react";
+
 /**
  * Shared site footer — used on the public landing page AND under the operator
  * dashboard so the disclaimer + brand links appear globally. The `/overlay`
@@ -75,9 +77,11 @@ function FooterLink({ href, children }: { href: string; children: React.ReactNod
 			href={href}
 			target="_blank"
 			rel="noopener noreferrer"
-			className="text-muted-foreground transition-colors hover:text-primary"
+			className="inline-flex items-center gap-1 text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 		>
 			{children}
+			<ExternalLink aria-hidden className="size-3 opacity-60" />
+			<span className="sr-only">(opens in a new tab)</span>
 		</a>
 	);
 }
