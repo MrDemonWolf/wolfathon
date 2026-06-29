@@ -134,7 +134,7 @@ export function RewardsTab() {
 						<p className="text-xs text-muted-foreground">Exactly what your OBS source shows.</p>
 					</div>
 					<Link
-						href="/settings/overlays"
+						href="/dashboard/settings/overlays"
 						className="rounded text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 					>
 						Get URL →
