@@ -12,7 +12,7 @@ import {
 } from "@wolfathon/ui/components/alert-dialog";
 import { Button } from "@wolfathon/ui/components/button";
 import { useCopyToClipboard } from "@wolfathon/ui/hooks/use-copy-to-clipboard";
-import { Check, Copy, Eye, EyeOff, Gauge, Loader2, RotateCcw, Trophy } from "lucide-react";
+import { Check, Copy, Disc3, Eye, EyeOff, Gauge, Loader2, RotateCcw, Trophy } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -34,6 +34,15 @@ const SOURCES = [
 		path: "/overlay/rewards",
 		size: "1920×1080",
 		blurb: "Current reward name with unlock celebration. Names only — no numbers.",
+	},
+	{
+		icon: Disc3,
+		title: "Wheel of dares",
+		path: "/overlay/wheel",
+		// Square source — the wheel fills a min-dimension box, so keep it 1:1.
+		size: "1080×1080",
+		blurb:
+			"Spinner of dares — spin it from the Wheel tab and this source whirls to the result on cue. Weighted slices, fixed top pointer.",
 	},
 ] as const;
 
