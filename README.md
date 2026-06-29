@@ -27,6 +27,10 @@ Keep the rewards flowing. Keep the clock ticking.
 - **Claude-friendly import/export** - For both rewards and the timer config:
   paste or upload JSON, validate, replace in one click, export, and copy a
   ready-made prompt so you can have Claude generate a new config to paste back.
+- **Wheel of dares (Howlwheel)** - A weighted spinner of chat dares. Edit,
+  weight, colour, and drag-reorder slots from the dashboard, then spin to a
+  weighted-random result or send the wheel to a specific slot. A token-gated OBS
+  overlay whirls a multi-turn spin and lands on the result on cue.
 - **Cloudflare Access security** - The control panel and its API sit behind
   Cloudflare Zero Trust. The overlays stay open (OBS can't sign in to Access)
   but are gated by a secret token in their URL, resettable from the control
@@ -85,6 +89,7 @@ old URLs (re-paste the new ones into OBS). If a source ever shows a small
 | ------- | ---------------------- | ----------- | ------------------------------------------------------------ |
 | Timer   | `/overlay/timer?t=…`   | `1310×200`  | Compact countdown bar (D/H/M/S); emotes flood it on each add |
 | Rewards | `/overlay/rewards?t=…` | `1920×1080` | Current reward name + unlock celebration                     |
+| Wheel   | `/overlay/wheel?t=…`   | `1080×1080` | Wheel of dares; whirls to the result when you spin           |
 
 The timer is a self-contained widget that fills its source, so resize the
 browser source itself to move or scale the bar — no full-screen canvas needed.
@@ -189,6 +194,21 @@ Timer config shape:
 | Future goals      | Hidden entirely                                   |
 | Numbers / amounts | Never shown                                       |
 | `note` field      | Never sent to the browser                         |
+
+### Wheel of dares
+
+The control panel's **Wheel** tab manages a spinner of chat dares. Each slot has
+a label, a **weight** (a higher weight = a bigger slice and better odds), an
+optional colour, and an enable toggle; drag the handle to reorder. **Spin
+(random)** picks a weighted-random enabled slot server-side, and each slot has a
+**Spin to this** for a hand-picked result. The wheel seeds with a default set of
+dares on first run, and the last 25 spins show under **Recent spins**.
+
+Add the **Wheel** OBS source (square, `1080×1080`) from **Settings → Overlays**.
+When you spin, the overlay whirls a multi-turn animation and lands on the result
+under a fixed top pointer (it honours `prefers-reduced-motion` by landing without
+the whirl). The overlay shows only enabled slots and never receives the token or
+any internal field.
 
 ### Adding your logo
 
