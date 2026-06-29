@@ -49,8 +49,9 @@ export const publicRouter = router({
 	timer: router({
 		getPublic: publicProcedure.input(tokenInput).query(async ({ ctx, input }) => {
 			assertToken((await readSettings(ctx.db)).overlayToken, input.token);
-			const doc = await readTimer(ctx.db);
-			return toPublicTimer(doc, Date.now());
+			const [doc, state] = await Promise.all([readTimer(ctx.db), readState(ctx.db)]);
+			// Theme is shared with the rewards card and lives in the rewards doc.
+			return toPublicTimer(doc, Date.now(), state.theme);
 		}),
 	}),
 });

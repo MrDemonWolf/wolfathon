@@ -1,7 +1,7 @@
 "use client";
 
 import { expandHex, FONT_STACKS, gradientCss, type ThemeCorners } from "@wolfathon/api/theme";
-import { pad2, type PublicTimer, splitDuration } from "@wolfathon/api/timer";
+import { type EmoteDirection, pad2, type PublicTimer, splitDuration } from "@wolfathon/api/timer";
 import { Flag, Pause, Play } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -143,24 +143,9 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 					)}
 					{flash && (
 						<div className="pointer-events-none absolute inset-0">
-							{fillParticles(emojis, flash.id, data.emoteCount).map((p) => (
-								<span
-									key={p.key}
-									className="animate-wolf-fill absolute bottom-0 will-change-transform"
-									style={
-										{
-											left: `${p.left}%`,
-											filter: "drop-shadow(0 0.3cqh 0.6cqh rgba(0,0,0,0.35))",
-											"--fill-x": `${p.x}cqw`,
-											"--fill-spin": `${p.spin}deg`,
-											"--fill-dur": `${p.duration}s`,
-											"--fill-delay": `${p.delay}s`,
-										} as React.CSSProperties
-									}
-								>
-									<Glyph e={p.e} size={p.size} />
-								</span>
-							))}
+							{fillParticles(emojis, flash.id, data.emoteCount).map((p) =>
+								renderParticle(p, data.emoteDirection),
+							)}
 						</div>
 					)}
 
@@ -285,18 +270,65 @@ function rand(seed: number, salt: number): number {
 	return x - Math.floor(x);
 }
 
-/** Emotes welling up across the capsule width when time is added (seeded by flash id). */
+type FillParticle = ReturnType<typeof fillParticles>[number];
+
+/** Emotes flooding the capsule when time is added (seeded by flash id). */
 function fillParticles(emojis: string[], seed: number, count = 26) {
 	// Clamp defensively — the server validates, but never spawn an absurd count.
 	const n = Math.max(0, Math.min(80, Math.round(count)));
 	return Array.from({ length: n }, (_, i) => ({
 		key: `${seed}-${i}`,
 		e: emojis[i % emojis.length] ?? "🐺",
-		left: 2 + rand(seed, i) * 96, // %
+		left: 2 + rand(seed, i) * 96, // % across width (vertical "up" mode)
+		top: 6 + rand(seed, i + 20) * 82, // % across height (horizontal modes)
 		size: 3 + rand(seed, i + 40) * 3.4, // cqw
-		x: rand(seed, i + 80) * 10 - 5, // cqw horizontal drift
+		x: rand(seed, i + 80) * 10 - 5, // cqw horizontal drift (up mode)
+		sway: rand(seed, i + 100) * 12 - 6, // cqh vertical wobble (horizontal modes)
 		spin: rand(seed, i + 120) * 180 - 90, // deg
-		duration: 5.0 + rand(seed, i + 160) * 2.0, // s — slow, floaty rise so the flood is unmissable
+		duration: 5.0 + rand(seed, i + 160) * 2.0, // s — slow, floaty so the flood is unmissable
 		delay: rand(seed, i + 200) * 1.4, // s, staggered so the bar fills gradually
 	}));
+}
+
+/** Render one flood emote, positioned + animated for the chosen direction. */
+function renderParticle(p: FillParticle, dir: EmoteDirection) {
+	const common = {
+		filter: "drop-shadow(0 0.3cqh 0.6cqh rgba(0,0,0,0.35))",
+		"--fill-spin": `${p.spin}deg`,
+		"--fill-dur": `${p.duration}s`,
+		"--fill-delay": `${p.delay}s`,
+	} as React.CSSProperties;
+
+	if (dir === "left" || dir === "right") {
+		// "right" = travel left→right; "left" = travel right→left. Start just off
+		// one edge (-12cqw / 108cqw of the bar width) and exit the other.
+		const [from, to] = dir === "right" ? [-12, 108] : [108, -12];
+		return (
+			<span
+				key={p.key}
+				className="animate-wolf-fill-x absolute left-0 will-change-transform"
+				style={
+					{
+						...common,
+						top: `${p.top}%`,
+						"--fillx-from": `${from}cqw`,
+						"--fillx-to": `${to}cqw`,
+						"--fillx-sway": `${p.sway}cqh`,
+					} as React.CSSProperties
+				}
+			>
+				<Glyph e={p.e} size={p.size} />
+			</span>
+		);
+	}
+
+	return (
+		<span
+			key={p.key}
+			className="animate-wolf-fill absolute bottom-0 will-change-transform"
+			style={{ ...common, left: `${p.left}%`, "--fill-x": `${p.x}cqw` } as React.CSSProperties}
+		>
+			<Glyph e={p.e} size={p.size} />
+		</span>
+	);
 }

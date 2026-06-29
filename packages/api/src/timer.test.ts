@@ -8,6 +8,7 @@ import {
 	defaultTimerConfig,
 	defaultTimerDoc,
 	defaultTimerState,
+	defaultTimerTheme,
 	eventLabel,
 	eventMinutes,
 	pause,
@@ -162,73 +163,28 @@ test("validateTimerConfig rejects too many emoji", () => {
 	expect(validateTimerConfig({ ...defaultTimerConfig(), emojis }).ok).toBe(false);
 });
 
-test("theme: custom preset requires at least 2 hex stops", () => {
-	const base = defaultTimerConfig();
-	expect(
-		validateTimerConfig({ ...base, theme: { ...base.theme, preset: "custom", gradient: ["#fff"] } })
-			.ok,
-	).toBe(false);
-	const ok = validateTimerConfig({
-		...base,
-		theme: { ...base.theme, preset: "custom", gradient: ["#ff0000", "#00aced"] },
-	});
+test("emoteDirection: defaults to up and accepts up/left/right, ignoring junk", () => {
+	expect(defaultTimerConfig().emoteDirection).toBe("up");
+	const ok = validateTimerConfig({ ...defaultTimerConfig(), emoteDirection: "left" });
 	expect(ok.ok).toBe(true);
+	if (ok.ok) expect(ok.config.emoteDirection).toBe("left");
+	const junk = validateTimerConfig({ ...defaultTimerConfig(), emoteDirection: "diagonal" });
+	expect(junk.ok).toBe(true);
+	if (junk.ok) expect(junk.config.emoteDirection).toBe("up");
 });
 
-test("theme: rejects a bad preset and a non-hex stop", () => {
-	const base = defaultTimerConfig();
-	expect(validateTimerConfig({ ...base, theme: { ...base.theme, preset: "neon" } }).ok).toBe(false);
-	expect(
-		validateTimerConfig({ ...base, theme: { ...base.theme, gradient: ["red", "#00aced"] } }).ok,
-	).toBe(false);
-});
-
-test("theme: validates font, corners, and textColor", () => {
-	const base = defaultTimerConfig();
-	expect(validateTimerConfig({ ...base, theme: { ...base.theme, font: "comic" } }).ok).toBe(false);
-	expect(validateTimerConfig({ ...base, theme: { ...base.theme, corners: "round" } }).ok).toBe(
-		false,
-	);
-	expect(validateTimerConfig({ ...base, theme: { ...base.theme, textColor: "blue" } }).ok).toBe(
-		false,
-	);
-	const ok = validateTimerConfig({
-		...base,
-		theme: { ...base.theme, font: "roboto", corners: "pill", textColor: "#112233" },
-	});
-	expect(ok.ok).toBe(true);
-	if (ok.ok) {
-		expect(ok.config.theme.font).toBe("roboto");
-		expect(ok.config.theme.corners).toBe("pill");
-		expect(ok.config.theme.textColor).toBe("#112233");
-	}
-});
-
-test("theme: explicit textColor wins; auto resolves from gradient brightness", () => {
-	const dark = {
-		config: {
-			...defaultTimerConfig(),
-			theme: { ...defaultTimerConfig().theme, preset: "mono" as const },
-		},
-		state: defaultTimerState(),
-	};
+test("theme: the public payload resolves the passed-in (shared) theme", () => {
+	const doc = { config: defaultTimerConfig(), state: defaultTimerState() };
 	// mono is light → auto picks dark ink
-	expect(toPublicTimer(dark, 0).textColor).toBe("#04122b");
-	const fixed = {
-		config: {
-			...defaultTimerConfig(),
-			theme: { ...defaultTimerConfig().theme, textColor: "#ff0000" },
-		},
-		state: defaultTimerState(),
-	};
-	expect(toPublicTimer(fixed, 0).textColor).toBe("#ff0000");
-});
-
-test("theme: missing theme falls back to brand in the public payload", () => {
-	const config = defaultTimerConfig();
-	// Simulate an old saved row with no theme field.
-	delete (config as { theme?: unknown }).theme;
-	const pub = toPublicTimer({ config, state: defaultTimerState(config) }, 1_000);
+	expect(toPublicTimer(doc, 0, { ...defaultTimerTheme(), preset: "mono" }).textColor).toBe(
+		"#04122b",
+	);
+	// an explicit hex wins over auto
+	expect(toPublicTimer(doc, 0, { ...defaultTimerTheme(), textColor: "#ff0000" }).textColor).toBe(
+		"#ff0000",
+	);
+	// brand default → brand gradient + chrome on
+	const pub = toPublicTimer(doc, 1_000, defaultTimerTheme());
 	expect(pub.gradient).toEqual(TIMER_THEME_PRESETS.brand);
 	expect(pub.showLabel).toBe(true);
 	expect(
@@ -303,7 +259,7 @@ test("applyEvent records the last add (minutes + label) only for positive adds",
 
 test("toPublicTimer exposes the label + event-source toggle + last event", () => {
 	const doc = defaultTimerDoc();
-	const pub = toPublicTimer(doc, 0);
+	const pub = toPublicTimer(doc, 0, defaultTimerTheme());
 	expect(pub.label).toBe("SUBATHON");
 	expect(pub.showEventSource).toBe(true);
 	expect(pub.lastEvent).toBeNull();

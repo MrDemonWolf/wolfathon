@@ -3,6 +3,8 @@
 import { useQuery } from "@tanstack/react-query";
 import {
 	DEFAULT_TIMER_EMOJIS,
+	type EmoteDirection,
+	EMOTE_DIRECTIONS,
 	MAX_EMOJIS,
 	MAX_EMOTE_COUNT,
 	MAX_LABEL_LEN,
@@ -10,10 +12,14 @@ import {
 } from "@wolfathon/api/timer";
 import { Button } from "@wolfathon/ui/components/button";
 import { Input } from "@wolfathon/ui/components/input";
-import { Plus, RotateCcw, Twitch, X } from "lucide-react";
+import { ArrowRight, ArrowUp, Plus, RotateCcw, Twitch, X } from "lucide-react";
 import { type KeyboardEvent, useState } from "react";
 
-import { ThemeEditor } from "./theme-editor";
+const EMOTE_DIRECTION_LABELS: Record<EmoteDirection, string> = {
+	up: "Up",
+	right: "Left → Right",
+	left: "Right → Left",
+};
 
 /** Quick palette for one-tap adding — covers most subathon/stream vibes. */
 const EMOJI_PRESETS = [
@@ -54,11 +60,10 @@ export function TimerConfigPanel({
 		return Number.isFinite(x) ? x : 0;
 	};
 
-	const [section, setSection] = useState<"rules" | "behaviour" | "theme">("rules");
+	const [section, setSection] = useState<"rules" | "behaviour">("rules");
 	const TABS = [
 		{ id: "rules", label: "Time rules" },
 		{ id: "behaviour", label: "Behaviour" },
-		{ id: "theme", label: "Theme" },
 	] as const;
 
 	// Roving tab navigation (WAI-ARIA tabs pattern): arrows/Home/End move the
@@ -305,6 +310,44 @@ export function TimerConfigPanel({
 						</label>
 					</div>
 
+					{/* emote travel direction */}
+					<div className="mt-4">
+						<div className="text-sm font-medium">Emote direction</div>
+						<p className="mt-1 text-xs text-muted-foreground">
+							Which way the burst travels across the bar on a time-add.
+						</p>
+						<div
+							role="radiogroup"
+							aria-label="Emote direction"
+							className="mt-2 grid max-w-md gap-2 [grid-template-columns:repeat(auto-fit,minmax(7rem,1fr))]"
+						>
+							{EMOTE_DIRECTIONS.map((dir) => {
+								const active = config.emoteDirection === dir;
+								return (
+									<button
+										key={dir}
+										type="button"
+										role="radio"
+										aria-checked={active}
+										onClick={() => onChange({ ...config, emoteDirection: dir })}
+										className={`flex items-center justify-center gap-2 rounded-lg border px-2 py-2 text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
+											active
+												? "border-primary/60 bg-primary/10"
+												: "border-border hover:border-primary/40 hover:bg-accent"
+										}`}
+									>
+										{dir === "up" ? (
+											<ArrowUp className="size-4" />
+										) : (
+											<ArrowRight className={`size-4 ${dir === "left" ? "rotate-180" : ""}`} />
+										)}
+										{EMOTE_DIRECTION_LABELS[dir]}
+									</button>
+								);
+							})}
+						</div>
+					</div>
+
 					{/* editable eyebrow label */}
 					<div className="mt-4">
 						<label className="flex max-w-xs flex-col gap-1 text-sm font-medium">
@@ -317,7 +360,7 @@ export function TimerConfigPanel({
 								placeholder="SUBATHON"
 							/>
 							<span className="text-xs font-normal text-muted-foreground">
-								The eyebrow text above the countdown. Toggle its visibility under “Overlay theme”.
+								The eyebrow text above the countdown. Toggle its visibility under Settings → Theme.
 							</span>
 						</label>
 					</div>
@@ -385,24 +428,6 @@ export function TimerConfigPanel({
 							/>
 						</div>
 					</div>
-				</div>
-			)}
-
-			{section === "theme" && (
-				<div
-					role="tabpanel"
-					id="panel-theme"
-					aria-labelledby="tab-theme"
-					tabIndex={0}
-					className="mt-4"
-				>
-					{/* overlay colours + chrome */}
-					<ThemeEditor
-						theme={config.theme}
-						onChange={(theme) => onChange({ ...config, theme })}
-						labelToggleText='Show "SUBATHON" label'
-						statusToggleText="Show play/pause icon"
-					/>
 				</div>
 			)}
 		</div>

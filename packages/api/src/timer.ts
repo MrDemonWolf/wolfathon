@@ -11,14 +11,19 @@
  */
 
 import {
-	defaultOverlayTheme,
 	type OverlayTheme,
 	resolveTextColor,
 	resolveThemeGradient,
 	type ThemeCorners,
 	type ThemeFont,
-	validateOverlayTheme,
 } from "./theme";
+
+/**
+ * Which way the time-add emote burst travels across the timer capsule.
+ * `up` is the original well-up; `left`/`right` sweep horizontally.
+ */
+export type EmoteDirection = "up" | "left" | "right";
+export const EMOTE_DIRECTIONS: EmoteDirection[] = ["up", "left", "right"];
 
 // The overlay theme is shared with the rewards card — see ./theme.
 export type { OverlayTheme as TimerTheme, ThemePreset as TimerThemePreset } from "./theme";
@@ -54,6 +59,8 @@ export type TimerConfig = {
 	emojis: string[];
 	/** How many emotes flood the bar on each time-add (0 = none). */
 	emoteCount: number;
+	/** Which way the time-add emote burst travels (up / left→right / right→left). */
+	emoteDirection: EmoteDirection;
 	/** Editable eyebrow text above the countdown (visibility is `theme.showLabel`). */
 	label: string;
 	/** Show who/what added time on the time-add alert (e.g. "Name · Sub +5m"). */
@@ -68,8 +75,6 @@ export type TimerConfig = {
 	tipMinutesPerDollar: number;
 	/** Dollars of tips that count as one sub toward the reward goals (0 = tips don't advance goals). */
 	tipDollarsPerSub: number;
-	/** Overlay colours + chrome. Optional on old rows; defaults to brand. */
-	theme: OverlayTheme;
 };
 
 export type TimerState = {
@@ -103,6 +108,8 @@ export type PublicTimer = {
 	emojis: string[];
 	/** How many emotes flood the bar on each time-add. */
 	emoteCount: number;
+	/** Which way the time-add emote burst travels. */
+	emoteDirection: EmoteDirection;
 	/** Resolved capsule gradient stops (2+ hex colours). */
 	gradient: string[];
 	/** Resolved countdown text colour (hex). */
@@ -149,6 +156,8 @@ export const MAX_EMOJIS = 24;
 /** Ceiling on the per-add emote burst so a typo can't spawn thousands of nodes. */
 export const MAX_EMOTE_COUNT = 80;
 export const DEFAULT_EMOTE_COUNT = 26;
+/** Emotes well up by default (the original behaviour). */
+export const DEFAULT_EMOTE_DIRECTION: EmoteDirection = "up";
 /** Editable eyebrow label above the countdown. */
 export const DEFAULT_TIMER_LABEL = "SUBATHON";
 export const MAX_LABEL_LEN = 40;
@@ -205,12 +214,12 @@ export function defaultTimerConfig(): TimerConfig {
 		channelPoints: [],
 		emojis: [...DEFAULT_TIMER_EMOJIS],
 		emoteCount: DEFAULT_EMOTE_COUNT,
+		emoteDirection: DEFAULT_EMOTE_DIRECTION,
 		label: DEFAULT_TIMER_LABEL,
 		showEventSource: true,
 		autoPauseOnOffline: true,
 		tipMinutesPerDollar: 1,
 		tipDollarsPerSub: 5,
-		theme: defaultOverlayTheme(),
 	};
 }
 
@@ -415,9 +424,13 @@ export function applyEvent(
 	return { state: state2, addedMs: ms };
 }
 
-export function toPublicTimer(doc: TimerDoc, now: number): PublicTimer {
+/**
+ * Project the timer doc into its public payload. The overlay `theme` is shared
+ * with the rewards card and lives in the rewards doc (see state.ts) — the public
+ * router reads it there and passes it in, so both overlays always match.
+ */
+export function toPublicTimer(doc: TimerDoc, now: number, theme: OverlayTheme): PublicTimer {
 	const emojis = doc.config.emojis?.length ? doc.config.emojis : DEFAULT_TIMER_EMOJIS;
-	const theme = doc.config.theme ?? defaultOverlayTheme();
 	return {
 		running: doc.state.running,
 		endsAt: doc.state.endsAt,
@@ -426,6 +439,7 @@ export function toPublicTimer(doc: TimerDoc, now: number): PublicTimer {
 		serverNow: now,
 		emojis,
 		emoteCount: doc.config.emoteCount ?? DEFAULT_EMOTE_COUNT,
+		emoteDirection: doc.config.emoteDirection ?? DEFAULT_EMOTE_DIRECTION,
 		gradient: resolveThemeGradient(theme),
 		textColor: resolveTextColor(theme),
 		font: theme.font,
@@ -497,6 +511,10 @@ export function validateTimerConfig(input: unknown): TimerConfigResult {
 			r.emoteCount === undefined
 				? DEFAULT_EMOTE_COUNT
 				: Math.round(num(errors, "emoteCount", r.emoteCount, { min: 0, max: MAX_EMOTE_COUNT })),
+		// Optional; absent or unknown → the default well-up direction.
+		emoteDirection: EMOTE_DIRECTIONS.includes(r.emoteDirection as EmoteDirection)
+			? (r.emoteDirection as EmoteDirection)
+			: DEFAULT_EMOTE_DIRECTION,
 		// Label + alert-source are optional; absent → defaults (lenient, like emojis).
 		label:
 			typeof r.label === "string" ? r.label.trim().slice(0, MAX_LABEL_LEN) : DEFAULT_TIMER_LABEL,
@@ -512,7 +530,6 @@ export function validateTimerConfig(input: unknown): TimerConfigResult {
 			r.tipDollarsPerSub === undefined
 				? 5
 				: num(errors, "tipDollarsPerSub", r.tipDollarsPerSub, { min: 0, max: 100000 }),
-		theme: defaultOverlayTheme(),
 	};
 
 	// Emoji are optional; absent → keep the wolf default set.
@@ -568,9 +585,6 @@ export function validateTimerConfig(input: unknown): TimerConfigResult {
 			});
 		}
 	}
-
-	// Theme is optional; absent → brand default. Shared validator (see ./theme).
-	config.theme = validateOverlayTheme(r.theme, errors);
 
 	if (errors.length > 0) return { ok: false, errors };
 	return { ok: true, config };
