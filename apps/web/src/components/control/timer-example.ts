@@ -6,15 +6,7 @@ export const TIMER_EXAMPLE = {
 	giftSubMinutes: 5,
 	bitsPer100Minutes: 1,
 	channelPoints: [{ rewardTitle: "Add 5 minutes", minutes: 5 }],
-	theme: {
-		preset: "brand",
-		gradient: [],
-		textColor: "auto",
-		font: "montserrat",
-		corners: "rounded",
-		showLabel: true,
-		showStatus: true,
-	},
+	emoteDirection: "up",
 };
 
 export const TIMER_EXAMPLE_JSON = JSON.stringify(TIMER_EXAMPLE, null, 2);
@@ -24,6 +16,7 @@ export const TIMER_SCHEMA_BULLETS = [
 	"`sub.t1/t2/t3/prime`, `giftSubMinutes`, `bitsPer100Minutes` are minutes added per event.",
 	"`channelPoints` is a list of `{ rewardTitle, minutes, rewardId? }` (max 50).",
 	"`autoPauseOnOffline` (default true) pauses on stream.offline and resumes on stream.online.",
-	'`theme.preset` = brand|sunset|aurora|mono|custom (`custom` uses `theme.gradient`, 2–6 hex stops). `theme.textColor` = "auto" or a hex; `theme.font` = montserrat|roboto|poppins|inter|system; `theme.corners` = rounded|pill|sharp; `theme.showLabel`/`showStatus` toggle the chrome.',
+	"`emoteDirection` = up|left|right — which way the time-add emote burst travels.",
+	"Overlay theme (colour/font/corners) is a global setting under Settings → Theme, shared by both overlays — it's not part of this config.",
 	"Importing replaces the config; a running timer keeps ticking.",
 ];
