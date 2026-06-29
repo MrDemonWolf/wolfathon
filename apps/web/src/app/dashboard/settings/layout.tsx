@@ -5,9 +5,9 @@ import { usePathname } from "next/navigation";
 
 /** Set-once config — connect Twitch, grab overlay URLs, back up state. Reached via the gear in the navbar. */
 const SECTIONS = [
-	{ href: "/settings/twitch", label: "Twitch" },
-	{ href: "/settings/overlays", label: "Overlays" },
-	{ href: "/settings/backup", label: "Backup" },
+	{ href: "/dashboard/settings/twitch", label: "Twitch" },
+	{ href: "/dashboard/settings/overlays", label: "Overlays" },
+	{ href: "/dashboard/settings/backup", label: "Backup" },
 ] as const;
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {

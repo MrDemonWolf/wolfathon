@@ -2,5 +2,5 @@ import { redirect } from "next/navigation";
 
 /** /settings has no page of its own — land on Twitch. */
 export default function SettingsIndex() {
-	redirect("/settings/twitch");
+	redirect("/dashboard/settings/twitch");
 }

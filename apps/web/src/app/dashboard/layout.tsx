@@ -8,15 +8,16 @@ import { WolfMark } from "@/components/wolf-mark";
 
 /**
  * Chrome for the operator panel. The live sections (rewards / timer / giveaways)
- * live at the root and switch via the navbar tabs below; set-once config (Twitch,
- * overlay URLs, backup) sits behind the Settings gear at /settings. The `/overlay`
- * route lives outside this group and stays bare/transparent for OBS. Cloudflare
- * Access gates this whole group + /api/trpc.
+ * live under /dashboard and switch via the navbar tabs below; set-once config
+ * (Twitch, overlay URLs, backup) sits behind the Settings gear at
+ * /dashboard/settings. `/` is a public landing page and `/overlay` lives outside
+ * this group, staying bare/transparent for OBS. Cloudflare Access gates
+ * /dashboard + /api/trpc.
  */
 const SECTIONS = [
-	{ href: "/", label: "Rewards" },
-	{ href: "/timer", label: "Timer" },
-	{ href: "/giveaways", label: "Giveaways" },
+	{ href: "/dashboard", label: "Rewards" },
+	{ href: "/dashboard/timer", label: "Timer" },
+	{ href: "/dashboard/giveaways", label: "Giveaways" },
 ] as const;
 
 export default function PanelLayout({ children }: { children: React.ReactNode }) {
@@ -27,13 +28,14 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
 		<div className="app-bg flex min-h-svh flex-col text-foreground">
 			<header className="sticky top-0 z-30 px-4 pt-4 pb-1">
 				<div className="glass-bar mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl px-5 py-3.5">
-					<Link href="/" className="group flex items-center gap-2.5">
+					<Link href="/dashboard" className="group flex items-center gap-2.5">
 						<WolfMark className="size-8 transition-transform group-hover:scale-110" />
 						<span className="font-heading text-lg font-extrabold tracking-tight">Wolfathon</span>
 					</Link>
 					<nav aria-label="Control sections" className="flex items-center gap-1 text-sm">
 						{SECTIONS.map((s) => {
-							const active = s.href === "/" ? pathname === "/" : pathname.startsWith(s.href);
+							const active =
+								s.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(s.href);
 							return (
 								<NavLink key={s.href} href={s.href} active={active}>
 									{s.label}
@@ -41,7 +43,7 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
 							);
 						})}
 						<span aria-hidden className="mx-1 h-5 w-px bg-border" />
-						<NavLink href="/settings" active={pathname.startsWith("/settings")}>
+						<NavLink href="/dashboard/settings" active={pathname.startsWith("/dashboard/settings")}>
 							<Settings className="size-3.5" />
 							Settings
 						</NavLink>
