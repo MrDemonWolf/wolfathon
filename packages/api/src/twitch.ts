@@ -22,7 +22,12 @@ export const TWITCH_SCOPES = [
 	"bits:read",
 	"channel:read:redemptions",
 	// Read chat so the giveaway `!enter` raffle can ingest entries via EventSub.
+	// channel.chat.message over webhook uses our APP token, which Twitch requires
+	// to also carry user:bot (chatting user) + channel:bot (broadcaster) — without
+	// them sub-create returns 403 "subscription missing proper authorization".
 	"user:read:chat",
+	"user:bot",
+	"channel:bot",
 ] as const;
 
 /**
