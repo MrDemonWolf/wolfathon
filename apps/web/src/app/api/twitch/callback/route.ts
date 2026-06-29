@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
 	const url = new URL(req.url);
 	const back = (status: string) =>
-		NextResponse.redirect(new URL(`/twitch?twitch=${status}`, url.origin));
+		NextResponse.redirect(new URL(`/dashboard/settings/twitch?twitch=${status}`, url.origin));
 
 	const code = url.searchParams.get("code");
 	const state = url.searchParams.get("state");
@@ -61,6 +61,7 @@ export async function GET(req: Request) {
 			persist: (d) => writeTwitch(db, d).then(() => undefined),
 		});
 		await writeTwitch(db, next);
+		if (errors.length) console.error("Twitch EventSub failures:", errors);
 		if (!next.connected) return back("no_subs");
 		return back(errors.length ? "partial" : "connected");
 	} catch {
