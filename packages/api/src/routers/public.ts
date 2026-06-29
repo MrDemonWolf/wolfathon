@@ -3,8 +3,9 @@ import { z } from "zod";
 
 import { publicProcedure, router } from "../index";
 import { stripNotes } from "../state";
-import { readSettings, readState, readTimer } from "../store";
+import { readSettings, readState, readTimer, readWheel } from "../store";
 import { toPublicTimer } from "../timer";
+import { toPublicWheel } from "../wheel";
 
 /**
  * The only API surface exposed to the public overlays. Every response is
@@ -52,6 +53,22 @@ export const publicRouter = router({
 			const [doc, state] = await Promise.all([readTimer(ctx.db), readState(ctx.db)]);
 			// Theme is shared with the rewards card and lives in the rewards doc.
 			return toPublicTimer(doc, Date.now(), state.theme);
+		}),
+	}),
+	wheel: router({
+		/** Enabled slots as render-only fields — no ids beyond render, never the token. */
+		getPublic: publicProcedure.input(tokenInput).query(async ({ ctx, input }) => {
+			assertToken((await readSettings(ctx.db)).overlayToken, input.token);
+			return toPublicWheel(await readWheel(ctx.db));
+		}),
+		/**
+		 * The live pending spin (or null) so the overlay can animate. Does NOT clear
+		 * on read — multiple browser sources are safe and the overlay dedupes by
+		 * `spinId`. A new structural slot edit clears it server-side.
+		 */
+		poll: publicProcedure.input(tokenInput).query(async ({ ctx, input }) => {
+			assertToken((await readSettings(ctx.db)).overlayToken, input.token);
+			return (await readWheel(ctx.db)).pendingSpin;
 		}),
 	}),
 });

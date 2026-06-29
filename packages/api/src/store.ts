@@ -12,6 +12,7 @@ import {
 	withTimerConfigDefaults,
 } from "./timer";
 import { type TwitchDoc, defaultTwitchDoc } from "./twitch";
+import { type WheelDoc, defaultWheelDoc, withWheelDefaults } from "./wheel";
 
 /**
  * The whole app is stored as a few singleton JSON rows in `tracker_state`,
@@ -20,12 +21,14 @@ import { type TwitchDoc, defaultTwitchDoc } from "./twitch";
  *   "timer"    → subathon timer config + state
  *   "twitch"   → Twitch credentials/tokens (secret; never public)
  *   "giveaway" → giveaway gifters / entrants / winners (operator-only)
+ *   "wheel"    → wheel-of-dares slots / history / live pending spin
  */
 const STATE_ID = "default";
 const TIMER_ID = "timer";
 const TWITCH_ID = "twitch";
 const SETTINGS_ID = "settings";
 const GIVEAWAY_ID = "giveaway";
+const WHEEL_ID = "wheel";
 
 /**
  * Generic doc read with lazy seeding. Returns the parsed JSON, or seeds (and
@@ -223,6 +226,20 @@ export function mutateGiveaway(
 ): Promise<GiveawayDoc> {
 	return mutateDoc(db, GIVEAWAY_ID, defaultGiveawayDoc, fn);
 }
+
+// ---- wheel of dares -------------------------------------------------------
+
+export async function readWheel(db: Db): Promise<WheelDoc> {
+	return withWheelDefaults(await readDoc(db, WHEEL_ID, defaultWheelDoc));
+}
+
+export async function writeWheel(db: Db, doc: WheelDoc): Promise<WheelDoc> {
+	return writeDoc(db, WHEEL_ID, doc);
+}
+
+// ponytail: no mutateWheel — the wheel is operator-only (no EventSub/webhook
+// path), so a plain read→write is fine (matches the giveaway operator router).
+// Add a CAS mutate* only if the wheel ever gains an event-driven writer.
 
 // ---- combined apply -------------------------------------------------------
 

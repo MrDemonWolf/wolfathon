@@ -17,6 +17,7 @@ import { type ThemeError, validateOverlayTheme } from "../theme";
 import { giveawayRouter } from "./giveaway";
 import { timerRouter } from "./timer";
 import { twitchRouter } from "./twitch";
+import { wheelRouter } from "./wheel";
 
 const rewardSchema = z.string().trim().min(1, "Reward must not be empty.").max(MAX_REWARD_LENGTH);
 
@@ -236,6 +237,7 @@ export const protectedRouter = router({
 	timer: timerRouter,
 	twitch: twitchRouter,
 	giveaway: giveawayRouter,
+	wheel: wheelRouter,
 });
 
 export type ProtectedRouter = typeof protectedRouter;
