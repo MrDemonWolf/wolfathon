@@ -34,7 +34,8 @@ const inter = Inter({
 
 export const metadata: Metadata = {
 	title: "The Wolf Pack Subathon — MrDemonWolf",
-	description: "Join the Wolf Pack. Subathon timer, rewards, and giveaways for MrDemonWolf's stream.",
+	description:
+		"Join the Wolf Pack. Subathon timer, rewards, and giveaways for MrDemonWolf's stream.",
 };
 
 export default function RootLayout({

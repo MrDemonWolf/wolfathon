@@ -14,8 +14,8 @@ export default function LandingPage() {
 					The Wolf Pack Subathon
 				</h1>
 				<p className="max-w-md text-muted-foreground">
-					Join the pack — every sub, cheer, and tip keeps the timer running. Live timers,
-					rewards, giveaways, and overlays for MrDemonWolf&apos;s stream.
+					Join the pack — every sub, cheer, and tip keeps the timer running. Live timers, rewards,
+					giveaways, and overlays for MrDemonWolf&apos;s stream.
 				</p>
 			</div>
 			<Link
