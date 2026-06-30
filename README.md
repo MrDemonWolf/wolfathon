@@ -12,8 +12,6 @@ Keep the rewards flowing. Keep the clock ticking.
 
 <video src="https://github.com/mrdemonwolf/wolfathon/raw/main/assets/demo.mp4" controls muted width="100%"></video>
 
-[Watch the demo](assets/demo.mp4)
-
 ## Features
 
 - **Subathon timer** - A timestamp-driven countdown that auto-adds time from
