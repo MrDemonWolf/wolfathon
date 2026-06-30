@@ -61,6 +61,25 @@ export function GiveawayTab() {
 			onError,
 		}),
 	);
+	const start = useMutation(
+		controlTrpc.giveaway.start.mutationOptions({
+			onSuccess: () => {
+				toast.success("Giveaway started — gift subs now count");
+				invalidate();
+			},
+			onError,
+		}),
+	);
+	const reroll = useMutation(
+		controlTrpc.giveaway.reroll.mutationOptions({
+			onSuccess: (r) => {
+				if (r.winner) toast.success(`Rerolled: ${r.winner.name}`);
+				else toast.error("No one left to reroll to");
+				invalidate();
+			},
+			onError,
+		}),
+	);
 	const addEntrant = useMutation(
 		controlTrpc.giveaway.addEntrant.mutationOptions({ onSuccess: invalidate, onError }),
 	);
@@ -119,11 +138,56 @@ export function GiveawayTab() {
 	}
 
 	const cfg = data.config;
+	const started = data.startedAt != null;
 	const gifters = qualifying(data);
 	const giftWinners = data.winners.filter((w) => w.source === "gift");
 	const raffleWinners = data.winners.filter((w) => w.source === "raffle");
 	const wonLogins = new Set(data.winners.map((w) => w.login));
 	const remainingEntrants = data.entrants.filter((e) => !wonLogins.has(e.login)).length;
+
+	// One winner row — shipping checkbox, note, optional reroll (raffle only), remove.
+	const renderWinner = (w: (typeof data.winners)[number], canReroll: boolean) => (
+		<li
+			key={w.id}
+			className="flex flex-wrap items-center gap-3 rounded-lg border border-border px-3 py-2"
+		>
+			<Checkbox
+				checked={w.shipped}
+				onCheckedChange={(checked) => setShipped.mutate({ id: w.id, shipped: checked === true })}
+				aria-label={`Mark ${w.name} shipped`}
+			/>
+			<span className="text-sm font-medium">{w.name}</span>
+			<Input
+				className="h-8 min-w-0 flex-1"
+				defaultValue={w.note ?? ""}
+				placeholder="shipping note (address, USA/EU…)"
+				aria-label={`Shipping note for ${w.name}`}
+				onBlur={(e) => {
+					if (e.target.value !== (w.note ?? "")) setNote.mutate({ id: w.id, note: e.target.value });
+				}}
+			/>
+			{canReroll ? (
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={() => reroll.mutate({ id: w.id })}
+					disabled={reroll.isPending}
+					aria-label={`Reroll ${w.name}`}
+				>
+					<Dice5 className="size-3.5" /> Reroll
+				</Button>
+			) : null}
+			<Button
+				variant="ghost"
+				size="sm"
+				onClick={() => removeWinner.mutate({ id: w.id })}
+				disabled={removeWinner.isPending}
+				aria-label={`Remove ${w.name}`}
+			>
+				<Trash2 className="size-4" />
+			</Button>
+		</li>
+	);
 
 	return (
 		<div className="flex flex-col gap-6">
@@ -133,6 +197,26 @@ export function GiveawayTab() {
 					First {cfg.giftWinnerSlots} to gift {cfg.giftThreshold}+ subs win automatically (you
 					confirm); {cfg.raffleWinnerSlots} more by open chat raffle ({cfg.command}).
 				</p>
+			</div>
+
+			{/* Round start — gift subs only count after this */}
+			<div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl panel-card p-5">
+				<div>
+					<div className="font-medium">{started ? "Round started" : "Round not started"}</div>
+					<div className="text-xs text-muted-foreground">
+						{started
+							? `Gift subs are counting. Open ${cfg.command} when you're ready for the raffle.`
+							: "Gift subs only start counting once you hit Start."}
+					</div>
+				</div>
+				{started ? (
+					<span className="text-sm font-medium text-primary">● Tracking gift subs</span>
+				) : (
+					<Button onClick={() => start.mutate()} disabled={start.isPending}>
+						{start.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
+						Start giveaway
+					</Button>
+				)}
 			</div>
 
 			{/* Settings */}
@@ -172,19 +256,23 @@ export function GiveawayTab() {
 
 				<div className="mt-4 flex items-center justify-between rounded-xl border border-border p-3">
 					<div>
-						<div className="font-medium">Entries {cfg.open ? "open" : "closed"}</div>
+						<div className="font-medium">
+							{cfg.command} entries {cfg.open ? "open" : "closed"}
+						</div>
 						<div className="text-xs text-muted-foreground">
-							{cfg.open
-								? `Accepting ${cfg.command} — ${data.entrants.length} entered`
-								: `${cfg.command} is ignored until you open entries`}
+							{!started
+								? "Start the round first."
+								: cfg.open
+									? `Accepting ${cfg.command} — ${data.entrants.length} entered`
+									: `${cfg.command} is ignored until you open entries`}
 						</div>
 					</div>
 					<Button
 						variant={cfg.open ? "destructive" : "default"}
 						onClick={() => setConfig.mutate({ open: !cfg.open })}
-						disabled={setConfig.isPending}
+						disabled={setConfig.isPending || !started}
 					>
-						{cfg.open ? "Close entries" : "Open entries"}
+						{cfg.open ? `Close ${cfg.command}` : `Open ${cfg.command}`}
 					</Button>
 				</div>
 			</div>
@@ -277,10 +365,10 @@ export function GiveawayTab() {
 				</div>
 			</div>
 
-			{/* All winners */}
+			{/* Final winners — split into gift vs raffle lists */}
 			<div className="rounded-2xl panel-card p-5">
 				<div className="flex items-center justify-between">
-					<h3 className="font-heading font-bold">Winners ({data.winners.length})</h3>
+					<h3 className="font-heading font-bold">Final winners ({data.winners.length})</h3>
 					<AlertDialog>
 						<AlertDialogTrigger
 							render={
@@ -305,49 +393,34 @@ export function GiveawayTab() {
 						</AlertDialogContent>
 					</AlertDialog>
 				</div>
-				{data.winners.length === 0 ? (
-					<p className="mt-3 text-sm text-muted-foreground">No winners yet.</p>
-				) : (
-					<ul className="mt-3 flex flex-col gap-2">
-						{data.winners.map((w) => (
-							<li
-								key={w.id}
-								className="flex flex-wrap items-center gap-3 rounded-lg border border-border px-3 py-2"
-							>
-								<Checkbox
-									checked={w.shipped}
-									onCheckedChange={(checked) =>
-										setShipped.mutate({ id: w.id, shipped: checked === true })
-									}
-									aria-label={`Mark ${w.name} shipped`}
-								/>
-								<span className="text-sm font-medium">{w.name}</span>
-								<span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
-									{w.source === "gift" ? "gift" : "raffle"}
-								</span>
-								<Input
-									className="h-8 min-w-0 flex-1"
-									defaultValue={w.note ?? ""}
-									placeholder="shipping note (address, USA/EU…)"
-									aria-label={`Shipping note for ${w.name}`}
-									onBlur={(e) => {
-										if (e.target.value !== (w.note ?? ""))
-											setNote.mutate({ id: w.id, note: e.target.value });
-									}}
-								/>
-								<Button
-									variant="ghost"
-									size="sm"
-									onClick={() => removeWinner.mutate({ id: w.id })}
-									disabled={removeWinner.isPending}
-									aria-label={`Remove ${w.name}`}
-								>
-									<Trash2 className="size-4" />
-								</Button>
-							</li>
-						))}
-					</ul>
-				)}
+
+				<div className="mt-4">
+					<div className="flex items-center gap-2">
+						<Gift className="size-4 text-primary" />
+						<h4 className="text-sm font-semibold">Gift sub winners ({giftWinners.length})</h4>
+					</div>
+					{giftWinners.length === 0 ? (
+						<p className="mt-2 text-sm text-muted-foreground">No gift sub winners yet.</p>
+					) : (
+						<ul className="mt-2 flex flex-col gap-2">
+							{giftWinners.map((w) => renderWinner(w, false))}
+						</ul>
+					)}
+				</div>
+
+				<div className="mt-5">
+					<div className="flex items-center gap-2">
+						<Dice5 className="size-4 text-primary" />
+						<h4 className="text-sm font-semibold">Raffle winners ({raffleWinners.length})</h4>
+					</div>
+					{raffleWinners.length === 0 ? (
+						<p className="mt-2 text-sm text-muted-foreground">No raffle winners yet.</p>
+					) : (
+						<ul className="mt-2 flex flex-col gap-2">
+							{raffleWinners.map((w) => renderWinner(w, true))}
+						</ul>
+					)}
+				</div>
 			</div>
 		</div>
 	);
