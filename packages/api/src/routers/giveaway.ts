@@ -6,9 +6,11 @@ import {
 	applyGiveawayEvent,
 	drawRaffle,
 	removeWinner,
+	rerollRaffle,
 	resetRound,
 	setShipped,
 	setWinnerNote,
+	startGiveaway,
 } from "../giveaway";
 import { protectedProcedure, router } from "../index";
 import { readGiveaway, writeGiveaway } from "../store";
@@ -42,6 +44,12 @@ export const giveawayRouter = router({
 			return writeGiveaway(ctx.db, applyConfig(doc, input));
 		}),
 
+	/** Start the round so gift events begin counting (gifts before this are ignored). */
+	start: protectedProcedure.mutation(async ({ ctx }) => {
+		const doc = await readGiveaway(ctx.db);
+		return writeGiveaway(ctx.db, startGiveaway(doc, Date.now()));
+	}),
+
 	/** Confirm a qualifying gifter as a winner (the "auto-capture, you confirm" step). */
 	addGiftWinner: protectedProcedure
 		.input(z.object({ login: loginSchema }))
@@ -62,6 +70,16 @@ export const giveawayRouter = router({
 		await writeGiveaway(ctx.db, next);
 		return { winner };
 	}),
+
+	/** Swap a raffle winner for a fresh draw (excludes the person rerolled out). */
+	reroll: protectedProcedure
+		.input(z.object({ id: z.string() }))
+		.mutation(async ({ ctx, input }) => {
+			const doc = await readGiveaway(ctx.db);
+			const { doc: next, winner } = rerollRaffle(doc, input.id, Date.now());
+			await writeGiveaway(ctx.db, next);
+			return { winner };
+		}),
 
 	/**
 	 * Manually add a raffle entrant — fallback for testing or if the chat ingest
