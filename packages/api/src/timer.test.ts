@@ -10,6 +10,7 @@ import {
 	defaultTimerState,
 	defaultTimerTheme,
 	eventLabel,
+	isAllowedEmoteUrl,
 	eventMinutes,
 	pause,
 	resolveThemeGradient,
@@ -257,10 +258,24 @@ test("applyEvent records the last add (minutes + label) only for positive adds",
 	expect(after.lastEvent?.at).toBe(1000);
 });
 
-test("toPublicTimer exposes the label + event-source toggle + last event", () => {
+test("toPublicTimer sources the eyebrow label from the THEME, not the timer config", () => {
 	const doc = defaultTimerDoc();
-	const pub = toPublicTimer(doc, 0, defaultTimerTheme());
-	expect(pub.label).toBe("SUBATHON");
+	// A stray legacy config.label (pre-migration rows still carry it) must be
+	// ignored — the theme is now the single source of truth.
+	(doc.config as Record<string, unknown>).label = "STALE";
+	const pub = toPublicTimer(doc, 0, { ...defaultTimerTheme(), label: "MARATHON" });
+	expect(pub.label).toBe("MARATHON");
 	expect(pub.showEventSource).toBe(true);
 	expect(pub.lastEvent).toBeNull();
+});
+
+test("isAllowedEmoteUrl gates the /emote proxy to https CDN hosts only", () => {
+	expect(isAllowedEmoteUrl("https://static-cdn.jtvnw.net/emoticons/v2/123/default/dark/3.0")).toBe(
+		true,
+	);
+	expect(isAllowedEmoteUrl("https://cdn.7tv.app/emote/abc/4x.webp")).toBe(true);
+	// Off-allowlist host, non-https, and garbage are all refused (no SSRF).
+	expect(isAllowedEmoteUrl("https://evil.example.com/x.png")).toBe(false);
+	expect(isAllowedEmoteUrl("http://static-cdn.jtvnw.net/x.png")).toBe(false);
+	expect(isAllowedEmoteUrl("not a url")).toBe(false);
 });

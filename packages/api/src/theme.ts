@@ -19,10 +19,14 @@ export type OverlayTheme = {
 	font: ThemeFont;
 	/** Corner style — `rounded` is the macOS-style default. */
 	corners: ThemeCorners;
+	/** Editable eyebrow text above the timer countdown (visibility = `showLabel`). */
+	label: string;
 	/** Show the eyebrow label ("SUBATHON" / "NEXT REWARD"). */
 	showLabel: boolean;
-	/** Show the status chip (timer play/pause) + rewards live dot. */
+	/** Show the timer status chip (play/pause). */
 	showStatus: boolean;
+	/** Show the pulsing live dot on the rewards card. */
+	showLiveDot: boolean;
 	/** Show the unit labels under the countdown digits (D/H/M/S). */
 	showUnits: boolean;
 	/** Show the rewards-card progress bar toward the next goal. */
@@ -35,6 +39,7 @@ export type OverlayTheme = {
 export const OVERLAY_TOGGLE_KEYS = [
 	"showLabel",
 	"showStatus",
+	"showLiveDot",
 	"showUnits",
 	"showProgressBar",
 	"showUnlocked",
@@ -43,6 +48,10 @@ export const OVERLAY_TOGGLE_KEYS = [
 export const MAX_GRADIENT_STOPS = 6;
 /** Matches `#abc` or `#aabbcc`. */
 export const HEX_COLOR = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+
+/** Editable eyebrow text above the timer countdown. */
+export const DEFAULT_TIMER_LABEL = "SUBATHON";
+export const MAX_LABEL_LEN = 40;
 
 /**
  * Normalize a hex colour to `#rrggbb`: expand `#rgb` shorthand, pass a 6-digit
@@ -98,8 +107,10 @@ export function defaultOverlayTheme(): OverlayTheme {
 		textColor: "auto",
 		font: "montserrat",
 		corners: "rounded",
+		label: DEFAULT_TIMER_LABEL,
 		showLabel: true,
 		showStatus: true,
+		showLiveDot: true,
 		showUnits: true,
 		showProgressBar: true,
 		showUnlocked: true,
@@ -218,6 +229,11 @@ export function validateOverlayTheme(
 		} else {
 			theme.corners = t.corners as ThemeCorners;
 		}
+	}
+
+	if (t.label !== undefined) {
+		if (typeof t.label === "string") theme.label = t.label.trim().slice(0, MAX_LABEL_LEN);
+		else errors.push({ path: `${at}.label`, message: "must be a string" });
 	}
 
 	// All the show/hide element toggles share one boolean shape.

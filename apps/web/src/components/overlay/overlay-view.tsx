@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from "react";
 const CARD_RADII: Record<ThemeCorners, string> = {
 	rounded: "2cqw",
 	pill: "3.4cqw",
-	sharp: "0.4cqw",
+	sharp: "0",
 };
 
 /**
@@ -98,13 +98,13 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 						/>
 
 						<div className="relative p-[2.2cqw] pl-[2.6cqw]">
-							{(data.showLabel || (current && data.showStatus)) && (
+							{(data.showLabel || (current && data.showLiveDot)) && (
 								<div className="flex items-center gap-[1cqw]">
 									<span
 										className="flex items-center gap-[0.7cqw] text-[1.5cqw] font-semibold tracking-[0.28em] uppercase"
 										style={{ color: accent }}
 									>
-										{current && data.showStatus && (
+										{current && data.showLiveDot && (
 											<span className="relative flex size-[1cqw]">
 												<span
 													className="absolute inline-flex size-full animate-ping rounded-full opacity-70"

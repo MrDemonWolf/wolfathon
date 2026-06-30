@@ -2,12 +2,14 @@
 
 import {
 	defaultOverlayTheme,
+	DEFAULT_TIMER_LABEL,
 	expandHex,
 	FONT_LABELS,
 	FONT_STACKS,
 	gradientCss,
 	HEX_COLOR,
 	MAX_GRADIENT_STOPS,
+	MAX_LABEL_LEN,
 	type OverlayTheme,
 	OVERLAY_TOGGLE_KEYS,
 	resolveTextColor,
@@ -21,6 +23,7 @@ import {
 } from "@wolfathon/api/theme";
 import { Button } from "@wolfathon/ui/components/button";
 import { Checkbox } from "@wolfathon/ui/components/checkbox";
+import { Input } from "@wolfathon/ui/components/input";
 import { Plus, RotateCcw, X } from "lucide-react";
 import { useId } from "react";
 
@@ -41,7 +44,7 @@ const CORNER_LABELS: Record<ThemeCorners, string> = {
 const CORNER_PREVIEW: Record<ThemeCorners, string> = {
 	rounded: "rounded-lg",
 	pill: "rounded-full",
-	sharp: "rounded-[2px]",
+	sharp: "rounded-none",
 };
 
 // Corner-picker swatch radius. `rounded` uses a generous radius on a small tile
@@ -50,7 +53,7 @@ const CORNER_PREVIEW: Record<ThemeCorners, string> = {
 const CORNER_TILE: Record<ThemeCorners, string> = {
 	rounded: "rounded-[7px]",
 	pill: "rounded-full",
-	sharp: "rounded-[1px]",
+	sharp: "rounded-none",
 };
 
 // The user-toggleable overlay elements, with a short scope hint each. Keys map
@@ -58,7 +61,8 @@ const CORNER_TILE: Record<ThemeCorners, string> = {
 type ToggleKey = (typeof OVERLAY_TOGGLE_KEYS)[number];
 const ELEMENT_TOGGLES: { key: ToggleKey; label: string; hint: string }[] = [
 	{ key: "showLabel", label: "Eyebrow label", hint: '"SUBATHON" / "NEXT REWARD"' },
-	{ key: "showStatus", label: "Status indicator", hint: "Timer chip + live dot" },
+	{ key: "showStatus", label: "Timer status chip", hint: "Play / pause chip on the timer" },
+	{ key: "showLiveDot", label: "Live dot", hint: "Pulsing dot on the rewards card" },
 	{ key: "showUnits", label: "Unit labels", hint: "D / H / M / S under the timer" },
 	{ key: "showProgressBar", label: "Progress bar", hint: "Subs toward the next reward" },
 	{ key: "showUnlocked", label: "Unlocked rewards", hint: "Row of already-won rewards" },
@@ -293,6 +297,25 @@ export function ThemeEditor({
 					})}
 				</div>
 			</div>
+
+			{/* eyebrow text — visibility is the "Eyebrow label" toggle below */}
+			<label
+				htmlFor="overlay-label"
+				className="mt-4 flex max-w-xs flex-col gap-1 text-xs font-medium"
+			>
+				Eyebrow label text
+				<Input
+					id="overlay-label"
+					className="h-9 rounded-lg"
+					maxLength={MAX_LABEL_LEN}
+					value={theme.label}
+					onChange={(e) => onChange({ ...theme, label: e.target.value })}
+					placeholder={DEFAULT_TIMER_LABEL}
+				/>
+				<span className="font-normal text-muted-foreground">
+					The text above the timer countdown. Shows only when “Eyebrow label” is on.
+				</span>
+			</label>
 
 			{/* overlay elements — pick which pieces appear on the overlays */}
 			<div className="mt-5 border-t border-border pt-4">

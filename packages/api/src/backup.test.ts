@@ -14,6 +14,31 @@ test("splitBackupDoc round-trips buildBackupDoc", () => {
 	expect(split).toEqual({ ok: true, rewards: { a: 1 }, timer: { b: 2 } });
 });
 
+test("splitBackupDoc carries a legacy timer.config.label onto the rewards theme", () => {
+	// Pre-migration backup: the custom eyebrow label lived on the timer half only.
+	const split = splitBackupDoc({
+		version: 1,
+		rewards: { goals: [], theme: { preset: "brand" } },
+		timer: { config: { label: "MARATHON" } },
+	});
+	expect(split.ok).toBe(true);
+	if (split.ok) {
+		expect((split.rewards as { theme: { label?: string } }).theme.label).toBe("MARATHON");
+	}
+});
+
+test("splitBackupDoc never overwrites a label the rewards theme already has", () => {
+	const split = splitBackupDoc({
+		version: 1,
+		rewards: { goals: [], theme: { label: "KEEP" } },
+		timer: { config: { label: "OLD" } },
+	});
+	expect(split.ok).toBe(true);
+	if (split.ok) {
+		expect((split.rewards as { theme: { label?: string } }).theme.label).toBe("KEEP");
+	}
+});
+
 test("splitBackupDoc splits even an unknown future version (per-half validators gate)", () => {
 	const split = splitBackupDoc({ version: 99, rewards: {}, timer: {} });
 	expect(split.ok).toBe(true);

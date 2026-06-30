@@ -7,7 +7,6 @@ import {
 	EMOTE_DIRECTIONS,
 	MAX_EMOJIS,
 	MAX_EMOTE_COUNT,
-	MAX_LABEL_LEN,
 	type TimerConfig,
 } from "@wolfathon/api/timer";
 import { Button } from "@wolfathon/ui/components/button";
@@ -45,7 +44,7 @@ const EMOJI_PRESETS = [
 	"☕",
 ];
 
-import { controlTrpc } from "@/utils/trpc";
+import { controlTrpc, queryClient } from "@/utils/trpc";
 
 /** Controlled — the Timer tab holds the draft config and persists it on Save. */
 export function TimerConfigPanel({
@@ -369,23 +368,6 @@ export function TimerConfigPanel({
 						</div>
 					</div>
 
-					{/* editable eyebrow label */}
-					<div className="mt-4">
-						<label className="flex max-w-xs flex-col gap-1 text-sm font-medium">
-							Overlay label
-							<Input
-								className="h-9 rounded-lg"
-								maxLength={MAX_LABEL_LEN}
-								value={config.label}
-								onChange={(e) => onChange({ ...config, label: e.target.value })}
-								placeholder="SUBATHON"
-							/>
-							<span className="text-xs font-normal text-muted-foreground">
-								The eyebrow text above the countdown. Toggle its visibility under Settings → Theme.
-							</span>
-						</label>
-					</div>
-
 					{/* alert: name who added the time */}
 					<div className="mt-4">
 						<label className="flex items-center gap-2 text-sm font-medium">
@@ -467,13 +449,35 @@ function entryGlyph(e: string, sizeClass = "size-6") {
 
 function EmojiEditor({ emojis, onChange }: { emojis: string[]; onChange: (e: string[]) => void }) {
 	const [draft, setDraft] = useState("");
-	const [showEmotes, setShowEmotes] = useState(false);
+	// Load the channel emotes ONCE per session. gcTime/staleTime Infinity keep the
+	// list in the query cache across tab-switch remounts (this panel unmounts
+	// inactive tabs), so seed `showEmotes` from that cache — the grid reappears
+	// instantly without re-clicking "Load". A full page reload clears it (expected);
+	// the Reload button forces a manual refresh.
+	const emotesOpts = controlTrpc.twitch.listEmotes.queryOptions();
+	const [showEmotes, setShowEmotes] = useState(
+		() => queryClient.getQueryData(emotesOpts.queryKey) !== undefined,
+	);
 	const emotes = useQuery({
-		...controlTrpc.twitch.listEmotes.queryOptions(),
+		...emotesOpts,
 		enabled: showEmotes,
 		retry: false,
-		staleTime: 5 * 60_000,
+		staleTime: Infinity,
+		gcTime: Infinity,
+		refetchOnReconnect: false,
 	});
+	const reloadButton = (
+		<Button
+			variant="ghost"
+			size="sm"
+			className="rounded-lg"
+			onClick={() => emotes.refetch()}
+			disabled={emotes.isFetching}
+		>
+			<RotateCcw className={`size-3.5 ${emotes.isFetching ? "animate-spin" : ""}`} />
+			{emotes.isFetching ? "Reloading…" : "Reload"}
+		</Button>
+	);
 
 	function add(values: string[]) {
 		const merged = [...emojis];
@@ -605,37 +609,48 @@ function EmojiEditor({ emojis, onChange }: { emojis: string[]; onChange: (e: str
 					) : emotes.isLoading ? (
 						<p className="text-xs text-muted-foreground">Loading channel emotes…</p>
 					) : emotes.isError ? (
-						<p className="text-xs text-destructive">
-							{emotes.error instanceof Error ? emotes.error.message : "Couldn't load emotes."}{" "}
-							Connect Twitch in Settings → Twitch, then retry.
-						</p>
-					) : emotes.data && emotes.data.length > 0 ? (
-						<div className="max-h-44 overflow-y-auto rounded-lg border border-border bg-background/50 p-2">
-							<div className="flex flex-wrap gap-1.5">
-								{emotes.data.map((em) => {
-									const active = emojis.includes(em.url);
-									return (
-										<button
-											key={em.id}
-											type="button"
-											title={em.name}
-											disabled={!active && emojis.length >= MAX_EMOJIS}
-											className={`inline-flex size-10 items-center justify-center rounded-lg border p-1 transition disabled:opacity-40 ${
-												active
-													? "border-primary/60 bg-primary/15"
-													: "border-border hover:border-primary/40 hover:bg-accent"
-											}`}
-											onClick={() =>
-												active ? onChange(emojis.filter((x) => x !== em.url)) : add([em.url])
-											}
-										>
-											{/* eslint-disable-next-line @next/next/no-img-element */}
-											<img src={em.url} alt={em.name} className="size-full object-contain" />
-										</button>
-									);
-								})}
-							</div>
+						<div className="space-y-2">
+							<p className="text-xs text-destructive">
+								{emotes.error instanceof Error ? emotes.error.message : "Couldn't load emotes."}{" "}
+								Connect Twitch in Settings → Twitch, then reload.
+							</p>
+							{reloadButton}
 						</div>
+					) : emotes.data && emotes.data.length > 0 ? (
+						<>
+							<div className="mb-2 flex items-center justify-between gap-2">
+								<span className="text-xs text-muted-foreground">
+									Click an emote to add it. Cached for this session.
+								</span>
+								{reloadButton}
+							</div>
+							<div className="max-h-44 overflow-y-auto rounded-lg border border-border bg-background/50 p-2">
+								<div className="flex flex-wrap gap-1.5">
+									{emotes.data.map((em) => {
+										const active = emojis.includes(em.url);
+										return (
+											<button
+												key={em.id}
+												type="button"
+												title={em.name}
+												disabled={!active && emojis.length >= MAX_EMOJIS}
+												className={`inline-flex size-10 items-center justify-center rounded-lg border p-1 transition disabled:opacity-40 ${
+													active
+														? "border-primary/60 bg-primary/15"
+														: "border-border hover:border-primary/40 hover:bg-accent"
+												}`}
+												onClick={() =>
+													active ? onChange(emojis.filter((x) => x !== em.url)) : add([em.url])
+												}
+											>
+												{/* eslint-disable-next-line @next/next/no-img-element */}
+												<img src={em.url} alt={em.name} className="size-full object-contain" />
+											</button>
+										);
+									})}
+								</div>
+							</div>
+						</>
 					) : (
 						<p className="text-xs text-muted-foreground">No channel emotes found.</p>
 					)}

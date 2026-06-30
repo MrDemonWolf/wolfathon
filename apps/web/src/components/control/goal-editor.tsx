@@ -3,7 +3,19 @@
 import { bumpPassedGoals, type Goal, MAX_TARGET } from "@wolfathon/api/state";
 import { Button } from "@wolfathon/ui/components/button";
 import { Input } from "@wolfathon/ui/components/input";
-import { ArrowDown, ArrowUp, Check, Lock, LockOpen, Minus, Plus, Trophy, X } from "lucide-react";
+import {
+	ArrowDown,
+	ArrowUp,
+	Check,
+	Eye,
+	EyeOff,
+	Lock,
+	LockOpen,
+	Minus,
+	Plus,
+	Trophy,
+	X,
+} from "lucide-react";
 
 /**
  * Controlled goal list — every edit is local (the Rewards tab holds the draft
@@ -85,7 +97,9 @@ export function GoalEditor({
 			</div>
 			<p className="mt-1 text-sm text-muted-foreground">
 				Unlock top to bottom. Only the <span className="text-foreground">reward</span> name shows on
-				stream — the note stays private. Set the sub target on the highlighted next goal below.
+				stream — the note stays private, and the <span className="text-foreground">eye</span> toggle
+				hides a reward from the overlay so it stays a surprise (only you see it). Set the sub target
+				on the highlighted next goal below.
 			</p>
 
 			{/* Next reward — the live hub: name, progress, target stepper, unlock. */}
@@ -237,7 +251,27 @@ export function GoalEditor({
 										Unlocked
 									</span>
 								)}
+								{g.hidden && (
+									<span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-amber-400/10 px-2 py-1 text-xs text-amber-400">
+										<EyeOff className="size-3.5" />
+										Hidden
+									</span>
+								)}
 								<div className="flex shrink-0 items-center gap-1">
+									<Button
+										variant="ghost"
+										size="icon-sm"
+										className={`rounded-lg ${g.hidden ? "text-amber-400" : ""}`}
+										aria-label={g.hidden ? "Show on overlay" : "Hide from overlay"}
+										title={
+											g.hidden
+												? "Hidden from the overlay — only you see it. Click to show."
+												: "Visible on the overlay. Click to hide it (only you see it)."
+										}
+										onClick={() => patch(i, { hidden: !g.hidden })}
+									>
+										{g.hidden ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+									</Button>
 									<Button
 										variant="ghost"
 										size="icon-sm"
