@@ -1,6 +1,12 @@
 "use client";
 
-import { luma } from "@wolfathon/api/theme";
+import {
+	defaultOverlayTheme,
+	FONT_STACKS,
+	luma,
+	type OverlayTheme,
+	wheelPalette,
+} from "@wolfathon/api/theme";
 import {
 	computeArcs,
 	DEFAULT_MIN_TURNS,
@@ -39,20 +45,24 @@ const LABEL_INNER = 12.5;
 const LABEL_OUTER = R - 3.5;
 const SPIN_SECONDS = 5.2;
 const RESULT_MS = 6000;
-const NAVY = "#091533";
-const NAVY_DEEP = "#04091a";
-const MOON = "#7fdcff";
-const CYAN = "#00aced";
 
 type Phase = "idle" | "spinning" | "result";
 
 export function WheelView({
 	slots,
+	theme,
 	pending,
 }: {
 	slots: PublicWheelSlot[] | undefined;
+	theme: OverlayTheme | undefined;
 	pending: PendingSpin;
 }) {
+	// Chrome colours + font follow the shared overlay theme; slice fills keep
+	// their own per-slot colours. Aliased to the old NAVY/CYAN/MOON names so the
+	// rest of the SVG reads unchanged.
+	const t = theme ?? defaultOverlayTheme();
+	const { accent: CYAN, light: MOON, dark: NAVY, darkDeep: NAVY_DEEP } = wheelPalette(t);
+	const fontFamily = FONT_STACKS[t.font];
 	const [rotation, setRotation] = useState(0);
 	const [phase, setPhase] = useState<Phase>("idle");
 	const [resultLabel, setResultLabel] = useState<string | null>(null);
@@ -156,10 +166,14 @@ export function WheelView({
 							<stop offset="40%" stopColor={NAVY_DEEP} stopOpacity="0" />
 						</radialGradient>
 						<linearGradient id="fang" x1="0" y1="0" x2="0" y2="1">
-							<stop offset="0%" stopColor="#d6f4ff" />
-							<stop offset="45%" stopColor="#5bc8f0" />
+							<stop offset="0%" stopColor={MOON} />
+							<stop offset="45%" stopColor={CYAN} />
 							<stop offset="100%" stopColor={CYAN} />
 						</linearGradient>
+						{/* Round mask for the centre logo hub. */}
+						<clipPath id="hub-clip">
+							<circle cx={CX} cy={CY} r={6.9} />
+						</clipPath>
 					</defs>
 
 					{/* moon bloom (pulses on idle) */}
@@ -258,7 +272,7 @@ export function WheelView({
 										stroke={halo}
 										strokeWidth={0.45}
 										paintOrder="stroke"
-										style={{ fontFamily: "var(--font-montserrat), system-ui, sans-serif" }}
+										style={{ fontFamily }}
 									>
 										{text}
 									</text>
@@ -289,19 +303,35 @@ export function WheelView({
 						strokeOpacity={0.3}
 					/>
 
-					{/* fixed crescent-moon hub */}
+					{/* fixed logo hub — operator's mark on a dark disc with an accent ring */}
 					<circle
 						cx={CX}
 						cy={CY}
-						r={7}
-						fill={NAVY}
+						r={8}
+						fill={NAVY_DEEP}
 						stroke={CYAN}
 						strokeWidth={1}
 						filter="url(#wheel-glow)"
 					/>
-					<circle cx={CX} cy={CY} r={2.9} fill={MOON} />
-					{/* navy bite out of the disc carves the crescent (hub bg is navy) */}
-					<circle cx={CX + 1.5} cy={CY - 0.9} r={2.7} fill={NAVY} />
+					<image
+						href="/logo.svg"
+						x={CX - 6.9}
+						y={CY - 6.9}
+						width={13.8}
+						height={13.8}
+						clipPath="url(#hub-clip)"
+						preserveAspectRatio="xMidYMid meet"
+					/>
+					{/* crisp inner ring over the logo edge */}
+					<circle
+						cx={CX}
+						cy={CY}
+						r={6.9}
+						fill="none"
+						stroke={CYAN}
+						strokeWidth={0.4}
+						strokeOpacity={0.5}
+					/>
 
 					{/* fixed fang pointer at top, tip biting down into the wheel */}
 					<g filter="url(#wheel-shadow)">
@@ -340,11 +370,11 @@ export function WheelView({
 						>
 							<div
 								className="flex items-center justify-center gap-[1.4cqmin] text-[2.4cqmin] font-bold tracking-[0.3em] uppercase"
-								style={{ color: "#5bc8f0" }}
+								style={{ color: CYAN }}
 							>
 								{/* tiny crescent to echo the hub */}
 								<svg width="2.6cqmin" height="2.6cqmin" viewBox="0 0 10 10" aria-hidden>
-									<circle cx="5" cy="5" r="4.4" fill="#5bc8f0" />
+									<circle cx="5" cy="5" r="4.4" fill={CYAN} />
 									<circle cx="6.6" cy="4" r="3.9" fill={NAVY} />
 								</svg>
 								The pack lands on
