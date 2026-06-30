@@ -9,6 +9,7 @@ import {
 	matchCommand,
 	timerValue,
 	wheelValue,
+	wolfathonValue,
 } from "@wolfathon/api/bot";
 import { createContext } from "@wolfathon/api/context";
 import { applyGiveawayEvent, parseGiveawayEvent } from "@wolfathon/api/giveaway";
@@ -270,6 +271,10 @@ async function handleBotCommand(
 		reply = fillTemplate(dynamicTemplate("goals", cmd.formatKey), goalsValue(await readState(db)));
 	} else if (cmd.dynamic === "wheel") {
 		reply = fillTemplate(dynamicTemplate("wheel", cmd.formatKey), wheelValue(await readWheel(db)));
+	} else if (cmd.dynamic === "wolfathon") {
+		// Composite subathon status: enabled parts joined from live timer + state.
+		const [timer, data] = await Promise.all([readTimer(db), readState(db)]);
+		reply = wolfathonValue(cmd, timer, data, now);
 	} else {
 		reply = cmd.response;
 	}
