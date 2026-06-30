@@ -27,16 +27,16 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
 
 			<nav
 				aria-label="Settings sections"
-				className="segmented inline-flex w-fit gap-1 rounded-[0.95rem] p-1"
+				className="segmented inline-flex max-w-full gap-1 self-start overflow-x-auto rounded-[0.95rem] p-1"
 			>
 				{SECTIONS.map((s) => {
-					const active = pathname === s.href;
+					const active = pathname === s.href || pathname.startsWith(s.href + "/");
 					return (
 						<Link
 							key={s.href}
 							href={s.href}
 							aria-current={active ? "page" : undefined}
-							className={`rounded-[0.7rem] px-4 py-1.5 text-sm font-medium transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
+							className={`shrink-0 rounded-[0.7rem] px-4 py-1.5 text-sm font-medium transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
 								active
 									? "segmented-on text-primary-foreground"
 									: "text-muted-foreground hover:bg-white/5 hover:text-foreground"

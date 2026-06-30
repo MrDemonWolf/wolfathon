@@ -170,14 +170,14 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 										{unlocked.slice(-4).map((g) => (
 											<span
 												key={g.id}
-												className="inline-flex items-center gap-[0.5cqw] rounded-full border border-white/15 bg-[#13244d]/70 px-[1.1cqw] py-[0.4cqw] text-[1.35cqw] text-white/70"
+												className="inline-flex items-center gap-[0.5cqw] rounded-full border border-white/15 bg-[#13244d]/90 px-[1.1cqw] py-[0.4cqw] text-[1.35cqw] text-white/85"
 											>
 												<Check className="size-[1.3cqw]" style={{ color: accent }} />
 												{g.reward}
 											</span>
 										))}
 										{unlocked.length > 4 && (
-											<span className="inline-flex items-center rounded-full bg-[#13244d]/50 px-[1.1cqw] py-[0.4cqw] text-[1.35cqw] text-white/45">
+											<span className="inline-flex items-center rounded-full bg-[#13244d]/80 px-[1.1cqw] py-[0.4cqw] text-[1.35cqw] text-white/70">
 												+{unlocked.length - 4}
 											</span>
 										)}

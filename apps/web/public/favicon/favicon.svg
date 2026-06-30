@@ -1,6 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" width="92" height="92"><svg width="92" height="92" viewBox="0 0 92 92" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect x="8" y="8" width="76" height="76" rx="12" fill="#F5EEFF" stroke="#B79AFF" stroke-width="3"></rect>
-  <text x="46" y="56" text-anchor="middle" font-family="monospace" font-size="40" fill="#8F5BFF">$<tspan dx="0" dy="0">_</tspan></text>
-</svg><style>@media (prefers-color-scheme: light) { :root { filter: none; } }
-@media (prefers-color-scheme: dark) { :root { filter: none; } }
-</style></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  <rect width="64" height="64" rx="14" fill="#0a0f1c"/>
+  <g transform="translate(6 6) scale(0.8125)" stroke-linejoin="round">
+    <path d="M14 6 L26 20 L14 27 Z" fill="#0c1b40" stroke="#00aced" stroke-width="2"/>
+    <path d="M50 6 L38 20 L50 27 Z" fill="#0c1b40" stroke="#00aced" stroke-width="2"/>
+    <path d="M12 22 L32 13 L52 22 L46 44 L32 57 L18 44 Z" fill="#0c1b40" stroke="#00aced" stroke-width="2"/>
+    <path d="M22 31 L28 29 L26 35 Z" fill="#5bc8f0"/>
+    <path d="M42 31 L36 29 L38 35 Z" fill="#5bc8f0"/>
+    <path d="M28 43 L36 43 L32 51 Z" fill="#00aced"/>
+  </g>
+</svg>

@@ -110,7 +110,7 @@ export function TwitchPanel() {
 
 			{/* Status row — renders in every state so reconnecting never swaps the whole screen. */}
 			<div
-				className={`mt-4 flex items-center justify-between gap-3 rounded-xl border p-4 ${
+				className={`mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 ${
 					degraded
 						? "border-amber-400/30 bg-amber-400/[0.06]"
 						: connected
@@ -118,10 +118,13 @@ export function TwitchPanel() {
 							: "border-border bg-background/40"
 				}`}
 			>
-				<div className="flex min-w-0 items-center gap-2">
+				<div role="status" aria-live="polite" className="flex min-w-0 items-center gap-2">
 					{status === undefined && statusLoading ? (
 						<>
-							<Loader2 className="size-5 shrink-0 animate-spin text-muted-foreground" />
+							<Loader2
+								className="size-5 shrink-0 animate-spin text-muted-foreground"
+								aria-label="Checking connection"
+							/>
 							<div className="text-sm text-muted-foreground">Checking connection…</div>
 						</>
 					) : connected ? (
@@ -270,7 +273,7 @@ export function TwitchPanel() {
 			</div>
 
 			{connected ? (
-				<div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-border p-4">
+				<div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border p-4">
 					<div>
 						<div className="font-medium">Test it</div>
 						<div className="text-xs text-muted-foreground">
