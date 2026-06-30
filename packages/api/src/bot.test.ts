@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 
 import {
+	activeWolfathonParts,
 	canRun,
 	defaultBotDoc,
 	dynamicTemplate,
@@ -15,6 +16,7 @@ import {
 	updateCommand,
 	wheelValue,
 	withBotDefaults,
+	wolfathonValue,
 } from "./bot";
 import { defaultTimerDoc, start } from "./timer";
 import { sampleData } from "./state";
@@ -118,4 +120,61 @@ test("setCooldown clamps; withBotDefaults backfills legacy docs", () => {
 	expect(filled.enabled).toBe(false);
 	expect(filled.cooldownSeconds).toBe(15);
 	expect(filled.commands.length).toBe(5);
+});
+
+test("withBotDefaults migrates a legacy text !wolfathon to the composite command", () => {
+	// A doc saved before !wolfathon became dynamic: plain text, operator-disabled,
+	// with a custom alias. Migration adds the composite fields, keeps the edits.
+	const legacy = {
+		enabled: true,
+		cooldownSeconds: 20,
+		commands: [
+			{ id: "wolfathon", triggers: ["!sub"], enabled: false, response: "old static text" },
+		],
+	} as never;
+	const cmd = withBotDefaults(legacy).commands.find((c) => c.id === "wolfathon")!;
+	expect(cmd.dynamic).toBe("wolfathon");
+	expect(cmd.parts).toEqual(["intro", "timer", "subs", "goal"]);
+	expect(cmd.enabled).toBe(false); // operator edit preserved
+	expect(cmd.triggers).toEqual(["!sub"]); // alias preserved
+});
+
+test("!wolfathon parts: default = all, toggles validate + render live", () => {
+	const base = defaultBotDoc();
+	const wolf = base.commands.find((c) => c.id === "wolfathon")!;
+	const timer = defaultTimerDoc(); // 1h 0m, paused
+	const data = sampleData(); // currentSubs 0, first goal "Q&A" @ 1
+
+	// Default (parts undefined after stripping) = every part, canonical order.
+	expect(activeWolfathonParts({ ...wolf, parts: undefined })).toEqual([
+		"intro",
+		"timer",
+		"subs",
+		"goal",
+	]);
+
+	const full = wolfathonValue(wolf, timer, data, 0);
+	expect(full).toContain("subathon");
+	expect(full).toContain("1h 0m (paused) on the clock");
+	expect(full).toContain("0 subs so far");
+	expect(full).toContain("Next reward: Q&A at 1 subs (0/1)");
+
+	// A subset renders only those parts, joined by " · ".
+	let doc = updateCommand({ ...base, enabled: true }, "wolfathon", { parts: ["subs", "timer"] });
+	const subset = doc.commands.find((c) => c.id === "wolfathon")!;
+	expect(activeWolfathonParts(subset)).toEqual(["timer", "subs"]); // canonical, deduped order
+	expect(wolfathonValue(subset, timer, { ...data, currentSubs: 1 }, 0)).toBe(
+		"⏰ 1h 0m (paused) on the clock · 1 sub so far",
+	);
+
+	// Unknown keys are dropped; parts edits don't touch non-composite commands.
+	doc = updateCommand(doc, "wolfathon", { parts: ["bogus", "goal"] });
+	expect(doc.commands.find((c) => c.id === "wolfathon")!.parts).toEqual(["goal"]);
+	doc = updateCommand(doc, "timer", { parts: ["subs"] });
+	expect(doc.commands.find((c) => c.id === "timer")!.parts).toBeUndefined();
+
+	// All rewards unlocked → the goal part says so.
+	expect(wolfathonValue({ ...wolf, parts: ["goal"] }, timer, { ...data, goals: [] }, 0)).toBe(
+		"🎯 All rewards unlocked!",
+	);
 });

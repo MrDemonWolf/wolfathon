@@ -22,8 +22,35 @@ import type { Data } from "./state";
 import { currentRemainingMs, splitDuration, type TimerDoc } from "./timer";
 import type { WheelDoc } from "./wheel";
 
-/** A built-in command whose reply is computed from live data, not stored text. */
-export type DynamicKind = "timer" | "goals" | "wheel";
+/**
+ * A built-in command whose reply is a single live value rendered through one of
+ * its {@link DYNAMIC_FORMATS} presets (operator picks the wording).
+ */
+export type FormatKind = "timer" | "goals" | "wheel";
+
+/**
+ * Every command whose reply is computed from live data. The format-preset kinds
+ * fill one `{value}`; `wolfathon` is the composite status line, assembled from
+ * the operator-toggled {@link WOLFATHON_PARTS} instead of a single preset.
+ */
+export type DynamicKind = FormatKind | "wolfathon";
+
+/** A toggleable segment of the `!wolfathon` status line. */
+export type WolfathonPartKey = "intro" | "timer" | "subs" | "goal";
+
+/**
+ * The parts of the `!wolfathon` reply, in display order. The operator checks the
+ * ones to include; the webhook concatenates the enabled parts (canonical order)
+ * from live DB data. All pull from the subathon state — there is no stored text.
+ */
+export const WOLFATHON_PARTS: { key: WolfathonPartKey; label: string; hint: string }[] = [
+	{ key: "intro", label: "Intro", hint: "Explains that subs/gifts add time" },
+	{ key: "timer", label: "Time left", hint: "Current time on the clock" },
+	{ key: "subs", label: "Sub count", hint: "Total subs counted so far" },
+	{ key: "goal", label: "Next reward", hint: "Next goal + progress toward it" },
+];
+
+const ALL_WOLFATHON_PARTS: WolfathonPartKey[] = WOLFATHON_PARTS.map((p) => p.key);
 
 export type BotCommand = {
 	/** Stable id (also the seed key). */
@@ -40,6 +67,12 @@ export type BotCommand = {
 	dynamic?: DynamicKind;
 	/** Which built-in format preset a dynamic command uses (see {@link DYNAMIC_FORMATS}). */
 	formatKey?: string;
+	/**
+	 * For the `wolfathon` composite only: which status parts are enabled. The
+	 * reply is built from these in canonical {@link WOLFATHON_PARTS} order, so
+	 * this is a membership set, not an ordering. Undefined = all parts.
+	 */
+	parts?: WolfathonPartKey[];
 	/** Epoch ms this command last replied — drives the per-command cooldown. */
 	lastRunAt?: number;
 };
@@ -64,7 +97,7 @@ export const MAX_COOLDOWN_SECONDS = 3600;
  * author free text for live commands.
  */
 export const DYNAMIC_FORMATS: Record<
-	DynamicKind,
+	FormatKind,
 	{ key: string; label: string; template: string }[]
 > = {
 	timer: [
@@ -99,8 +132,9 @@ export function defaultBotDoc(): BotDoc {
 				id: "wolfathon",
 				triggers: ["!wolfathon", "!subathon", "!wolf", "!about"],
 				enabled: true,
-				response:
-					"This is a Wolfathon subathon — every sub, gift, and cheer adds time to the clock! Type !timer to see how long is left.",
+				response: "",
+				dynamic: "wolfathon",
+				parts: [...ALL_WOLFATHON_PARTS],
 			},
 			{
 				id: "giveaway",
@@ -140,18 +174,37 @@ export function defaultBotDoc(): BotDoc {
 /**
  * Backfill missing fields on rows persisted before a field existed, so the
  * operator UI + webhook never dereference an absent field. The command set is
- * fixed (no add/remove), so a legacy doc with no commands is re-seeded; a doc
- * that already has them is kept verbatim.
+ * fixed (no add/remove), so we start from the current defaults — which carry the
+ * structural fields (`dynamic`/`formatKey`/`parts`) — and overlay only the
+ * operator-editable bits (enabled/triggers/response/lastRunAt) from the persisted
+ * command. This also MIGRATES legacy commands in place: e.g. a `!wolfathon` saved
+ * as plain text picks up the new composite `dynamic`/`parts` while keeping the
+ * operator's enable state + aliases.
  */
 export function withBotDefaults(doc: BotDoc): BotDoc {
 	const base = defaultBotDoc();
+	const persisted = Array.isArray(doc.commands) ? doc.commands : [];
+	const byId = new Map(persisted.map((c) => [c.id, c]));
+	const commands = base.commands.map((def) => {
+		const cur = byId.get(def.id);
+		if (!cur) return def;
+		return {
+			...def,
+			enabled: typeof cur.enabled === "boolean" ? cur.enabled : def.enabled,
+			triggers: Array.isArray(cur.triggers) && cur.triggers.length ? cur.triggers : def.triggers,
+			response: typeof cur.response === "string" ? cur.response : def.response,
+			formatKey: cur.formatKey ?? def.formatKey,
+			parts: Array.isArray(cur.parts) ? cur.parts : def.parts,
+			lastRunAt: cur.lastRunAt,
+		};
+	});
 	return {
 		enabled: typeof doc.enabled === "boolean" ? doc.enabled : base.enabled,
 		cooldownSeconds:
 			typeof doc.cooldownSeconds === "number" && Number.isFinite(doc.cooldownSeconds)
 				? doc.cooldownSeconds
 				: base.cooldownSeconds,
-		commands: Array.isArray(doc.commands) && doc.commands.length ? doc.commands : base.commands,
+		commands,
 	};
 }
 
@@ -211,8 +264,8 @@ export function fillTemplate(template: string, value: string): string {
 	return template.replaceAll("{value}", value);
 }
 
-/** Resolve the chosen format template for a dynamic command (falls back to the first preset). */
-export function dynamicTemplate(kind: DynamicKind, formatKey: string | undefined): string {
+/** Resolve the chosen format template for a format-preset command (falls back to the first preset). */
+export function dynamicTemplate(kind: FormatKind, formatKey: string | undefined): string {
 	const presets = DYNAMIC_FORMATS[kind];
 	return (presets.find((p) => p.key === formatKey) ?? presets[0]!).template;
 }
@@ -250,6 +303,43 @@ export function wheelValue(wheel: WheelDoc): string {
 	return n === 0 ? "no dares yet" : `${n} ${n === 1 ? "dare" : "dares"}`;
 }
 
+// ---- !wolfathon composite (pure) ------------------------------------------
+
+/** The enabled `!wolfathon` parts, in canonical order. Undefined `parts` = all. */
+export function activeWolfathonParts(cmd: BotCommand): WolfathonPartKey[] {
+	const on = new Set<WolfathonPartKey>(cmd.parts ?? ALL_WOLFATHON_PARTS);
+	return ALL_WOLFATHON_PARTS.filter((k) => on.has(k));
+}
+
+/** Render one status part from live data. Same projection rules as the overlay. */
+function wolfathonSegment(key: WolfathonPartKey, timer: TimerDoc, data: Data, now: number): string {
+	switch (key) {
+		case "intro":
+			return "This is a Wolfathon subathon — every sub, gift & cheer adds time to the clock!";
+		case "timer":
+			return `⏰ ${timerValue(timer, now)} on the clock`;
+		case "subs": {
+			const n = data.currentSubs;
+			return `${n} ${n === 1 ? "sub" : "subs"} so far`;
+		}
+		case "goal":
+			return data.goals[data.currentIndex]
+				? `🎯 Next reward: ${goalsValue(data)}`
+				: "🎯 All rewards unlocked!";
+	}
+}
+
+/**
+ * Build the `!wolfathon` reply from the command's enabled parts. Parts are joined
+ * with " · " so the line reads cleanly in chat. Empty (no parts enabled) → "",
+ * which the webhook treats as "say nothing".
+ */
+export function wolfathonValue(cmd: BotCommand, timer: TimerDoc, data: Data, now: number): string {
+	return activeWolfathonParts(cmd)
+		.map((k) => wolfathonSegment(k, timer, data, now))
+		.join(" · ");
+}
+
 // ---- operator edits (pure, validated) -------------------------------------
 
 export type CommandPatch = {
@@ -257,7 +347,15 @@ export type CommandPatch = {
 	response?: string;
 	triggers?: string[];
 	formatKey?: string;
+	/** Which `!wolfathon` status parts to include (composite command only). */
+	parts?: string[];
 };
+
+/** Keep only the known part keys, deduped, in canonical order. */
+function normalizeParts(raw: string[]): WolfathonPartKey[] {
+	const wanted = new Set(raw);
+	return ALL_WOLFATHON_PARTS.filter((k) => wanted.has(k));
+}
 
 /** Lowercase, "!"-prefixed, deduped, capped. Never returns empty (a command with
  * no triggers is unreachable), falling back to the previous triggers. */
@@ -283,11 +381,15 @@ export function updateCommand(doc: BotDoc, id: string, patch: CommandPatch): Bot
 			}
 			if (patch.triggers !== undefined)
 				next.triggers = normalizeTriggers(patch.triggers, c.triggers);
-			// Only accept a format key that exists for this command's dynamic kind.
-			if (patch.formatKey !== undefined && c.dynamic) {
+			// Only accept a format key that exists for this command's format kind.
+			if (patch.formatKey !== undefined && c.dynamic && c.dynamic !== "wolfathon") {
 				if (DYNAMIC_FORMATS[c.dynamic].some((p) => p.key === patch.formatKey)) {
 					next.formatKey = patch.formatKey;
 				}
+			}
+			// Part toggles only apply to the composite command.
+			if (patch.parts !== undefined && c.dynamic === "wolfathon") {
+				next.parts = normalizeParts(patch.parts);
 			}
 			return next;
 		}),
