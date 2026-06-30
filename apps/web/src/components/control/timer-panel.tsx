@@ -25,12 +25,22 @@ export function TimerPanel({
 }) {
 	const [custom, setCustom] = useState("5");
 	const [confirmingReset, setConfirmingReset] = useState(false);
-	const opts = { onSuccess: onChanged };
+	// Surface failures: these live mutations previously failed silently (only the
+	// queryCache toasts, not mutations), so a failed +30m or reset showed nothing.
+	const opts = { onSuccess: onChanged, onError: (e: { message: string }) => toast.error(e.message) };
 	const start = useMutation(controlTrpc.timer.start.mutationOptions(opts));
 	const pause = useMutation(controlTrpc.timer.pause.mutationOptions(opts));
 	const reset = useMutation(controlTrpc.timer.reset.mutationOptions(opts));
 	const addMinutes = useMutation(controlTrpc.timer.addMinutes.mutationOptions(opts));
 	const applyEvent = useMutation(controlTrpc.timer.applyEvent.mutationOptions(opts));
+
+	// Manual time changes confirm with a toast so a +1m is distinguishable from
+	// the per-second tick. Errors are toasted by the shared opts.onError above.
+	const addTime = (minutes: number) =>
+		addMinutes.mutate(
+			{ minutes },
+			{ onSuccess: () => toast.success(`${minutes >= 0 ? "+" : ""}${minutes}m`) },
+		);
 	const busy =
 		start.isPending ||
 		pause.isPending ||
@@ -72,7 +82,12 @@ export function TimerPanel({
 			{/* Live hub — everything used mid-stream: countdown, transport, add-time. */}
 			<div className="mt-4 rounded-xl border border-primary/30 bg-primary/[0.06] p-4">
 				{/* status + live countdown */}
-				<div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/40 px-5 py-4">
+				<div
+						role="status"
+						aria-live="polite"
+						aria-atomic="true"
+						className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/40 px-5 py-4"
+					>
 					<div>
 						<div className="eyebrow text-[0.65rem]">Remaining</div>
 						<div className="mt-0.5 font-heading text-4xl font-extrabold tabular-nums tracking-tight">
@@ -89,6 +104,7 @@ export function TimerPanel({
 						}`}
 					>
 						<span
+							aria-hidden="true"
 							className={`size-1.5 rounded-full ${
 								running
 									? "animate-pulse bg-primary"
@@ -123,10 +139,10 @@ export function TimerPanel({
 								className="px-4"
 								onClick={() =>
 									reset.mutate(undefined, {
-										onSuccess: () => {
-											toast.success("Timer reset");
-											setConfirmingReset(false);
-										},
+										onSuccess: () => toast.success("Timer reset"),
+										// Clear the confirm on both paths so a failed reset can't leave
+										// "Yes, reset" stuck on screen.
+										onSettled: () => setConfirmingReset(false),
 									})
 								}
 								disabled={busy}
@@ -166,7 +182,7 @@ export function TimerPanel({
 								key={min}
 								size="lg"
 								variant="outline"
-								onClick={() => addMinutes.mutate({ minutes: min })}
+								onClick={() => addTime(min)}
 								disabled={busy}
 							>
 								+{min}m
@@ -175,7 +191,7 @@ export function TimerPanel({
 						<Button
 							size="lg"
 							variant="outline"
-							onClick={() => addMinutes.mutate({ minutes: -5 })}
+							onClick={() => addTime(-5)}
 							disabled={busy}
 						>
 							−5m
@@ -191,7 +207,7 @@ export function TimerPanel({
 						<Button
 							size="lg"
 							variant="outline"
-							onClick={() => addMinutes.mutate({ minutes: Number(custom) || 0 })}
+							onClick={() => addTime(Number(custom) || 0)}
 							disabled={busy || !custom}
 						>
 							Add
