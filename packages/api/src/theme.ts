@@ -149,6 +149,39 @@ export function resolveTextColor(theme: OverlayTheme): string {
 	return avg > 150 ? "#04122b" : "#ffffff";
 }
 
+/** Multiply each RGB channel of a hex by `f` (clamped 0–255) — `f<1` darkens. */
+export function shade(hex: string, f: number): string {
+	const v = expandHex(hex).slice(1);
+	const ch = (i: number) =>
+		Math.max(0, Math.min(255, Math.round(parseInt(v.slice(i, i + 2), 16) * f)))
+			.toString(16)
+			.padStart(2, "0");
+	return `#${ch(0)}${ch(2)}${ch(4)}`;
+}
+
+/** The wheel-overlay chrome colours derived from the shared theme. */
+export type WheelPalette = { accent: string; light: string; dark: string; darkDeep: string };
+
+/**
+ * Derive the Howlwheel's chrome palette from the shared theme gradient, so the
+ * hub ring, rim glow, fang and studs follow whatever preset the operator picked
+ * (slice fills keep their own per-slot colours). `accent` is the mid-tone stop,
+ * `light` the brightest, and `dark`/`darkDeep` are deep tints of the darkest
+ * stop for the disc base, backing and shadows.
+ */
+export function wheelPalette(theme: OverlayTheme): WheelPalette {
+	const stops = resolveThemeGradient(theme)
+		.map((c) => expandHex(c))
+		.sort((a, b) => luma(a) - luma(b));
+	const darkest = stops[0] ?? "#0077c8";
+	return {
+		accent: stops[Math.floor((stops.length - 1) / 2)] ?? "#00aced",
+		light: stops[stops.length - 1] ?? "#5bc8f0",
+		dark: shade(darkest, 0.32),
+		darkDeep: shade(darkest, 0.18),
+	};
+}
+
 export type ThemeError = { path: string; message: string };
 
 /**
