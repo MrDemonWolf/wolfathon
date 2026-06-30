@@ -34,7 +34,7 @@ export default function WheelOverlayPage() {
 
 	return (
 		<div className="@container fixed inset-0 overflow-hidden bg-transparent">
-			<WheelView slots={wheel?.slots} pending={pending ?? null} />
+			<WheelView slots={wheel?.slots} theme={wheel?.theme} pending={pending ?? null} />
 			<OverlayTokenError error={error} />
 		</div>
 	);
