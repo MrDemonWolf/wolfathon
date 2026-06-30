@@ -13,7 +13,7 @@ import {
 import { Button } from "@wolfathon/ui/components/button";
 import { Checkbox } from "@wolfathon/ui/components/checkbox";
 import { Input } from "@wolfathon/ui/components/input";
-import { DYNAMIC_FORMATS, type BotCommand } from "@wolfathon/api/bot";
+import { DYNAMIC_FORMATS, WOLFATHON_PARTS, type BotCommand } from "@wolfathon/api/bot";
 import { AlertTriangle, Bot, CheckCircle2, Loader2, Plug, Unplug } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -283,7 +283,17 @@ function CommandRow({ cmd }: { cmd: BotCommand }) {
 		if (response !== cmd.response) update.mutate({ id: cmd.id, response });
 	};
 
-	const presets = cmd.dynamic ? DYNAMIC_FORMATS[cmd.dynamic] : null;
+	const isComposite = cmd.dynamic === "wolfathon";
+	const presets = cmd.dynamic && cmd.dynamic !== "wolfathon" ? DYNAMIC_FORMATS[cmd.dynamic] : null;
+
+	// Toggle one !wolfathon status part; commit the new membership set (canonical order).
+	const activeParts = new Set(cmd.parts ?? WOLFATHON_PARTS.map((p) => p.key));
+	const togglePart = (key: string, on: boolean) => {
+		const next = WOLFATHON_PARTS.map((p) => p.key).filter((k) =>
+			k === key ? on : activeParts.has(k),
+		);
+		update.mutate({ id: cmd.id, parts: next });
+	};
 
 	return (
 		<div className="rounded-xl border border-border bg-background/40 p-4">
@@ -313,8 +323,28 @@ function CommandRow({ cmd }: { cmd: BotCommand }) {
 				/>
 			</div>
 
-			{/* Body: text response OR live format presets */}
-			{presets ? (
+			{/* Body: composite parts, live format presets, OR static text */}
+			{isComposite ? (
+				<div className="mt-3">
+					<div className="mb-1 text-xs text-muted-foreground">
+						Parts to include (all pulled live from the subathon)
+					</div>
+					<div className="space-y-1.5">
+						{WOLFATHON_PARTS.map((part) => (
+							<label key={part.key} className="flex items-center gap-2.5">
+								<Checkbox
+									checked={activeParts.has(part.key)}
+									onCheckedChange={(v) => togglePart(part.key, Boolean(v))}
+								/>
+								<span className="text-sm">
+									<span className="font-medium">{part.label}</span>
+									<span className="block text-xs text-muted-foreground">{part.hint}</span>
+								</span>
+							</label>
+						))}
+					</div>
+				</div>
+			) : presets ? (
 				<div className="mt-3">
 					<div className="mb-1 text-xs text-muted-foreground">Reply format</div>
 					<div className="flex flex-wrap gap-1.5">

@@ -86,6 +86,7 @@ export const botRouter = router({
 				response: z.string().optional(),
 				triggers: z.array(z.string()).max(16).optional(),
 				formatKey: z.string().optional(),
+				parts: z.array(z.string()).max(16).optional(),
 			}),
 		)
 		.mutation(async ({ ctx, input }) => {
