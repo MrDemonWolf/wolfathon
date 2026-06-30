@@ -1,3 +1,4 @@
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 import { DISCLAIMER, SiteFooter } from "@/components/site-footer";
@@ -20,12 +21,18 @@ export default function LandingPage() {
 						giveaways, and overlays for MrDemonWolf&apos;s stream.
 					</p>
 				</div>
-				<Link
-					href="/dashboard"
-					className="inline-flex items-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
-				>
-					Enter the den
-				</Link>
+				<div className="flex flex-col items-center gap-2">
+					<Link
+						href="/dashboard"
+						className="group inline-flex min-h-[44px] items-center gap-2 rounded-xl bg-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none"
+					>
+						Open the control panel
+						<ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+					</Link>
+					<p className="text-xs text-muted-foreground/80">
+						Stream operators only — viewers watch live on Twitch.
+					</p>
+				</div>
 				<p className="max-w-md text-xs leading-relaxed text-muted-foreground/80">{DISCLAIMER}</p>
 			</main>
 			<SiteFooter />

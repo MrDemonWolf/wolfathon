@@ -24,7 +24,7 @@ export default function TimerOverlayPage() {
 	return (
 		<div className="@container fixed inset-0 overflow-hidden bg-transparent">
 			<TimerView data={data} />
-			<OverlayTokenError error={error} />
+			<OverlayTokenError error={error} token={token} />
 		</div>
 	);
 }
