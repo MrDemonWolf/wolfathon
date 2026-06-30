@@ -25,6 +25,8 @@ export type Goal = {
 	unlocked: boolean;
 	/** Sub-count milestone for this reward. Undefined = no numeric target. */
 	target?: number;
+	/** Operator-only: hidden goals never reach the overlay (a secret reward). */
+	hidden?: boolean;
 };
 
 /** The full tracker document, stored as JSON in the single DB row. */
@@ -38,8 +40,8 @@ export type Data = {
 	theme: OverlayTheme;
 };
 
-/** A goal as sent to the overlay — note AND target removed (only `nextTarget` leaks). */
-export type PublicGoal = Omit<Goal, "note" | "target">;
+/** A goal as sent to the overlay — note, target AND hidden flag removed. */
+export type PublicGoal = Omit<Goal, "note" | "target" | "hidden">;
 
 /** The tracker document as sent to the overlay — notes removed. */
 export type PublicData = {
@@ -60,7 +62,7 @@ export type PublicData = {
 	/** Show the "NEXT REWARD" eyebrow. */
 	showLabel: boolean;
 	/** Show the live status dot. */
-	showStatus: boolean;
+	showLiveDot: boolean;
 	/** Show the next-goal progress bar. */
 	showProgressBar: boolean;
 	/** Show the "N Unlocked" row of already-won rewards. */
@@ -148,6 +150,28 @@ export function sampleData(): Data {
 }
 
 /**
+ * Backfill a stored theme against the current defaults. Themes are persisted raw
+ * in D1 and never re-validated on read, so a row written before a new field
+ * existed lacks that key — and `theme.<newField>` would be `undefined` at runtime
+ * despite its non-optional type. Spreading over `defaultOverlayTheme()` fills every
+ * missing field (so old rows get a real `label`, `showLiveDot`, …) without
+ * touching values the operator did set.
+ */
+export function withThemeDefaults(stored: OverlayTheme | undefined): OverlayTheme {
+	if (!stored) return defaultOverlayTheme();
+	const merged = { ...defaultOverlayTheme(), ...stored };
+	// `showLiveDot` was split out of the old combined `showStatus` toggle. A
+	// pre-split row has no `showLiveDot` key, so inherit `showStatus`: a dot the
+	// operator had hidden stays hidden, one they showed stays shown — instead of
+	// snapping back to the default-on.
+	const raw = stored as Partial<OverlayTheme>;
+	if (raw.showLiveDot === undefined && raw.showStatus !== undefined) {
+		merged.showLiveDot = raw.showStatus;
+	}
+	return merged;
+}
+
+/**
  * Keep the tracker's invariants consistent after any mutation:
  * `currentIndex` always points at the first locked goal (or past the end when
  * everything is unlocked). Goals unlock top-to-bottom.
@@ -158,27 +182,33 @@ export function recompute(data: Data): Data {
 		goals: data.goals,
 		currentIndex: firstLocked === -1 ? data.goals.length : firstLocked,
 		currentSubs: Math.max(0, data.currentSubs ?? 0),
-		theme: data.theme ?? defaultOverlayTheme(),
+		theme: withThemeDefaults(data.theme),
 	};
 }
 
 /** Remove every `note` and resolve the theme so the tracker is safe to expose publicly. */
 export function stripNotes(data: Data): PublicData {
-	const theme = data.theme ?? defaultOverlayTheme();
+	const theme = withThemeDefaults(data.theme);
+	// Hidden goals are operator-only — drop them before the overlay sees anything,
+	// then recompute the next-goal pointer over what's left so a hidden reward
+	// never shows (not even as the upcoming "next").
+	const visible = data.goals.filter((g) => !g.hidden);
+	const firstLocked = visible.findIndex((g) => !g.unlocked);
+	const currentIndex = firstLocked === -1 ? visible.length : firstLocked;
 	// Only the NEXT goal's target is exposed — never future ones (a big gifter
 	// must not see the final ceiling).
-	const nextTarget = data.goals[data.currentIndex]?.target ?? null;
+	const nextTarget = visible[currentIndex]?.target ?? null;
 	return {
-		currentIndex: data.currentIndex,
+		currentIndex,
 		currentSubs: Math.max(0, data.currentSubs ?? 0),
 		nextTarget,
-		goals: data.goals.map(({ id, reward, unlocked }) => ({ id, reward, unlocked })),
+		goals: visible.map(({ id, reward, unlocked }) => ({ id, reward, unlocked })),
 		gradient: resolveThemeGradient(theme),
 		textColor: theme.textColor,
 		font: theme.font,
 		corners: theme.corners,
 		showLabel: theme.showLabel,
-		showStatus: theme.showStatus,
+		showLiveDot: theme.showLiveDot,
 		showProgressBar: theme.showProgressBar,
 		showUnlocked: theme.showUnlocked,
 	};
@@ -264,12 +294,14 @@ export function validateImport(input: unknown): ImportResult {
 			}
 			target = Math.min(MAX_TARGET, Math.round(rawTarget));
 		}
+		const hidden = (raw as Record<string, unknown>).hidden === true;
 		normalized.push({
 			id: newId(),
 			reward: trimmed,
 			note: cleanNote(note),
 			unlocked: false,
 			...(target != null ? { target } : {}),
+			...(hidden ? { hidden: true } : {}),
 		});
 	});
 
