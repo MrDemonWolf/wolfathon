@@ -298,12 +298,15 @@ export function GiveawayTab() {
 				</div>
 			</div>
 
-			{/* Gift winners */}
+			{/* ── Gift qualifiers ───────────────────────────────────────────── */}
 			<div className="rounded-2xl panel-card p-5">
 				<div className="flex items-center gap-2">
 					<Gift className="size-4 text-primary" />
 					<h3 className="font-heading font-bold">
-						Gift winners ({giftWinners.length}/{cfg.giftWinnerSlots})
+						Gift winners{" "}
+						<span className="text-muted-foreground">
+							{giftWinners.length}/{cfg.giftWinnerSlots}
+						</span>
 					</h3>
 				</div>
 				<p className="mt-1 text-xs text-muted-foreground">
@@ -317,14 +320,29 @@ export function GiveawayTab() {
 						{gifters.map((g, i) => (
 							<li
 								key={g.login}
-								className="flex items-center justify-between rounded-lg border border-border px-3 py-2"
+								className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"
 							>
-								<span className="text-sm">
-									<span className="text-muted-foreground">#{i + 1}</span> {g.name}{" "}
-									<span className="text-xs text-muted-foreground">({g.count} subs)</span>
-								</span>
+								<div className="flex min-w-0 items-center gap-2.5">
+									<span className="font-heading text-sm font-bold tabular-nums text-muted-foreground">
+										#{i + 1}
+									</span>
+									<Avatar name={g.name} />
+									<a
+										href={twitchUrl(g.login)}
+										target="_blank"
+										rel="noreferrer"
+										className="truncate text-sm font-medium hover:text-primary"
+									>
+										{g.name}
+									</a>
+									<span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground tabular-nums">
+										{g.count} subs
+									</span>
+								</div>
 								{wonLogins.has(g.login) ? (
-									<span className="text-xs text-primary">✓ winner</span>
+									<span className="flex shrink-0 items-center gap-1 text-xs text-primary">
+										<Crown className="size-3.5" /> winner
+									</span>
 								) : (
 									<Button
 										size="sm"
@@ -353,7 +371,10 @@ export function GiveawayTab() {
 							</span>
 						</h3>
 					</div>
-					<Button onClick={() => draw.mutate()} disabled={draw.isPending || remainingEntrants === 0}>
+					<Button
+						onClick={() => draw.mutate()}
+						disabled={draw.isPending || remainingEntrants === 0}
+					>
 						{draw.isPending ? (
 							<Loader2 className="size-4 animate-spin" />
 						) : (
@@ -435,10 +456,12 @@ export function GiveawayTab() {
 				</div>
 			</div>
 
-			{/* All winners */}
+			{/* ── Winners ───────────────────────────────────────────────────── */}
 			<div className="rounded-2xl panel-card p-5">
 				<div className="flex items-center justify-between">
-					<h3 className="font-heading font-bold">Winners ({data.winners.length})</h3>
+					<h3 className="font-heading font-bold">
+						Winners <span className="text-muted-foreground">{data.winners.length}</span>
+					</h3>
 					<AlertDialog>
 						<AlertDialogTrigger
 							render={
@@ -464,7 +487,9 @@ export function GiveawayTab() {
 					</AlertDialog>
 				</div>
 				{data.winners.length === 0 ? (
-					<p className="mt-3 text-sm text-muted-foreground">No winners yet.</p>
+					<p className="mt-3 text-sm text-muted-foreground">
+						No winners yet. Confirm a gifter or draw the raffle above.
+					</p>
 				) : (
 					<ul className="mt-3 flex flex-col gap-2">
 						{data.winners.map((w) => (
@@ -479,8 +504,22 @@ export function GiveawayTab() {
 									}
 									aria-label={`Mark ${w.name} shipped`}
 								/>
-								<span className="text-sm font-medium">{w.name}</span>
-								<span className="rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
+								<Avatar name={w.name} />
+								<a
+									href={twitchUrl(w.login)}
+									target="_blank"
+									rel="noreferrer"
+									className="text-sm font-medium hover:text-primary"
+								>
+									{w.name}
+								</a>
+								<span
+									className={`rounded-full border px-2 py-0.5 text-xs ${
+										w.source === "gift"
+											? "border-primary/40 text-primary"
+											: "border-border text-muted-foreground"
+									}`}
+								>
 									{w.source === "gift" ? "gift" : "raffle"}
 								</span>
 								<Input
