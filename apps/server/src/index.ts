@@ -1,21 +1,36 @@
 import { trpcServer } from "@hono/trpc-server";
 import {
+	buildAutoSpinAnnouncement,
+	buildGiftAnnouncement,
+	buildGiveawayClaimAnnouncement,
+	buildGiveawayDrawAnnouncement,
+	buildGiveawayTimeoutAnnouncement,
 	canRun,
 	dynamicTemplate,
 	fillTemplate,
+	type GiftBatch,
+	GIFT_BATCH_WINDOW_MS,
+	giveawayValue,
 	goalsValue,
 	isPrivileged,
 	markRun,
 	matchCommand,
+	mergeGiftBatch,
 	timerValue,
 	wheelValue,
 	wolfathonValue,
 } from "@wolfathon/api/bot";
 import { createContext } from "@wolfathon/api/context";
-import { applyGiveawayEvent, parseGiveawayEvent } from "@wolfathon/api/giveaway";
+import {
+	applyGiveawayEvent,
+	claimPending,
+	expirePending,
+	parseGiveawayEvent,
+} from "@wolfathon/api/giveaway";
 import { publicRouter } from "@wolfathon/api/routers/index";
 import { autoPause, autoResume } from "@wolfathon/api/timer";
 import { isAllowedEmoteUrl } from "@wolfathon/api/timer";
+import { enabledSlots, resolveSpin, shouldAutoSpin } from "@wolfathon/api/wheel";
 import {
 	refreshUserToken,
 	sendChatMessage,
@@ -30,7 +45,9 @@ import {
 	mutateGiveaway,
 	mutateTimer,
 	mutateTwitch,
+	mutateWheel,
 	readBot,
+	readGiveaway,
 	readState,
 	readTimer,
 	readWheel,
@@ -149,7 +166,7 @@ app.post("/twitch/eventsub", async (c) => {
 		const now = Date.now();
 		if (isStreamState) {
 			// Stream went down / came back — auto-pause so an outage doesn't burn
-			// subathon time, then auto-resume on return. Opt-in (default on); resume
+			// Wolfathon time, then auto-resume on return. Opt-in (default on); resume
 			// only fires when the pause was automatic, never overriding a manual one.
 			await mutateTimer(db, (timer) => {
 				if (!timer.config.autoPauseOnOffline) return timer;
@@ -159,7 +176,17 @@ app.post("/twitch/eventsub", async (c) => {
 			});
 		}
 		if (timerEvent) {
-			await applyTimerEventAndBumpSubs(db, timerEvent, now);
+			const { subsBefore, subsAfter } = await applyTimerEventAndBumpSubs(db, timerEvent, now);
+			// Sub/gift events can trip two chat-side effects: a batched gift-sub
+			// announcement and a wheel auto-spin on a sub milestone. Both may SEND
+			// chat (and the gift one sleeps out a debounce window), so they run in
+			// waitUntil after the 2xx. Only fire when the count actually moved
+			// (bits/points do not bump subs).
+			if (subsAfter > subsBefore) {
+				c.executionCtx.waitUntil(
+					handleSubMilestones(db, twitch, event, timerEvent, subsBefore, subsAfter, now),
+				);
+			}
 		}
 		if (maybeGiveaway) {
 			await mutateGiveaway(db, (giveaway) => {
@@ -177,6 +204,10 @@ app.post("/twitch/eventsub", async (c) => {
 			chatText.trim().startsWith("!")
 		) {
 			c.executionCtx.waitUntil(handleBotCommand(db, twitch, event, now));
+			// Giveaway draw → claim flow rides the same "!" fast-path so the giveaway
+			// doc is never read on the ordinary chat firehose. It announces a fresh
+			// draw, accepts the winner's !claim, or surfaces a lapsed window.
+			c.executionCtx.waitUntil(handleGiveawayClaim(db, twitch, event, chatText, now));
 		}
 		return c.body(null, 204);
 	}
@@ -293,8 +324,14 @@ async function handleBotCommand(
 		reply = fillTemplate(dynamicTemplate("goals", cmd.formatKey), goalsValue(await readState(db)));
 	} else if (cmd.dynamic === "wheel") {
 		reply = fillTemplate(dynamicTemplate("wheel", cmd.formatKey), wheelValue(await readWheel(db)));
+	} else if (cmd.dynamic === "giveaway") {
+		// Live: the operator's giveaway rules/TOS link, set in the Giveaway tab.
+		reply = fillTemplate(
+			dynamicTemplate("giveaway", cmd.formatKey),
+			giveawayValue(await readGiveaway(db)),
+		);
 	} else if (cmd.dynamic === "wolfathon") {
-		// Composite subathon status: enabled parts joined from live timer + state.
+		// Composite Wolfathon status: enabled parts joined from live timer + state.
 		const [timer, data] = await Promise.all([readTimer(db), readState(db)]);
 		reply = wolfathonValue(cmd, timer, data, now);
 	} else {
@@ -319,6 +356,84 @@ async function handleBotCommand(
 		if (!allowed) return;
 	}
 
+	await sendAsBot(db, twitch, reply);
+}
+
+/**
+ * Drive the giveaway draw → claim chat flow from a "!"-prefixed chat line.
+ *
+ * Three outcomes, all decided + committed in ONE CAS so concurrent deliveries
+ * can't double-announce, then the chosen line is sent once:
+ *
+ *  1. A fresh draw (`pendingClaim` not yet `announced`) → post the "you won, type
+ *     !claim" line and flip `announced`.
+ *  2. The winner types `!claim` within the window → mark claimed (clears
+ *     `pendingClaim`) and post the confirmation.
+ *  3. The window lapsed unclaimed → post the timeout line once (guarded by
+ *     `timedOut`) and leave the pending winner in place so the dashboard prompts
+ *     an operator redraw.
+ *
+ * ponytail: there's no background timer in a stateless Worker, so the timeout
+ * fires on the NEXT "!" chat tick after the window lapses — not on a wall clock.
+ * In a quiet chat the operator's dashboard countdown is the live signal; the
+ * chat line just confirms it the next time anyone types a command.
+ */
+async function handleGiveawayClaim(
+	db: Db,
+	twitch: TwitchDoc,
+	event: Record<string, unknown>,
+	chatText: string,
+	now: number,
+): Promise<void> {
+	const giveaway = await readGiveaway(db);
+	if (!giveaway.pendingClaim) return; // nothing waiting → no giveaway-doc write
+
+	const isClaim = chatText.trim().split(/\s+/)[0]?.toLowerCase() === "!claim";
+	const login =
+		typeof event.chatter_user_login === "string" ? event.chatter_user_login.toLowerCase() : "";
+
+	// Decide + commit atomically. `line` is captured from the winning CAS apply so
+	// we only send for the delivery that actually transitioned the doc.
+	let line: string | null = null;
+	await mutateGiveaway(db, (doc) => {
+		const pc = doc.pendingClaim;
+		if (!pc) return doc; // another delivery already resolved it
+		line = null;
+		// 1) Claim wins over a stale timeout: the winner spoke in time.
+		if (isClaim && login) {
+			const { doc: claimed, claimed: ok } = claimPending(doc, login, now);
+			if (ok) {
+				line = buildGiveawayClaimAnnouncement(pc.name);
+				return claimed;
+			}
+		}
+		// 2) Window lapsed unclaimed → announce the timeout once.
+		if (expirePending(doc, now)) {
+			if (!pc.timedOut) {
+				line = buildGiveawayTimeoutAnnouncement(pc.name);
+				return { ...doc, pendingClaim: { ...pc, timedOut: true } };
+			}
+			return doc; // already announced the timeout
+		}
+		// 3) Still in-window and undrawn-announce → post the "you won" line once.
+		if (!pc.announced) {
+			line = buildGiveawayDrawAnnouncement(pc.name);
+			return { ...doc, pendingClaim: { ...pc, announced: true } };
+		}
+		return doc;
+	});
+
+	if (line) await sendAsBot(db, twitch, line);
+}
+
+/**
+ * Send one chat line as the connected bot account, refreshing the token first.
+ * No-ops (rather than throws) when the bot isn't connected or creds are missing,
+ * so the milestone/gift announcers and command replies share one safe send path.
+ */
+async function sendAsBot(db: Db, twitch: TwitchDoc, message: string): Promise<void> {
+	if (!message.trim()) return;
+	if (!twitch.bot || !twitch.broadcasterId || !env.TWITCH_CLIENT_ID) return;
 	const token = await ensureBotToken(db, twitch.bot);
 	if (!token) return;
 	await sendChatMessage({
@@ -326,8 +441,90 @@ async function handleBotCommand(
 		botToken: token,
 		broadcasterId: twitch.broadcasterId,
 		senderId: twitch.bot.userId,
-		message: reply,
+		message,
 	});
+}
+
+/** Resolve after `ms` — used to debounce the gift-sub announcement inside waitUntil. */
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * After a sub/gift bumps the count, run the two milestone side-effects:
+ *
+ *  1. Wheel auto-spin — if this event crossed a multiple of `wheel.config.spinEvery`,
+ *     arm one spin (the overlay animates it) and, if the bot can send, announce the
+ *     milestone + the dare it landed on. The spin itself runs regardless of the bot;
+ *     only the chat shout-out needs a connected bot account.
+ *  2. Gift-sub announcement — fold the gift into a pending burst, then schedule a
+ *     single delayed flush so a sub-train collapses into one chat line.
+ *
+ * ponytail: the auto-spin "crossed a milestone" check reads before/after from the
+ * CAS-sequential bump, so it's correct under concurrency; a single gift that vaults
+ * several multiples still fires exactly one spin (see `shouldAutoSpin`). The gift
+ * debounce uses waitUntil + setTimeout, not a Durable Object — fine for one
+ * channel's gift rate; a burst that outlives the worker (~30s) would lose its
+ * trailing flush, at which point a DO alarm is the upgrade.
+ */
+async function handleSubMilestones(
+	db: Db,
+	twitch: TwitchDoc,
+	event: Record<string, unknown>,
+	timerEvent: NonNullable<ReturnType<typeof parseEvent>>,
+	subsBefore: number,
+	subsAfter: number,
+	now: number,
+): Promise<void> {
+	const wheel = await readWheel(db);
+	if (shouldAutoSpin(wheel.config.spinEvery, subsBefore, subsAfter)) {
+		let winnerLabel: string | null = null;
+		await mutateWheel(db, (w) => {
+			if (enabledSlots(w).length === 0) return w; // nothing to spin
+			const { doc, winner } = resolveSpin(w, { spinId: crypto.randomUUID(), now });
+			winnerLabel = winner?.label ?? null;
+			return doc;
+		});
+		if (winnerLabel !== null) {
+			await sendAsBot(db, twitch, buildAutoSpinAnnouncement(subsAfter, winnerLabel));
+		}
+	}
+
+	if (timerEvent.kind === "gift") {
+		const bot = await readBot(db);
+		if (bot.enabled && bot.announceGifts) {
+			const login = typeof event.user_login === "string" ? event.user_login : "";
+			const name = typeof event.user_name === "string" ? event.user_name : login || "Anonymous";
+			await mutateBot(db, (d) => ({
+				...d,
+				giftBatch: mergeGiftBatch(d.giftBatch, { login, name }, timerEvent.count, now),
+			}));
+			await flushGiftBatch(db, twitch);
+		}
+	}
+}
+
+/**
+ * Wait out the debounce window, then claim + announce the pending gift burst.
+ * The claim is a compare-and-swap: only the flush whose window has elapsed clears
+ * the batch and sends, so overlapping deliveries collapse into ONE chat line.
+ */
+async function flushGiftBatch(db: Db, twitch: TwitchDoc): Promise<void> {
+	await sleep(GIFT_BATCH_WINDOW_MS);
+	let toSend: GiftBatch | null = null;
+	await mutateBot(db, (d) => {
+		const batch = d.giftBatch;
+		if (batch && Date.now() - batch.firstAt >= GIFT_BATCH_WINDOW_MS) {
+			toSend = batch;
+			return { ...d, giftBatch: null };
+		}
+		toSend = null;
+		return d; // unchanged ref → no write (another flush already claimed it)
+	});
+	if (!toSend) return;
+	const timer = await readTimer(db);
+	const minutes = Math.round((toSend as GiftBatch).subs * timer.config.giftSubMinutes);
+	await sendAsBot(db, twitch, buildGiftAnnouncement(toSend, minutes));
 }
 
 /**

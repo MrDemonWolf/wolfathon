@@ -1,6 +1,7 @@
 "use client";
 
 import {
+	clampScale,
 	defaultOverlayTheme,
 	FONT_STACKS,
 	luma,
@@ -9,12 +10,11 @@ import {
 } from "@wolfathon/api/theme";
 import {
 	computeArcs,
-	DEFAULT_MIN_TURNS,
 	finalRotation,
 	type PendingSpin,
 	type PublicWheelSlot,
 } from "@wolfathon/api/wheel";
-import { useEffect, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 
 /**
  * Wheel-of-dares overlay ("Howlwheel"). Renders an SVG wheel of weighted slices
@@ -43,7 +43,12 @@ const R = 46;
 /** Radial band a slice label occupies — just outside the hub to just inside the rim. */
 const LABEL_INNER = 12.5;
 const LABEL_OUTER = R - 3.5;
-const SPIN_SECONDS = 5.2;
+/** Centre logo hub — 25% smaller than the old r=8/6.9 so the slices read bigger. */
+const HUB_R = 6;
+const LOGO_R = 5.2;
+const SPIN_SECONDS = 6;
+/** Whole turns the wheel sweeps before landing — more = a longer, weightier spin. */
+const SPIN_TURNS = 8;
 const RESULT_MS = 6000;
 
 type Phase = "idle" | "spinning" | "result";
@@ -63,7 +68,15 @@ export function WheelView({
 	const t = theme ?? defaultOverlayTheme();
 	const { accent: CYAN, light: MOON, dark: NAVY, darkDeep: NAVY_DEEP } = wheelPalette(t);
 	const fontFamily = FONT_STACKS[t.font];
+	const scale = clampScale(t.wheelScale);
 	const [rotation, setRotation] = useState(0);
+	// The active spin's from/to angles + a restart key. Keying the wheel group on
+	// `key` re-arms the CSS keyframe animation for each new spin.
+	const [spin, setSpin] = useState<{ from: number; to: number; key: number }>({
+		from: 0,
+		to: 0,
+		key: 0,
+	});
 	const [phase, setPhase] = useState<Phase>("idle");
 	const [resultLabel, setResultLabel] = useState<string | null>(null);
 	// The geometry the wheel renders. While a spin is in flight this is frozen to
@@ -82,7 +95,7 @@ export function WheelView({
 		lastSpinId.current = pending.spinId;
 
 		const snapshot = slots;
-		const dest = finalRotation(snapshot, pending.targetIndex, rotation, DEFAULT_MIN_TURNS + 1);
+		const dest = finalRotation(snapshot, pending.targetIndex, rotation, SPIN_TURNS);
 		setFrozen(snapshot);
 		setResultLabel(target.label);
 
@@ -92,8 +105,9 @@ export function WheelView({
 			setPhase("result");
 			return;
 		}
+		setSpin((s) => ({ from: rotation, to: dest, key: s.key + 1 }));
+		setRotation(dest); // rest angle once the animation finishes (forwards holds it)
 		setPhase("spinning");
-		setRotation(dest);
 		const land = setTimeout(() => setPhase("result"), SPIN_SECONDS * 1000);
 		return () => clearTimeout(land);
 		// `rotation` is intentionally NOT a dependency: it's read once at spin start
@@ -121,10 +135,20 @@ export function WheelView({
 	// Idle "breathing" glow on the halo + rim — only while waiting, and never
 	// under reduced motion (so it doesn't compete with an in-flight spin).
 	const pulse = !reduced && phase === "idle" ? "wheel-pulse" : "";
+	// Hidden-until-spin: by default the wheel only appears for the reveal (spin +
+	// result), then fades back out. `showWheelIdle` parks it on screen permanently.
+	const visible = t.showWheelIdle || phase !== "idle";
+	// Size of the wheel within its (square) OBS source — operator-tunable for 1080p.
+	const wheelSize = `${84 * scale}cqmin`;
+	// Result banner sits just below the wheel rim; its offset follows the scale.
+	const bannerTop = `calc(50% + ${42 * scale}cqmin + 2cqmin)`;
 
 	return (
-		<div className="pointer-events-none absolute inset-0 grid select-none place-items-center">
-			<div className="relative h-[84cqmin] w-[84cqmin]">
+		<div
+			className="pointer-events-none absolute inset-0 grid select-none place-items-center"
+			style={{ opacity: visible ? 1 : 0, transition: reduced ? undefined : "opacity 0.45s ease" }}
+		>
+			<div className="relative" style={{ height: wheelSize, width: wheelSize }}>
 				<svg viewBox="0 0 100 100" className="h-full w-full overflow-visible">
 					<defs>
 						<style>{`
@@ -132,6 +156,14 @@ export function WheelView({
 							@keyframes howlRim  { 0%,100% { stroke-opacity:.45 } 50% { stroke-opacity:.9 } }
 							.wheel-pulse.halo { animation: howlHalo 3.6s ease-in-out infinite; }
 							.wheel-pulse.rim  { animation: howlRim  3.6s ease-in-out infinite; }
+							/* Spin: a fast whip that decelerates over a long tail, nudges 6°
+							   past the landing notch, then settles back — like a real detented
+							   wheel. The from/to angles come from inline --spin-from/--spin-to. */
+							@keyframes howlSpin {
+								0%   { transform: rotate(var(--spin-from)); animation-timing-function: cubic-bezier(0.16, 0.67, 0.05, 1); }
+								84%  { transform: rotate(calc(var(--spin-to) + 6deg)); animation-timing-function: cubic-bezier(0.45, 0, 0.4, 1); }
+								100% { transform: rotate(var(--spin-to)); }
+							}
 						`}</style>
 						<filter id="wheel-shadow" x="-20%" y="-20%" width="140%" height="140%">
 							<feDropShadow
@@ -170,9 +202,9 @@ export function WheelView({
 							<stop offset="45%" stopColor={CYAN} />
 							<stop offset="100%" stopColor={CYAN} />
 						</linearGradient>
-						{/* Round mask for the centre logo hub. */}
+						{/* Round mask for the centre logo hub (rotation-invariant: centred). */}
 						<clipPath id="hub-clip">
-							<circle cx={CX} cy={CY} r={6.9} />
+							<circle cx={CX} cy={CY} r={LOGO_R} />
 						</clipPath>
 					</defs>
 
@@ -182,17 +214,26 @@ export function WheelView({
 					{/* rim backing disc behind the slices */}
 					<circle cx={CX} cy={CY} r={R + 1.6} fill={NAVY_DEEP} />
 
-					{/* The wheel group rotates; the pointer, rims + hub stay fixed.
-					    transform-box fill-box pins the spin centre to the wheel's own centre. */}
+					{/* The wheel group rotates (slices, labels AND the centre logo); only the
+					    pointer + outer rims stay fixed. transform-box fill-box pins the spin
+					    centre to the wheel's own centre. While spinning we run the keyframe
+					    animation (keyed so each spin re-arms it); at rest it's a plain rotate
+					    held at the landed angle. */}
 					<g
-						style={{
-							transform: `rotate(${rotation}deg)`,
-							transformBox: "fill-box",
-							transformOrigin: "center",
-							transition: spinning
-								? `transform ${SPIN_SECONDS}s cubic-bezier(0.17, 0.84, 0.2, 1)`
-								: "none",
-						}}
+						key={spin.key}
+						style={
+							{
+								transformBox: "fill-box",
+								transformOrigin: "center",
+								...(spinning
+									? {
+											"--spin-from": `${spin.from}deg`,
+											"--spin-to": `${spin.to}deg`,
+											animation: `howlSpin ${SPIN_SECONDS}s forwards`,
+										}
+									: { transform: `rotate(${rotation}deg)` }),
+							} as CSSProperties
+						}
 						filter="url(#wheel-shadow)"
 					>
 						<circle cx={CX} cy={CY} r={R} fill={NAVY} />
@@ -279,6 +320,36 @@ export function WheelView({
 								</g>
 							);
 						})}
+
+						{/* centre logo hub — spins WITH the wheel; the operator's mark on a dark
+						    disc with an accent ring, 25% smaller than before so slices read big */}
+						<circle
+							cx={CX}
+							cy={CY}
+							r={HUB_R}
+							fill={NAVY_DEEP}
+							stroke={CYAN}
+							strokeWidth={0.9}
+							filter="url(#wheel-glow)"
+						/>
+						<image
+							href="/logo.svg"
+							x={CX - LOGO_R}
+							y={CY - LOGO_R}
+							width={LOGO_R * 2}
+							height={LOGO_R * 2}
+							clipPath="url(#hub-clip)"
+							preserveAspectRatio="xMidYMid meet"
+						/>
+						<circle
+							cx={CX}
+							cy={CY}
+							r={LOGO_R}
+							fill="none"
+							stroke={CYAN}
+							strokeWidth={0.35}
+							strokeOpacity={0.5}
+						/>
 					</g>
 
 					{/* fixed double rim — outer glow ring (pulses on idle) + crisp inner edge */}
@@ -301,36 +372,6 @@ export function WheelView({
 						stroke="#ffffff"
 						strokeWidth={0.5}
 						strokeOpacity={0.3}
-					/>
-
-					{/* fixed logo hub — operator's mark on a dark disc with an accent ring */}
-					<circle
-						cx={CX}
-						cy={CY}
-						r={8}
-						fill={NAVY_DEEP}
-						stroke={CYAN}
-						strokeWidth={1}
-						filter="url(#wheel-glow)"
-					/>
-					<image
-						href="/logo.svg"
-						x={CX - 6.9}
-						y={CY - 6.9}
-						width={13.8}
-						height={13.8}
-						clipPath="url(#hub-clip)"
-						preserveAspectRatio="xMidYMid meet"
-					/>
-					{/* crisp inner ring over the logo edge */}
-					<circle
-						cx={CX}
-						cy={CY}
-						r={6.9}
-						fill="none"
-						stroke={CYAN}
-						strokeWidth={0.4}
-						strokeOpacity={0.5}
 					/>
 
 					{/* fixed fang pointer at top, tip biting down into the wheel */}
@@ -359,7 +400,10 @@ export function WheelView({
 
 				{/* result announcement — opaque navy glass, AA-safe cyan + white text */}
 				{phase === "result" && resultLabel && (
-					<div className="pointer-events-none absolute inset-x-0 top-[calc(50%+46cqmin*0.5+2cqmin)] flex justify-center">
+					<div
+						className="pointer-events-none absolute inset-x-0 flex justify-center"
+						style={{ top: bannerTop }}
+					>
 						<div
 							className={`${reduced ? "" : "animate-wolf-rise"} max-w-[80cqmin] rounded-2xl border px-[4cqmin] py-[2.4cqmin] text-center`}
 							style={{

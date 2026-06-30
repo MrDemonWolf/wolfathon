@@ -51,6 +51,35 @@ export type GiveawayConfig = {
 	raffleWinnerSlots: number;
 	/** Whether `!enter` is currently accepted. Operator opens/closes the window. */
 	open: boolean;
+	/**
+	 * Link to the giveaway rules / TOS — a GitHub gist, a Notion page, any URL.
+	 * The `!giveaway` chat command fills its reply with this, so the operator sets
+	 * it once and the bot always points viewers at the current rules. Empty = unset.
+	 */
+	tosUrl: string;
+};
+
+/**
+ * A raffle winner who has been drawn but must claim in chat (type `!claim`)
+ * before the {@link CLAIM_WINDOW_MS} window lapses, or an operator redraws.
+ * `announced` flips true once the public Worker has posted the "you won, type
+ * !claim" line, so the next chat tick doesn't re-announce. Null when no draw is
+ * waiting on a claim.
+ */
+export type PendingClaim = {
+	login: string;
+	name: string;
+	/** The {@link Winner} `id` this claim is gating (so the redraw can target it). */
+	winnerId: string;
+	drawnAt: number;
+	/** Whether the public Worker has already posted the "you won" chat line. */
+	announced: boolean;
+	/**
+	 * Set once the claim window lapsed unclaimed and the Worker announced the
+	 * timeout — so the timeout line posts once (not on every later "!" tick) and
+	 * the dashboard knows to prompt a redraw while keeping the winner visible.
+	 */
+	timedOut?: boolean;
 };
 
 export type GiveawayDoc = {
@@ -60,6 +89,8 @@ export type GiveawayDoc = {
 	gifters: Gifter[];
 	entrants: Entrant[];
 	winners: Winner[];
+	/** A drawn raffle winner waiting to type `!claim` in chat (null = none). */
+	pendingClaim: PendingClaim | null;
 };
 
 /** A normalized giveaway-relevant event parsed from an EventSub payload. */
@@ -71,6 +102,9 @@ export type GiveawayEvent =
 // unbounded. Raise if a stream ever needs a bigger window.
 export const MAX_ENTRANTS = 5000;
 export const MAX_COMMAND_LENGTH = 32;
+export const MAX_TOS_URL_LENGTH = 300;
+/** How long a drawn raffle winner has to type `!claim` before a redraw is offered. */
+export const CLAIM_WINDOW_MS = 5 * 60_000;
 
 export function defaultGiveawayConfig(): GiveawayConfig {
 	return {
@@ -79,6 +113,7 @@ export function defaultGiveawayConfig(): GiveawayConfig {
 		giftWinnerSlots: 2,
 		raffleWinnerSlots: 2,
 		open: false,
+		tosUrl: "",
 	};
 }
 
@@ -89,6 +124,7 @@ export function defaultGiveawayDoc(): GiveawayDoc {
 		gifters: [],
 		entrants: [],
 		winners: [],
+		pendingClaim: null,
 	};
 }
 
@@ -190,9 +226,32 @@ export function addWinner(
 }
 
 /**
+ * Set `pendingClaim` for the newest raffle winner (matched by login). The winner
+ * row already exists; we look up its id so a redraw can target it. `announced`
+ * starts false — the public Worker flips it once it posts the "you won" line.
+ */
+function armPendingClaim(doc: GiveawayDoc, pick: Entrant, now: number): GiveawayDoc {
+	const winner = [...doc.winners].reverse().find((w) => w.login === pick.login);
+	if (!winner) return doc;
+	return {
+		...doc,
+		pendingClaim: {
+			login: pick.login,
+			name: pick.name,
+			winnerId: winner.id,
+			drawnAt: now,
+			announced: false,
+		},
+	};
+}
+
+/**
  * Draw one raffle winner from entrants not already won. Returns the new doc and
  * the picked entrant (null if the pool is empty). Defaults to a crypto CSPRNG so
  * a real prize draw can't be predicted/rigged; `rand` is injectable for tests.
+ *
+ * Arms a {@link PendingClaim}: the winner must type `!claim` in chat within
+ * {@link CLAIM_WINDOW_MS} or an operator can redraw.
  */
 export function drawRaffle(
 	doc: GiveawayDoc,
@@ -203,7 +262,8 @@ export function drawRaffle(
 	const pool = doc.entrants.filter((e) => !taken.has(e.login));
 	if (pool.length === 0) return { doc, winner: null };
 	const pick = pool[Math.floor(rand() * pool.length)]!;
-	return { doc: addWinner(doc, { ...pick, source: "raffle" }, now), winner: pick };
+	const withWinner = addWinner(doc, { ...pick, source: "raffle" }, now);
+	return { doc: armPendingClaim(withWinner, pick, now), winner: pick };
 }
 
 /**
@@ -226,7 +286,34 @@ export function rerollRaffle(
 	const pool = without.entrants.filter((e) => !taken.has(e.login));
 	if (pool.length === 0) return { doc, winner: null };
 	const pick = pool[Math.floor(rand() * pool.length)]!;
-	return { doc: addWinner(without, { ...pick, source: "raffle" }, now), winner: pick };
+	const withWinner = addWinner(without, { ...pick, source: "raffle" }, now);
+	// A reroll IS the redraw: the fresh winner now owes a `!claim`.
+	return { doc: armPendingClaim(withWinner, pick, now), winner: pick };
+}
+
+/**
+ * Mark the pending raffle winner claimed when `login` matches and the
+ * {@link CLAIM_WINDOW_MS} window is still open. Clears `pendingClaim` on success.
+ * Returns `{ doc, claimed }` so the caller knows whether to announce a claim.
+ * No-op (claimed:false) if there's no pending claim, the login doesn't match, or
+ * the window has lapsed.
+ */
+export function claimPending(
+	doc: GiveawayDoc,
+	login: string,
+	now: number,
+): { doc: GiveawayDoc; claimed: boolean } {
+	const pc = doc.pendingClaim;
+	if (!pc) return { doc, claimed: false };
+	if (pc.login !== login.toLowerCase()) return { doc, claimed: false };
+	if (now - pc.drawnAt > CLAIM_WINDOW_MS) return { doc, claimed: false };
+	return { doc: { ...doc, pendingClaim: null }, claimed: true };
+}
+
+/** Whether a pending claim exists and its {@link CLAIM_WINDOW_MS} window has lapsed unclaimed. */
+export function expirePending(doc: GiveawayDoc, now: number): boolean {
+	const pc = doc.pendingClaim;
+	return pc != null && now - pc.drawnAt > CLAIM_WINDOW_MS;
 }
 
 export function setShipped(doc: GiveawayDoc, id: string, shipped: boolean): GiveawayDoc {
@@ -242,12 +329,24 @@ export function setWinnerNote(doc: GiveawayDoc, id: string, note: string): Givea
 }
 
 export function removeWinner(doc: GiveawayDoc, id: string): GiveawayDoc {
-	return { ...doc, winners: doc.winners.filter((w) => w.id !== id) };
+	// Drop a pending claim that gated the removed winner so it can't dangle.
+	const pendingClaim = doc.pendingClaim?.winnerId === id ? null : doc.pendingClaim;
+	return { ...doc, winners: doc.winners.filter((w) => w.id !== id), pendingClaim };
 }
 
 /**
- * Clear gifters, entrants, and winners for a fresh round. Config is kept but
- * entries are closed and the round is un-started (so gifts wait for Start).
+ * Empty the raffle pool (entrants + any pending claim) WITHOUT un-starting the
+ * round or touching gifters/winners. Lets the operator clear who's entered and
+ * reopen `!enter` for a fresh wave while the gift winners already drawn stand.
+ */
+export function resetPool(doc: GiveawayDoc): GiveawayDoc {
+	return { ...doc, entrants: [], pendingClaim: null };
+}
+
+/**
+ * Clear gifters, entrants, winners, and any pending claim for a fresh round.
+ * Config is kept but entries are closed and the round is un-started (so gifts
+ * wait for Start).
  */
 export function resetRound(doc: GiveawayDoc): GiveawayDoc {
 	return {
@@ -257,10 +356,19 @@ export function resetRound(doc: GiveawayDoc): GiveawayDoc {
 		gifters: [],
 		entrants: [],
 		winners: [],
+		pendingClaim: null,
 	};
 }
 
 export type ConfigPatch = Partial<GiveawayConfig>;
+
+/** Normalize a TOS link: trim, cap length, and add `https://` if the operator
+ * pasted a bare domain so the chat link is always clickable. Empty stays empty. */
+export function normalizeTosUrl(raw: string): string {
+	const v = raw.trim().slice(0, MAX_TOS_URL_LENGTH);
+	if (!v) return "";
+	return /^https?:\/\//i.test(v) ? v : `https://${v}`;
+}
 
 /** Validate + merge a config patch (clamps to sane ranges). */
 export function applyConfig(doc: GiveawayDoc, patch: ConfigPatch): GiveawayDoc {
@@ -279,6 +387,7 @@ export function applyConfig(doc: GiveawayDoc, patch: ConfigPatch): GiveawayDoc {
 			giftWinnerSlots: clampInt(patch.giftWinnerSlots, c.giftWinnerSlots, 0, 100),
 			raffleWinnerSlots: clampInt(patch.raffleWinnerSlots, c.raffleWinnerSlots, 0, 100),
 			open: patch.open ?? c.open,
+			tosUrl: patch.tosUrl !== undefined ? normalizeTosUrl(patch.tosUrl) : (c.tosUrl ?? ""),
 		},
 	};
 }

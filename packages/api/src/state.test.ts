@@ -36,14 +36,14 @@ test("withThemeDefaults backfills new fields on a pre-migration theme row", () =
 	} as unknown as OverlayTheme;
 
 	const filled = withThemeDefaults(old);
-	expect(filled.label).toBe("SUBATHON"); // new field filled from defaults
+	expect(filled.label).toBe("WOLFATHON"); // new field filled from defaults
 	expect(filled.showLiveDot).toBe(false); // inherited from the old combined showStatus
 	expect(filled.showLabel).toBe(true); // existing value preserved
 
 	// A pre-split row that had the status indicator ON keeps the dot ON.
 	expect(withThemeDefaults({ ...old, showStatus: true } as OverlayTheme).showLiveDot).toBe(true);
 	// No stored theme → full defaults.
-	expect(withThemeDefaults(undefined).label).toBe("SUBATHON");
+	expect(withThemeDefaults(undefined).label).toBe("WOLFATHON");
 	expect(withThemeDefaults(undefined).showLiveDot).toBe(true);
 });
 

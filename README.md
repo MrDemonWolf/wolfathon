@@ -15,7 +15,7 @@ Keep the rewards flowing. Keep the clock ticking.
 - [Getting Started](#getting-started)
 - [Usage](#usage)
   - [OBS browser sources](#obs-browser-sources)
-  - [Subathon timer](#subathon-timer)
+  - [Wolfathon timer](#wolfathon-timer)
   - [Twitch setup (auto-time)](#twitch-setup-auto-time)
   - [Backup and restore (JSON)](#backup-and-restore-json)
   - [What the rewards overlay shows](#what-the-rewards-overlay-shows)
@@ -44,10 +44,12 @@ Keep the rewards flowing. Keep the clock ticking.
 
 ## Features
 
-- **Subathon timer** - A timestamp-driven countdown that auto-adds time from
-  Twitch subs (per tier), gifted subs, bits, and channel-point redemptions.
-  Every amount is configurable; the overlay counts down to the frame and
-  survives an OBS refresh.
+- **Wolfathon timer** - A timestamp-driven countdown that auto-adds time from
+  Twitch subs (per tier), gifted subs, bits (prorated, so any cheer counts), and
+  channel-point redemptions. Every amount is configurable; the overlay counts
+  down to the frame and survives an OBS refresh. Channel-point rewards can be
+  created straight from the Twitch API (up to two), and the time-add emote burst
+  has a 1x / 2x / 3x size control.
 - **Twitch auto-time (EventSub)** - Connect once with the OAuth redirect flow.
   Events arrive at the server Worker as HMAC-verified webhooks, so there is no
   bot to babysit and no browser that has to stay open.
@@ -63,27 +65,35 @@ Keep the rewards flowing. Keep the clock ticking.
   can have Claude edit the config and paste it back to restore.
 - **Wheel of dares (Howlwheel)** - A weighted spinner of chat dares. Edit,
   weight, colour, and drag-reorder slots from the dashboard, then spin to a
-  weighted-random result or send the wheel to a specific slot. A token-gated
-  OBS overlay whirls a multi-turn spin and lands on the result on cue.
+  weighted-random result or send the wheel to a specific slot. The token-gated
+  OBS overlay stays hidden until you spin (then whirls a long, settling spin and
+  reveals the result — a "Keep wheel on screen" toggle parks it permanently),
+  with the centre logo spinning along. It can also **auto-spin every N counted
+  subs** (default 10, configurable), announcing the dare in chat.
 - **Chat bot** - Connect a separate bot account and it answers chat commands
   (`!wolfathon`, `!timer`, `!goals`, `!wheel`, `!giveaway`) from the server,
-  reusing the EventSub webhook — no process to babysit. Toggle each command,
-  edit text replies, and rate-limit normal viewers (mods/VIPs/broadcaster
-  bypass).
+  reusing the EventSub webhook — no process to babysit. Live commands pick from
+  ready-made phrasings (no free text to fumble), and it **announces gifted
+  subs** in chat, batched per burst so a sub-train never spams. Toggle each
+  command and rate-limit normal viewers (mods/VIPs/broadcaster bypass).
 - **Giveaway tracker** - A two-phase prize draw. Hit **Start** and the first
   viewers to gift a threshold of subs are captured as gift-sub winners (you
   confirm each). Then **open `!enter`** when you're ready, watch the live
-  entrant pool, and draw raffle winners with the crypto CSPRNG. Gift and raffle
-  winners are tracked in separate lists; any raffle pick can be rerolled, and
-  nobody can win twice.
+  entrant pool, and draw raffle winners with the crypto CSPRNG. A drawn winner
+  must type **`!claim`** within five minutes or you redraw (the bot announces
+  the draw, claim, and timeout). Set a **rules/TOS link** (a gist or any URL)
+  that auto-fills `!giveaway`. Gift and raffle winners stay in separate lists;
+  any pick can be rerolled, the pool can be cleared on its own, and nobody wins
+  twice.
 - **Cloudflare Access security** - The control panel and its API sit behind
   Cloudflare Zero Trust. The overlays stay open (OBS can't sign in to Access)
   but are gated by a secret token in their URL, resettable from the control
   panel. Twitch secrets never reach a public response.
 - **Installable PWA** - The control panel installs as a standalone app.
 - **Customizer** - Tune the overlay look from Settings: colours, font, corner
-  radius, and the eyebrow label, plus per-overlay show/hide toggles, with a
-  live preview of both the timer and rewards surfaces side by side.
+  radius, and the eyebrow label, plus per-overlay show/hide toggles and
+  **per-overlay size sliders** (timer / rewards / wheel) so each fits a 1080p
+  scene, with a live preview of both the timer and rewards surfaces side by side.
 - **Brand-ready** - MrDemonWolf navy and cyan, Montserrat and Roboto, with
   macOS-style rounded panels.
 
@@ -144,16 +154,18 @@ in a browser without wiring up OBS first.
 | ------- | ---------------------- | ----------- | ------------------------------------------------------------ |
 | Timer   | `/overlay/timer?t=…`   | `1310×200`  | Compact countdown bar (D/H/M/S); emotes flood it on each add |
 | Rewards | `/overlay/rewards?t=…` | `1920×1080` | Current reward name + unlock celebration                     |
-| Wheel   | `/overlay/wheel?t=…`   | `1080×1080` | Wheel of dares; whirls to the result when you spin           |
+| Wheel   | `/overlay/wheel?t=…`   | `1080×1080` | Wheel of dares; hidden until you spin, then reveals the dare |
 
-The timer is a self-contained widget that fills its source, so resize the
-browser source itself to move or scale the bar — no full-screen canvas needed.
+Each overlay is its own source — drag them where you want in OBS, and use the
+per-overlay **size sliders** in Settings → Customizer to fit them to a 1080p
+scene. The timer is a self-contained widget that fills its source, so you can
+also resize the source itself.
 
 Both poll every 2 seconds, so control-panel edits and Twitch events appear on
 stream within about 2 seconds (the timer keeps counting smoothly between
 polls).
 
-### Subathon timer
+### Wolfathon timer
 
 The control panel's **Timer** tab has two halves:
 
@@ -161,8 +173,11 @@ The control panel's **Timer** tab has two halves:
   -5 minutes) and a custom amount, plus "simulate event" buttons (Sub T1/T2/T3,
   Gift, 100 bits) that apply the configured minutes for testing.
 - **Time rules** - Edit every amount: starting time, cap (0 = no cap), minutes
-  per sub tier (T1/T2/T3/Prime), per gifted sub, per 100 bits, and a list of
-  channel-point reward rules (match by title, or by id once redeemed).
+  per sub tier (T1/T2/T3/Prime), per gifted sub, and per 100 bits — bits are
+  prorated, so a small cheer still adds its share of a minute. Pick the time-add
+  emote size (1x / 2x / 3x). And manage up to **two channel-point rewards**,
+  created right on Twitch from here (this needs the `channel:manage:redemptions`
+  scope, so reconnect Twitch once to grant it); remove either at any time.
 
 ### Twitch setup (auto-time)
 
@@ -191,7 +206,7 @@ authorization. The **Twitch** tab walks you through it:
 
 The `stream.offline` / `stream.online` subscriptions **auto-pause the timer
 when your stream ends and resume it when you go live again**, so an outage or
-a forgotten "end stream" doesn't burn subathon time. Auto-resume only fires if
+a forgotten "end stream" doesn't burn Wolfathon time. Auto-resume only fires if
 the pause was automatic — a manual pause is never overridden. Toggle the whole
 behavior with **Auto-pause when the stream goes offline** on the Timer tab
 (default on).
@@ -266,10 +281,17 @@ a **Spin to this** for a hand-picked result. The wheel seeds with a default set
 of dares on first run, and the last 25 spins show under **Recent spins**.
 
 Add the **Wheel** OBS source (square, `1080×1080`) from **Settings →
-Overlays**. When you spin, the overlay whirls a multi-turn animation and lands
-on the result under a fixed top pointer (it honours `prefers-reduced-motion`
-by landing without the whirl). The overlay shows only enabled slots and never
-receives the token or any internal field.
+Overlays**. By default the overlay stays hidden until you spin: it whirls a
+long, settling multi-turn spin (the centre logo spinning with it), reveals the
+dare under the fixed top pointer, then hides again — flip **Keep wheel on
+screen** in the Customizer to park it permanently. It honours
+`prefers-reduced-motion` (lands without the whirl), shows only enabled slots,
+and never receives the token or any internal field.
+
+The wheel can also **auto-spin every N counted subs** — set the cadence on the
+Wheel tab (default 10, or Off to spin only by hand). When a sub milestone is
+crossed the overlay plays the spin and, if the chat bot is connected, it
+announces the dare it landed on.
 
 ### Chat bot
 
@@ -287,18 +309,22 @@ Five built-in commands ship, each with an enable toggle and editable triggers:
 
 | Command      | Aliases                      | Reply                                         |
 | ------------ | ---------------------------- | --------------------------------------------- |
-| `!wolfathon` | `!subathon` `!wolf` `!about` | editable text — what the event is             |
-| `!giveaway`  | `!gw` `!giveaways`           | editable text — paste your giveaway link here |
-| `!timer`     | `!time`                      | live time left on the subathon                |
-| `!goals`     | —                            | live next-reward progress (next target only)  |
-| `!wheel`     | `!dares`                     | the Howlwheel, with the live dare count       |
+| `!wolfathon` | `!subathon` `!wolf` `!about` | live status line (intro + time + subs + goal) |
+| `!giveaway`  | `!gw` `!giveaways`           | your giveaway rules/TOS link (set it once)    |
+| `!timer`     | `!time`                      | live time left on the Wolfathon               |
+| `!goals`     | `!goal`                      | live next-reward progress (next target only)  |
+| `!wheel`     | `!dares`                     | how the Howlwheel works + the live dare count |
 
-The live commands (`!timer`/`!goals`/`!wheel`) don't take free text — pick one
-of a few built-in **reply formats** per command. A master switch turns the
-whole bot on/off, and a per-command **cooldown** rate-limits normal viewers;
-broadcaster, mods, and VIPs bypass the cooldown. If the bot's sign-in is later
-revoked (its password changes, or you de-authorize the app), the Bot tab shows
-a **reconnect** prompt instead of going silently dead.
+Every reply is built from live data — there's no free text to fumble. For each
+command you pick one of a few built-in **reply formats** (e.g. the `!wheel`
+"How it works" explainer, or which parts the `!wolfathon` status line includes);
+`!giveaway` fills in the rules link you set on the Giveaway tab. The bot also
+**announces gifted subs** in chat — turn it on with **Announce gift subs**, and
+a sub-train is batched into one line (e.g. "🎁 14 subs gifted by 3 people · +28m
+on the clock!") so chat never spams. A master switch turns the whole bot on/off,
+and a per-command **cooldown** rate-limits normal viewers; broadcaster, mods,
+and VIPs bypass it. If the bot's sign-in is later revoked, the Bot tab shows a
+**reconnect** prompt instead of going silently dead.
 
 ### Giveaway
 
@@ -316,22 +342,35 @@ The control panel's **Giveaway** tab runs a prize draw in two phases.
    links); **Draw winner** picks from the pool with the same crypto CSPRNG used
    for the wheel, so a real draw can't be predicted or rigged.
 
+A drawn raffle winner has to **claim** before they keep it: the bot posts
+"🎉 @them you won — type `!claim` within 5 minutes or I redraw", confirms with
+"✅ @them claimed" when they do, and on the next chat line after the window
+posts "⏰ didn't claim in time" so you can redraw. The panel shows a live
+countdown and a **Redraw** button.
+
 Gift-sub winners and raffle winners show in **separate lists**, each with a
 shipped checkbox and a private shipping note (never sent anywhere public). A
 **Reroll** on any raffle winner swaps them for a fresh draw without re-picking
 the person rerolled out, and anyone who has already won (either phase) is
-excluded from new draws. **Reset round** clears gifters, entrants, and winners,
-closes the raffle, and un-starts the round for a clean next one. The raffle
-command and the gift threshold are configurable. Nothing in this tab is ever
-exposed publicly — it is operator-only behind Cloudflare Access.
+excluded from new draws. **Clear pool** empties just the entrants (and any
+pending claim) so `!enter` can fill a fresh wave while existing winners stand;
+**Reset round** wipes everything and un-starts for a clean next one.
+
+Configuration is **one-tap presets** (no fiddly form): pick the raffle command
+(`!enter` / `!join` / `!giveaway`, or Custom) and the gift threshold (3 / 5 / 10,
+or Custom), and set a **rules/TOS link** — a GitHub gist or any URL — that the
+`!giveaway` command auto-fills. Nothing in this tab is ever exposed publicly —
+it is operator-only behind Cloudflare Access.
 
 ### Customizer (overlay look)
 
 **Settings → Customizer** tunes how the overlays paint: accent colours, font,
 corner radius, the eyebrow label, and per-overlay show/hide toggles (units,
-progress bar, unlocked row, status, and the rest). A live preview renders the
-timer and rewards surfaces with sample data so you can compare before saving;
-the wheel overlay inherits the same theme.
+progress bar, unlocked row, status, and the rest). It also has per-overlay
+**size sliders** (timer / rewards / wheel) so each fits your 1080p scene, and a
+**Keep wheel on screen** toggle (off by default — the wheel only appears when it
+spins). A live preview renders the timer and rewards surfaces with sample data
+so you can compare before saving; the wheel overlay inherits the same theme.
 
 ### Adding your logo
 

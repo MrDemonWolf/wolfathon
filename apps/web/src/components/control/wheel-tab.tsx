@@ -2,18 +2,36 @@
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { WheelSlot } from "@wolfathon/api/wheel";
-import { MAX_LABEL_LEN, MAX_SLOTS, MAX_WEIGHT, slotColor } from "@wolfathon/api/wheel";
+import {
+	MAX_LABEL_LEN,
+	MAX_SLOTS,
+	MAX_SPIN_EVERY,
+	MAX_WEIGHT,
+	slotColor,
+} from "@wolfathon/api/wheel";
 import { Button } from "@wolfathon/ui/components/button";
 import { Checkbox } from "@wolfathon/ui/components/checkbox";
 import { Input } from "@wolfathon/ui/components/input";
 import { Label } from "@wolfathon/ui/components/label";
 import { ChevronDown, ChevronUp, Dices, GripVertical, Loader2, Plus, Trash2 } from "lucide-react";
-import { type DragEvent, useState } from "react";
+import { type DragEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { controlTrpc, queryClient } from "@/utils/trpc";
 
 import { WheelPreview } from "./wheel-preview";
+
+// One-tap auto-spin cadences; the field beside them takes any other number.
+const SPIN_PRESETS = [0, 5, 10, 20] as const;
+
+/** Active/idle styling for a one-tap preset chip. */
+function chipCls(active: boolean): string {
+	return `rounded-lg border px-3 py-1.5 text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
+		active
+			? "border-primary/60 bg-primary/10 text-foreground"
+			: "border-border text-muted-foreground hover:border-primary/40 hover:bg-accent"
+	}`;
+}
 
 export function WheelTab() {
 	const rawOptions = controlTrpc.wheel.getRaw.queryOptions(undefined, {
@@ -46,6 +64,9 @@ export function WheelTab() {
 			},
 			onError,
 		}),
+	);
+	const setWheelConfig = useMutation(
+		controlTrpc.wheel.setConfig.mutationOptions({ onSuccess: invalidate, onError }),
 	);
 
 	// New-dare draft + the index currently being dragged for native reorder.
@@ -126,6 +147,32 @@ export function WheelTab() {
 							? "Enable at least one dare to spin."
 							: `${enabledCount} ${enabledCount === 1 ? "dare" : "dares"} in the pool.`}
 					</p>
+
+					{/* Auto-spin cadence */}
+					<div className="mt-4 border-t border-border pt-4">
+						<Label>Auto-spin the wheel</Label>
+						<p className="mt-1 text-xs text-muted-foreground">
+							Spin automatically every N counted subs (subs + each gifted sub). The overlay plays
+							it, and if the chat bot is connected it announces the dare it lands on. Set Off to
+							spin by hand only.
+						</p>
+						<div className="mt-2 flex flex-wrap items-center gap-2">
+							{SPIN_PRESETS.map((n) => (
+								<button
+									key={n}
+									type="button"
+									className={chipCls(data.config.spinEvery === n)}
+									onClick={() => setWheelConfig.mutate({ spinEvery: n })}
+								>
+									{n === 0 ? "Off" : `Every ${n}`}
+								</button>
+							))}
+							<SpinEveryField
+								value={data.config.spinEvery}
+								onCommit={(n) => setWheelConfig.mutate({ spinEvery: n })}
+							/>
+						</div>
+					</div>
 				</div>
 
 				{/* Slots editor */}
@@ -344,5 +391,38 @@ function SlotRow({
 				<Trash2 className="size-4" />
 			</Button>
 		</li>
+	);
+}
+
+/** "Custom" auto-spin cadence — any number the presets don't cover. */
+function SpinEveryField({ value, onCommit }: { value: number; onCommit: (n: number) => void }) {
+	const [text, setText] = useState(String(value));
+	useEffect(() => setText(String(value)), [value]);
+	const commit = () => {
+		const n = Number(text);
+		if (!Number.isFinite(n)) {
+			setText(String(value));
+			return;
+		}
+		const clamped = Math.min(MAX_SPIN_EVERY, Math.max(0, Math.floor(n)));
+		setText(String(clamped));
+		if (clamped !== value) onCommit(clamped);
+	};
+	return (
+		<label className="flex items-center gap-1.5 text-sm text-muted-foreground">
+			<span>or every</span>
+			<Input
+				type="number"
+				min={0}
+				max={MAX_SPIN_EVERY}
+				value={text}
+				onChange={(e) => setText(e.target.value)}
+				onBlur={commit}
+				onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+				className="w-20"
+				aria-label="Custom auto-spin cadence (subs)"
+			/>
+			<span>subs</span>
+		</label>
 	);
 }
