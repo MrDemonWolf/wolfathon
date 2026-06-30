@@ -31,18 +31,15 @@ Keep the rewards flowing. Keep the clock ticking.
   weight, colour, and drag-reorder slots from the dashboard, then spin to a
   weighted-random result or send the wheel to a specific slot. A token-gated OBS
   overlay whirls a multi-turn spin and lands on the result on cue.
-<<<<<<< HEAD
 - **Chat bot** - Connect a separate bot account and it answers chat commands
   (`!wolfathon`, `!timer`, `!goals`, `!wheel`, `!giveaway`) from the server,
   reusing the EventSub webhook — no process to babysit. Toggle each command,
   edit text replies, and rate-limit normal viewers (mods/VIPs/broadcaster bypass).
-=======
 - **Giveaway tracker** - A two-phase prize draw. Hit **Start** and the first
   viewers to gift a threshold of subs are captured as gift-sub winners (you
   confirm each). Then **open `!enter`** when you're ready and draw raffle winners
   with the crypto CSPRNG. Gift and raffle winners are tracked in separate lists;
   any raffle pick can be rerolled, and nobody can win twice.
->>>>>>> e8fad25 (docs(giveaway): document the two-phase draw + reroll)
 - **Cloudflare Access security** - The control panel and its API sit behind
   Cloudflare Zero Trust. The overlays stay open (OBS can't sign in to Access)
   but are gated by a secret token in their URL, resettable from the control
@@ -222,7 +219,6 @@ under a fixed top pointer (it honours `prefers-reduced-motion` by landing withou
 the whirl). The overlay shows only enabled slots and never receives the token or
 any internal field.
 
-<<<<<<< HEAD
 ### Chat bot
 
 Wolfathon can answer chat commands from a **separate bot account**. It runs on
@@ -251,7 +247,7 @@ on/off, and a per-command **cooldown** rate-limits normal viewers; broadcaster,
 mods, and VIPs bypass the cooldown. If the bot's sign-in is later revoked (its
 password changes, or you de-authorize the app), the Bot tab shows a **reconnect**
 prompt instead of going silently dead.
-=======
+
 ### Giveaway
 
 The control panel's **Giveaway** tab runs a prize draw in two phases.
@@ -273,7 +269,6 @@ excluded from new draws. **Reset round** clears gifters, entrants, and winners,
 closes `!enter`, and un-starts the round for a clean next one. The raffle command
 (`!enter` by default) and the gift threshold are configurable; nothing in this
 tab is ever exposed publicly — it is operator-only behind Cloudflare Access.
->>>>>>> e8fad25 (docs(giveaway): document the two-phase draw + reroll)
 
 ### Adding your logo
 
