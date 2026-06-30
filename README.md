@@ -8,6 +8,36 @@ control panel, deployed on Cloudflare.
 
 Keep the rewards flowing. Keep the clock ticking.
 
+## Table of Contents
+
+- [Demo](#demo)
+- [Features](#features)
+- [Getting Started](#getting-started)
+- [Usage](#usage)
+  - [OBS browser sources](#obs-browser-sources)
+  - [Subathon timer](#subathon-timer)
+  - [Twitch setup (auto-time)](#twitch-setup-auto-time)
+  - [Backup and restore (JSON)](#backup-and-restore-json)
+  - [What the rewards overlay shows](#what-the-rewards-overlay-shows)
+  - [Wheel of dares](#wheel-of-dares)
+  - [Chat bot](#chat-bot)
+  - [Giveaway](#giveaway)
+  - [Customizer (overlay look)](#customizer-overlay-look)
+  - [Adding your logo](#adding-your-logo)
+- [Tech Stack](#tech-stack)
+- [Development](#development)
+  - [Prerequisites](#prerequisites)
+  - [Setup](#setup)
+  - [Development Scripts](#development-scripts)
+  - [Code Quality](#code-quality)
+- [Deploying to Cloudflare](#deploying-to-cloudflare)
+  - [Continuous deployment (GitHub Actions)](#continuous-deployment-github-actions)
+  - [Cloudflare Access (Zero Trust)](#cloudflare-access-zero-trust)
+  - [Architecture note](#architecture-note)
+- [Project Structure](#project-structure)
+- [License](#license)
+- [Contact](#contact)
+
 ## Demo
 
 ![Wolfathon demo](assets/demo.gif)
@@ -29,30 +59,31 @@ Keep the rewards flowing. Keep the clock ticking.
 - **Private notes** - Each goal has an internal `note` (for example, "10 subs")
   that is stripped server-side and never reaches the overlay.
 - **Combined backup** - One JSON file bundles your rewards and timer config:
-  validate, replace in one click, export, or copy a ready-made prompt so you can
-  have Claude edit the config and paste it back to restore.
+  validate, replace in one click, export, or copy a ready-made prompt so you
+  can have Claude edit the config and paste it back to restore.
 - **Wheel of dares (Howlwheel)** - A weighted spinner of chat dares. Edit,
   weight, colour, and drag-reorder slots from the dashboard, then spin to a
-  weighted-random result or send the wheel to a specific slot. A token-gated OBS
-  overlay whirls a multi-turn spin and lands on the result on cue.
+  weighted-random result or send the wheel to a specific slot. A token-gated
+  OBS overlay whirls a multi-turn spin and lands on the result on cue.
 - **Chat bot** - Connect a separate bot account and it answers chat commands
   (`!wolfathon`, `!timer`, `!goals`, `!wheel`, `!giveaway`) from the server,
   reusing the EventSub webhook — no process to babysit. Toggle each command,
-  edit text replies, and rate-limit normal viewers (mods/VIPs/broadcaster bypass).
+  edit text replies, and rate-limit normal viewers (mods/VIPs/broadcaster
+  bypass).
 - **Giveaway tracker** - A two-phase prize draw. Hit **Start** and the first
   viewers to gift a threshold of subs are captured as gift-sub winners (you
-  confirm each). Then **open `!enter`** when you're ready, watch the live entrant
-  pool, and draw raffle winners with the crypto CSPRNG. Gift and raffle winners
-  are tracked in separate lists; any raffle pick can be rerolled, and nobody can
-  win twice.
+  confirm each). Then **open `!enter`** when you're ready, watch the live
+  entrant pool, and draw raffle winners with the crypto CSPRNG. Gift and raffle
+  winners are tracked in separate lists; any raffle pick can be rerolled, and
+  nobody can win twice.
 - **Cloudflare Access security** - The control panel and its API sit behind
   Cloudflare Zero Trust. The overlays stay open (OBS can't sign in to Access)
   but are gated by a secret token in their URL, resettable from the control
   panel. Twitch secrets never reach a public response.
 - **Installable PWA** - The control panel installs as a standalone app.
 - **Customizer** - Tune the overlay look from Settings: colours, font, corner
-  radius, and the eyebrow label, plus per-overlay show/hide toggles, with a live
-  preview of both the timer and rewards surfaces side by side.
+  radius, and the eyebrow label, plus per-overlay show/hide toggles, with a
+  live preview of both the timer and rewards surfaces side by side.
 - **Brand-ready** - MrDemonWolf navy and cyan, Montserrat and Roboto, with
   macOS-style rounded panels.
 
@@ -103,23 +134,24 @@ else full-screen.
 
 Each URL carries a secret `?t=<token>` — the public overlay API serves nothing
 without it, so an OBS source works while a guessed bare path does not. The
-**Reset** button on Settings → Overlays rotates the token and instantly kills the
-old URLs (re-paste the new ones into OBS). If a source ever shows a small
-"Overlay token invalid" hint in the corner, its URL is stale — re-copy it. Each
-source also has an **Open in new tab** button to preview the live overlay in a
-browser without wiring up OBS first.
+**Reset** button on Settings → Overlays rotates the token and instantly kills
+the old URLs (re-paste the new ones into OBS). If a source ever shows a small
+"Overlay token invalid" hint in the corner, its URL is stale — re-copy it.
+Each source also has an **Open in new tab** button to preview the live overlay
+in a browser without wiring up OBS first.
 
-| Source  | URL                    | Size (W×H)  | Shows                                                        |
-| ------- | ---------------------- | ----------- | ------------------------------------------------------------ |
+| Source  | URL                    | Size (W×H)  | Shows                                                         |
+| ------- | ---------------------- | ----------- | ------------------------------------------------------------- |
 | Timer   | `/overlay/timer?t=…`   | `1310×200`  | Compact countdown bar (D/H/M/S); emotes flood it on each add |
-| Rewards | `/overlay/rewards?t=…` | `1920×1080` | Current reward name + unlock celebration                     |
-| Wheel   | `/overlay/wheel?t=…`   | `1080×1080` | Wheel of dares; whirls to the result when you spin           |
+| Rewards | `/overlay/rewards?t=…` | `1920×1080` | Current reward name + unlock celebration                      |
+| Wheel   | `/overlay/wheel?t=…`   | `1080×1080` | Wheel of dares; whirls to the result when you spin            |
 
 The timer is a self-contained widget that fills its source, so resize the
 browser source itself to move or scale the bar — no full-screen canvas needed.
 
 Both poll every 2 seconds, so control-panel edits and Twitch events appear on
-stream within about 2 seconds (the timer keeps counting smoothly between polls).
+stream within about 2 seconds (the timer keeps counting smoothly between
+polls).
 
 ### Subathon timer
 
@@ -143,10 +175,11 @@ authorization. The **Twitch** tab walks you through it:
    Copy the **Client ID** and generate a **Client Secret**.
 2. Put them in the environment as `TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET`
    (repo secrets or `apps/web/.env`) and redeploy. Keep `/api/twitch/callback`
-   outside the Cloudflare Access app (Access covers only `/dashboard` + `/api/trpc`).
+   outside the Cloudflare Access app (Access covers only `/dashboard` +
+   `/api/trpc`).
 3. On **Settings → Twitch** (it shows "Loaded from environment ✓"),
-   click **Connect Twitch**. You're redirected to Twitch to approve, then back —
-   the panel flips to **Connected**.
+   click **Connect Twitch**. You're redirected to Twitch to approve, then back
+   — the panel flips to **Connected**.
 4. On connect, the server creates EventSub webhook subscriptions for
    `channel.subscribe`, `channel.subscription.message`,
    `channel.subscription.gift`, `channel.cheer`,
@@ -156,28 +189,29 @@ authorization. The **Twitch** tab walks you through it:
    subscriptions"; if a partial connect leaves some out, it names exactly which
    types failed so you can reconnect to retry just those.
 
-The `stream.offline` / `stream.online` subscriptions **auto-pause the timer when
-your stream ends and resume it when you go live again**, so an outage or a
-forgotten "end stream" doesn't burn subathon time. Auto-resume only fires if the
-pause was automatic — a manual pause is never overridden. Toggle the whole
+The `stream.offline` / `stream.online` subscriptions **auto-pause the timer
+when your stream ends and resume it when you go live again**, so an outage or
+a forgotten "end stream" doesn't burn subathon time. Auto-resume only fires if
+the pause was automatic — a manual pause is never overridden. Toggle the whole
 behavior with **Auto-pause when the stream goes offline** on the Timer tab
 (default on).
 
 Scopes requested: `channel:read:subscriptions`, `bits:read`,
 `channel:read:redemptions`. The EventSub callback is your API Worker at
-`/twitch/eventsub`; every event is HMAC-verified, deduplicated, and rejected if
-the signature is wrong or older than 10 minutes. The app credentials come from
-the Worker env (`TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET`); only the resulting
-OAuth tokens are stored in D1, and none of it appears in any public response.
+`/twitch/eventsub`; every event is HMAC-verified, deduplicated, and rejected
+if the signature is wrong or older than 10 minutes. The app credentials come
+from the Worker env (`TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET`); only the
+resulting OAuth tokens are stored in D1, and none of it appears in any public
+response.
 
 ### Backup and restore (JSON)
 
 **Settings → Backup** exports and restores everything in one combined file —
-your rewards and timer config bundled together — so a single file fully restores
-the tracker:
+your rewards and timer config bundled together — so a single file fully
+restores the tracker:
 
-- **Validate** - Checks pasted/uploaded JSON without writing. Shows a preview or
-  a list of human-readable errors.
+- **Validate** - Checks pasted/uploaded JSON without writing. Shows a preview
+  or a list of human-readable errors.
 - **Import (replace)** - Validates, asks you to confirm, then replaces both
   halves. Nothing is written unless validation passes (no partial writes).
 - **Export** / **Copy current JSON** - Download or copy the current backup,
@@ -191,11 +225,11 @@ half (minimal form):
 
 ```json
 {
-	"goals": [
-		{ "reward": "Q&A", "note": "1 sub" },
-		{ "reward": "Onesie reveal", "note": "10 subs" },
-		{ "reward": "Stretch goal", "note": "dream" }
-	]
+  "goals": [
+    { "reward": "Q&A", "note": "1 sub" },
+    { "reward": "Onesie reveal", "note": "10 subs" },
+    { "reward": "Stretch goal", "note": "dream" }
+  ]
 }
 ```
 
@@ -203,68 +237,68 @@ The timer half:
 
 ```json
 {
-	"startMinutes": 60,
-	"maxMinutes": 0,
-	"sub": { "t1": 5, "t2": 10, "t3": 25, "prime": 5 },
-	"giftSubMinutes": 5,
-	"bitsPer100Minutes": 1,
-	"channelPoints": [{ "rewardTitle": "Add 5 minutes", "minutes": 5 }]
+  "startMinutes": 60,
+  "maxMinutes": 0,
+  "sub": { "t1": 5, "t2": 10, "t3": 25, "prime": 5 },
+  "giftSubMinutes": 5,
+  "bitsPer100Minutes": 1,
+  "channelPoints": [{ "rewardTitle": "Add 5 minutes", "minutes": 5 }]
 }
 ```
 
 ### What the rewards overlay shows
 
-| Element           | Shown on stream                                   |
-| ----------------- | ------------------------------------------------- |
-| Current reward    | The next locked goal's `reward` name, prominently |
-| Unlocked rewards  | A dimmed row of already-unlocked `reward` names   |
-| Future goals      | Hidden entirely                                   |
-| Numbers / amounts | Never shown                                       |
-| `note` field      | Never sent to the browser                         |
+| Element           | Shown on stream                                    |
+| ----------------- | -------------------------------------------------- |
+| Current reward    | The next locked goal's `reward` name, prominently  |
+| Unlocked rewards  | A dimmed row of already-unlocked `reward` names    |
+| Future goals      | Hidden entirely                                    |
+| Numbers / amounts | Never shown                                        |
+| `note` field      | Never sent to the browser                          |
 
 ### Wheel of dares
 
-The control panel's **Wheel** tab manages a spinner of chat dares. Each slot has
-a label, a **weight** (a higher weight = a bigger slice and better odds), an
-optional colour, and an enable toggle; drag the handle to reorder. **Spin
-(random)** picks a weighted-random enabled slot server-side, and each slot has a
-**Spin to this** for a hand-picked result. The wheel seeds with a default set of
-dares on first run, and the last 25 spins show under **Recent spins**.
+The control panel's **Wheel** tab manages a spinner of chat dares. Each slot
+has a label, a **weight** (a higher weight = a bigger slice and better odds),
+an optional colour, and an enable toggle; drag the handle to reorder. **Spin
+(random)** picks a weighted-random enabled slot server-side, and each slot has
+a **Spin to this** for a hand-picked result. The wheel seeds with a default set
+of dares on first run, and the last 25 spins show under **Recent spins**.
 
-Add the **Wheel** OBS source (square, `1080×1080`) from **Settings → Overlays**.
-When you spin, the overlay whirls a multi-turn animation and lands on the result
-under a fixed top pointer (it honours `prefers-reduced-motion` by landing without
-the whirl). The overlay shows only enabled slots and never receives the token or
-any internal field.
+Add the **Wheel** OBS source (square, `1080×1080`) from **Settings →
+Overlays**. When you spin, the overlay whirls a multi-turn animation and lands
+on the result under a fixed top pointer (it honours `prefers-reduced-motion`
+by landing without the whirl). The overlay shows only enabled slots and never
+receives the token or any internal field.
 
 ### Chat bot
 
 Wolfathon can answer chat commands from a **separate bot account**. It runs on
-the server (no extra process — it reuses the Twitch EventSub webhook), so it keeps
-working after you close the dashboard.
+the server (no extra process — it reuses the Twitch EventSub webhook), so it
+keeps working after you close the dashboard.
 
 **Connect it** from **Settings → Bot**: log into Twitch as your _bot_ account
-first (in another browser/profile, or log out of your main account), then click
-**Connect bot** and approve. The bot grants only `user:write:chat` + `user:bot`;
-it _hears_ chat through the broadcaster's existing chat subscription, so the
-broadcaster account must stay connected.
+first (in another browser/profile, or log out of your main account), then
+click **Connect bot** and approve. The bot grants only `user:write:chat` +
+`user:bot`; it _hears_ chat through the broadcaster's existing chat
+subscription, so the broadcaster account must stay connected.
 
 Five built-in commands ship, each with an enable toggle and editable triggers:
 
-| Command      | Aliases                      | Reply                                                     |
-| ------------ | ---------------------------- | --------------------------------------------------------- |
-| `!wolfathon` | `!subathon` `!wolf` `!about` | editable text — what the event is                         |
-| `!giveaway`  | `!gw` `!giveaways`           | editable text — **paste your giveaway link here**         |
-| `!timer`     | `!time`                      | live time left on the subathon                            |
-| `!goals`     | —                            | live next-reward progress (only the next target is shown) |
-| `!wheel`     | `!dares`                     | the Howlwheel, with the live dare count                   |
+| Command      | Aliases                      | Reply                                               |
+| ------------ | ---------------------------- | --------------------------------------------------- |
+| `!wolfathon` | `!subathon` `!wolf` `!about` | editable text — what the event is                   |
+| `!giveaway`  | `!gw` `!giveaways`           | editable text — paste your giveaway link here       |
+| `!timer`     | `!time`                      | live time left on the subathon                      |
+| `!goals`     | —                            | live next-reward progress (next target only)        |
+| `!wheel`     | `!dares`                     | the Howlwheel, with the live dare count             |
 
-The live commands (`!timer`/`!goals`/`!wheel`) don't take free text — pick one of
-a few built-in **reply formats** per command. A master switch turns the whole bot
-on/off, and a per-command **cooldown** rate-limits normal viewers; broadcaster,
-mods, and VIPs bypass the cooldown. If the bot's sign-in is later revoked (its
-password changes, or you de-authorize the app), the Bot tab shows a **reconnect**
-prompt instead of going silently dead.
+The live commands (`!timer`/`!goals`/`!wheel`) don't take free text — pick one
+of a few built-in **reply formats** per command. A master switch turns the
+whole bot on/off, and a per-command **cooldown** rate-limits normal viewers;
+broadcaster, mods, and VIPs bypass the cooldown. If the bot's sign-in is later
+revoked (its password changes, or you de-authorize the app), the Bot tab shows
+a **reconnect** prompt instead of going silently dead.
 
 ### Giveaway
 
@@ -276,12 +310,11 @@ The control panel's **Giveaway** tab runs a prize draw in two phases.
    the order they crossed the threshold; confirm the first N as **gift-sub
    winners**.
 2. **Open `!enter`** (the raffle command is configurable) when you want the
-   raffle. Chat
-   entries are ignored until you open the window — the toggle is disabled until
-   the round is started — and each login can enter once. The **raffle pool**
-   lists entrants live (newest first, with a filter and Twitch links); **Draw
-   winner** picks from the pool with the same crypto CSPRNG used for the wheel,
-   so a real draw can't be predicted or rigged.
+   raffle. Chat entries are ignored until you open the window — the toggle is
+   disabled until the round is started — and each login can enter once. The
+   **raffle pool** lists entrants live (newest first, with a filter and Twitch
+   links); **Draw winner** picks from the pool with the same crypto CSPRNG used
+   for the wheel, so a real draw can't be predicted or rigged.
 
 Gift-sub winners and raffle winners show in **separate lists**, each with a
 shipped checkbox and a private shipping note (never sent anywhere public). A
@@ -304,9 +337,9 @@ the wheel overlay inherits the same theme.
 
 Drop your wolf mark (head only) at `apps/web/public/logo.svg` and it is used
 automatically across the overlays and panel. Put your favicon at
-`apps/web/src/app/favicon.ico` (Next serves it automatically). If `logo.svg` is
-missing, a built-in brand SVG mark is shown instead, so nothing ever renders
-broken.
+`apps/web/src/app/favicon.ico` (Next serves it automatically). If `logo.svg`
+is missing, a built-in brand SVG mark is shown instead, so nothing ever
+renders broken.
 
 ## Tech Stack
 
@@ -389,11 +422,12 @@ broken.
 
 Deployment uses Alchemy to provision the Workers, the Next app, and the D1
 database, and to apply migrations. The deploy runs under Node via `tsx` (Bun
-segfaults executing the Alchemy program), which `bun run deploy` handles for you.
+segfaults executing the Alchemy program), which `bun run deploy` handles for
+you.
 
 1. Authenticate Cloudflare with a scoped API token (Alchemy uses its own auth,
-   not Wrangler's). Create a token with **Workers** and **D1** edit permissions,
-   then set it in `packages/infra/.env`:
+   not Wrangler's). Create a token with **Workers** and **D1** edit
+   permissions, then set it in `packages/infra/.env`:
 
    ```bash
    CLOUDFLARE_API_TOKEN=your-token
@@ -420,26 +454,26 @@ segfaults executing the Alchemy program), which `bun run deploy` handles for you
 Two workflows in `.github/workflows` deploy on every push to `main`:
 
 - **CI** (`ci.yml`) - type-checks and builds on pull requests and pushes.
-- **Deploy** (`deploy.yml`) - after CI succeeds on `main`, runs `bun run deploy`
-  and smoke-tests the API.
+- **Deploy** (`deploy.yml`) - after CI succeeds on `main`, runs
+  `bun run deploy` and smoke-tests the API.
 
 Set these as repository secrets (Settings → Secrets and variables → Actions):
 `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `ALCHEMY_PASSWORD`,
 (optionally) `CF_ACCESS_TEAM_DOMAIN` / `CF_ACCESS_AUD`, and — for Twitch —
-`TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET`. All Cloudflare resources
-use `adopt: true` so the runner reconciles the live resources without sharing
+`TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET`. All Cloudflare resources use
+`adopt: true` so the runner reconciles the live resources without sharing
 local Alchemy state. (Turbo strict env mode requires these to be declared as
 `passThroughEnv` in `turbo.json` — already configured.)
 
 ### Cloudflare Access (Zero Trust)
 
 The app itself has no login. Security is enforced at the edge by Cloudflare
-Access plus a server-side JWT check. You protect the `/dashboard` control panel
-and the `/api/trpc` operator API on the web app; the overlays and the Twitch
-webhook stay public.
+Access plus a server-side JWT check. You protect the `/dashboard` control
+panel and the `/api/trpc` operator API on the web app; the overlays and the
+Twitch webhook stay public.
 
-1. In the Cloudflare dashboard, open **Zero Trust → Access → Applications** and
-   add a **Self-hosted** application.
+1. In the Cloudflare dashboard, open **Zero Trust → Access → Applications**
+   and add a **Self-hosted** application.
 
 2. Set the application paths on the web domain:
 
@@ -447,13 +481,13 @@ webhook stay public.
    - `wolfathon.mrdemonwolf.workers.dev/dashboard/*`
    - `wolfathon.mrdemonwolf.workers.dev/api/trpc/*`
 
-   Do **not** add `/api/twitch/callback` here — Twitch must reach it without an
-   Access login (it is protected by a CSRF `state` token instead).
+   Do **not** add `/api/twitch/callback` here — Twitch must reach it without
+   an Access login (it is protected by a CSRF `state` token instead).
 
 3. Add a policy that allows only your email (or your team).
 
-4. Copy the **team domain** (for example `your-team.cloudflareaccess.com`) and
-   the application **Audience (AUD)** tag.
+4. Copy the **team domain** (for example `your-team.cloudflareaccess.com`)
+   and the application **Audience (AUD)** tag.
 
 5. Put them in `packages/infra/.env` (and the repo secrets for CI):
 
@@ -465,8 +499,9 @@ webhook stay public.
 6. Redeploy with `bun run deploy`.
 
 Access enforcement is automatic: a real deploy always enforces it, local
-`alchemy dev` always bypasses it. If `CF_ACCESS_TEAM_DOMAIN` / `CF_ACCESS_AUD`
-are blank on a deploy, the operator API fails closed and denies everything.
+`alchemy dev` always bypasses it. If `CF_ACCESS_TEAM_DOMAIN` /
+`CF_ACCESS_AUD` are blank on a deploy, the operator API fails closed and
+denies everything.
 
 ### Architecture note
 
@@ -474,9 +509,9 @@ Overlays poll the public server Worker (`state.getPublic`, `timer.getPublic`).
 The control panel calls protected procedures on the same-origin `/api/trpc`
 route in the web app, where Cloudflare Access injects the verified identity.
 Twitch posts EventSub webhooks to the public server Worker, which verifies the
-HMAC and adds time. All three share one D1 database (rewards, timer, and Twitch
-secrets live in separate rows). For instant push instead of polling, a Durable
-Object plus WebSocket can replace the 2-second refetch later.
+HMAC and adds time. All three share one D1 database (rewards, timer, and
+Twitch secrets live in separate rows). For instant push instead of polling, a
+Durable Object plus WebSocket can replace the 2-second refetch later.
 
 ## Project Structure
 
@@ -506,7 +541,5 @@ wolfathon/
 Questions or feedback? Join the community:
 
 - Discord: [Join my server](https://mrdwolf.net/discord)
-
-## Footer
 
 Made with love by [MrDemonWolf, Inc.](https://www.mrdemonwolf.com)
