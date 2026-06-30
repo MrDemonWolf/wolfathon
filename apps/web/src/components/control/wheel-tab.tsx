@@ -69,6 +69,9 @@ export function WheelTab() {
 	const slots = data.slots;
 	const enabledCount = slots.filter((s) => s.enabled).length;
 	const atCap = slots.length >= MAX_SLOTS;
+	// Live odds: a slot's landing chance is its weight over the enabled total
+	// (disabled slots aren't on the wheel), matching the overlay's arc sizing.
+	const totalWeight = slots.reduce((sum, s) => (s.enabled ? sum + s.weight : sum), 0);
 
 	// Move slot at `from` to position `to`, then persist the new order (every id,
 	// exactly once). Shared by mouse drop and the keyboard Move up/down buttons.
@@ -168,6 +171,7 @@ export function WheelTab() {
 								key={slot.id}
 								slot={slot}
 								index={index}
+								oddsPct={slot.enabled && totalWeight > 0 ? (slot.weight / totalWeight) * 100 : null}
 								isFirst={index === 0}
 								isLast={index === slots.length - 1}
 								onMoveUp={() => moveTo(index, index - 1)}
@@ -216,6 +220,7 @@ export function WheelTab() {
 function SlotRow({
 	slot,
 	index,
+	oddsPct,
 	isFirst,
 	isLast,
 	onMoveUp,
@@ -232,6 +237,8 @@ function SlotRow({
 }: {
 	slot: WheelSlot;
 	index: number;
+	/** Live landing chance (% of the enabled pool), or null when disabled. */
+	oddsPct: number | null;
 	isFirst: boolean;
 	isLast: boolean;
 	onMoveUp: () => void;
@@ -308,6 +315,12 @@ function SlotRow({
 					if (Number.isFinite(weight) && weight !== slot.weight) onWeight(weight);
 				}}
 			/>
+			<span
+				className="w-12 text-right text-xs tabular-nums text-muted-foreground"
+				title="Landing chance — this slot's share of the enabled pool"
+			>
+				{oddsPct === null ? "—" : `${oddsPct.toFixed(oddsPct < 9.95 ? 1 : 0)}%`}
+			</span>
 			<input
 				type="color"
 				value={slotColor(slot, index)}
