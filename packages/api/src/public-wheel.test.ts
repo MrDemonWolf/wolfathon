@@ -35,7 +35,7 @@ test("public wheel read leaks no token, no slot id, no internal fields", () => {
 
 	// Only the render-only keys are present, and disabled slots are excluded.
 	const pub = toPublicWheel(doc);
-	expect(pub.slots.length).toBe(9);
+	expect(pub.slots.length).toBe(13);
 	for (const s of pub.slots) {
 		expect(Object.keys(s).sort()).toEqual(["color", "index", "label", "weight"]);
 	}

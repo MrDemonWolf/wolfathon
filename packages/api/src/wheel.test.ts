@@ -87,12 +87,13 @@ test("empty / disabled sets degrade safely", () => {
 	expect(finalRotation([], 0, 90)).toBe(90); // no-op, returns current
 });
 
-test("default doc seeds the 10-dare wheel, all enabled, palette-coloured", () => {
+test("default doc seeds the sample wheel, all enabled, palette-coloured", () => {
 	const doc = defaultWheelDoc();
-	expect(doc.slots.length).toBe(10);
-	expect(enabledSlots(doc).length).toBe(10);
+	expect(doc.slots.length).toBe(14);
+	expect(enabledSlots(doc).length).toBe(14);
 	expect(doc.slots.every((s) => !!s.color)).toBe(true);
 	expect(doc.pendingSpin).toBeNull();
+	expect(doc.config.spinEvery).toBe(10);
 });
 
 test("trigger's targetIndex names the same slot the overlay renders", () => {
@@ -171,13 +172,13 @@ test("public projection leaks no ids and only enabled slots", () => {
 	let doc = defaultWheelDoc();
 	doc = upsertSlot(doc, { id: doc.slots[0]!.id, enabled: false });
 	const pub = toPublicWheel(doc);
-	expect(pub.slots.length).toBe(9); // one disabled
+	expect(pub.slots.length).toBe(13); // one disabled
 	for (const s of pub.slots) {
 		expect(Object.keys(s).sort()).toEqual(["color", "index", "label", "weight"]);
 		expect(s.color).toMatch(/^#[0-9a-f]{6}$/i);
 	}
 	// indices are dense 0..n-1 in render order
-	expect(pub.slots.map((s) => s.index)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
+	expect(pub.slots.map((s) => s.index)).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
 });
 
 test("upsert clamps weight to a positive int and validates colour", () => {
@@ -209,14 +210,14 @@ test("spinning with no enabled slot yields a null winner and leaves the doc alon
 });
 
 test("upsertSlot appends a new slot, ignores a blank label, and honours the cap", () => {
-	let doc = defaultWheelDoc(); // 10 slots
+	let doc = defaultWheelDoc(); // 14 slots
 	doc = upsertSlot(doc, { label: "  New dare  ", weight: 4 });
-	expect(doc.slots.length).toBe(11);
+	expect(doc.slots.length).toBe(15);
 	expect(doc.slots.at(-1)!.label).toBe("New dare"); // trimmed
 	expect(doc.slots.at(-1)!.weight).toBe(4);
 
-	// Blank/whitespace label with no id → no-op (still 11).
-	expect(upsertSlot(doc, { label: "   " }).slots.length).toBe(11);
+	// Blank/whitespace label with no id → no-op (still 15).
+	expect(upsertSlot(doc, { label: "   " }).slots.length).toBe(15);
 
 	// Fill to the cap, then a further add is refused.
 	while (doc.slots.length < MAX_SLOTS) doc = upsertSlot(doc, { label: `x${doc.slots.length}` });
@@ -240,6 +241,7 @@ test("withWheelDefaults backfills a legacy/partial row without throwing", () => 
 		slots: [],
 		history: [],
 		pendingSpin: null,
+		config: { spinEvery: 10 },
 	});
 });
 
