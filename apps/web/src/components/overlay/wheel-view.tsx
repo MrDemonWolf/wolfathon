@@ -11,10 +11,12 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 /**
- * Wheel-of-dares overlay. Renders an SVG wheel of weighted slices (clockwise
- * from a fixed top pointer) and, on a NEW `pendingSpin.spinId`, eases a multi-
- * turn forward rotation that lands `targetIndex` dead-centre under the pointer
- * (geometry from `finalRotation`, the exact inverse the server picked against).
+ * Wheel-of-dares overlay ("Howlwheel"). Renders an SVG wheel of weighted slices
+ * (clockwise from a fixed top "fang" pointer) and, on a NEW `pendingSpin.spinId`,
+ * eases a multi-turn forward rotation that lands `targetIndex` dead-centre under
+ * the pointer (geometry from `finalRotation`, the exact inverse the server picked
+ * against). Slice ARC SIZE is proportional to weight, so the wheel is honest: a
+ * slice's share of the circle equals its share of the odds.
  *
  * Two safety rules make the landing trustworthy:
  *  - Dedupe by `spinId` (a ref), so re-polling the same pending spin never
@@ -23,17 +25,24 @@ import { useEffect, useRef, useState } from "react";
  *    renders the snapshot it started spinning on, so a mid-spin slot edit can't
  *    shift which slice sits under the pointer when it stops.
  *
- * Distinct idle / spinning / result states; honours prefers-reduced-motion
- * (lands instantly, no whirl) for viewers sensitive to motion.
+ * Wolf dressing is all decoration over that geometry — a moonlit halo, glossy
+ * slices with rim studs, a crescent-moon hub and a fang pointer — none of it
+ * touches the landing math. Distinct idle / spinning / result states; honours
+ * prefers-reduced-motion (lands instantly, no whirl, no idle pulse).
  */
 
 const CX = 50;
 const CY = 50;
 const R = 46;
-const LABEL_R = R * 0.62;
+/** Radial band a slice label occupies — just outside the hub to just inside the rim. */
+const LABEL_INNER = 12.5;
+const LABEL_OUTER = R - 3.5;
 const SPIN_SECONDS = 5.2;
 const RESULT_MS = 6000;
 const NAVY = "#091533";
+const NAVY_DEEP = "#04091a";
+const MOON = "#7fdcff";
+const CYAN = "#00aced";
 
 type Phase = "idle" | "spinning" | "result";
 
@@ -99,25 +108,67 @@ export function WheelView({
 
 	const arcs = computeArcs(render);
 	const spinning = phase === "spinning";
+	// Idle "breathing" glow on the halo + rim — off entirely under reduced motion.
+	const pulse = reduced ? "" : "wheel-pulse";
 
 	return (
 		<div className="pointer-events-none absolute inset-0 grid select-none place-items-center">
 			<div className="relative h-[84cqmin] w-[84cqmin]">
 				<svg viewBox="0 0 100 100" className="h-full w-full overflow-visible">
 					<defs>
+						<style>{`
+							@keyframes howlHalo { 0%,100% { opacity:.5 } 50% { opacity:.95 } }
+							@keyframes howlRim  { 0%,100% { stroke-opacity:.45 } 50% { stroke-opacity:.9 } }
+							.wheel-pulse.halo { animation: howlHalo 3.6s ease-in-out infinite; }
+							.wheel-pulse.rim  { animation: howlRim  3.6s ease-in-out infinite; }
+						`}</style>
 						<filter id="wheel-shadow" x="-20%" y="-20%" width="140%" height="140%">
 							<feDropShadow
 								dx="0"
 								dy="0.6"
 								stdDeviation="1.2"
-								floodColor="#04091a"
+								floodColor={NAVY_DEEP}
 								floodOpacity="0.55"
 							/>
 						</filter>
+						<filter id="wheel-glow" x="-60%" y="-60%" width="220%" height="220%">
+							<feDropShadow dx="0" dy="0" stdDeviation="1.6" floodColor={CYAN} floodOpacity="0.7" />
+						</filter>
+						{/* Moonlight bloom behind the wheel — fades to fully transparent so the
+						    OBS source stays clean outside the disc. */}
+						<radialGradient id="moon-glow" cx="50%" cy="50%" r="50%">
+							<stop offset="0%" stopColor={CYAN} stopOpacity="0.42" />
+							<stop offset="55%" stopColor={CYAN} stopOpacity="0.14" />
+							<stop offset="100%" stopColor={CYAN} stopOpacity="0" />
+						</radialGradient>
+						{/* Glossy rim light: invisible across the body, brightening to a bright
+						    ring at the edge so the disc reads as a lit object, not flat paint. */}
+						<radialGradient id="disc-sheen" cx="50%" cy="50%" r="50%">
+							<stop offset="0%" stopColor="#ffffff" stopOpacity="0" />
+							<stop offset="64%" stopColor="#ffffff" stopOpacity="0" />
+							<stop offset="90%" stopColor="#ffffff" stopOpacity="0.1" />
+							<stop offset="100%" stopColor="#ffffff" stopOpacity="0.2" />
+						</radialGradient>
+						{/* Centre vignette — a little depth under the hub. */}
+						<radialGradient id="disc-shade" cx="50%" cy="50%" r="50%">
+							<stop offset="0%" stopColor={NAVY_DEEP} stopOpacity="0.4" />
+							<stop offset="40%" stopColor={NAVY_DEEP} stopOpacity="0" />
+						</radialGradient>
+						<linearGradient id="fang" x1="0" y1="0" x2="0" y2="1">
+							<stop offset="0%" stopColor="#d6f4ff" />
+							<stop offset="45%" stopColor="#5bc8f0" />
+							<stop offset="100%" stopColor={CYAN} />
+						</linearGradient>
 					</defs>
 
-					{/* The wheel group rotates; the pointer + hub stay fixed. transform-box
-					    fill-box pins the spin centre to the wheel's own centre. */}
+					{/* moon bloom (pulses on idle) */}
+					<circle className={`halo ${pulse}`} cx={CX} cy={CY} r={49.5} fill="url(#moon-glow)" />
+
+					{/* rim backing disc behind the slices */}
+					<circle cx={CX} cy={CY} r={R + 1.6} fill={NAVY_DEEP} />
+
+					{/* The wheel group rotates; the pointer, rims + hub stay fixed.
+					    transform-box fill-box pins the spin centre to the wheel's own centre. */}
 					<g
 						style={{
 							transform: `rotate(${rotation}deg)`,
@@ -143,14 +194,44 @@ export function WheelView({
 									d={slicePath(arc.start, arc.end)}
 									fill={slot.color}
 									stroke={NAVY}
-									strokeWidth={0.4}
+									strokeWidth={0.35}
 									strokeLinejoin="round"
 								/>
 							);
 						})}
+
+						{/* depth passes over the flat slice fills */}
+						<circle cx={CX} cy={CY} r={R} fill="url(#disc-shade)" />
+						<circle cx={CX} cy={CY} r={R} fill="url(#disc-sheen)" />
+
+						{/* rivet studs at each slice boundary — skipped for a single full slice */}
+						{arcs.length > 1 &&
+							arcs.map((arc) => {
+								const p = polar(arc.start, R - 1.4);
+								return (
+									<circle
+										key={`stud-${arc.index}`}
+										cx={p.x}
+										cy={p.y}
+										r={0.55}
+										fill={MOON}
+										fillOpacity={0.55}
+									/>
+								);
+							})}
+
 						{arcs.map((arc) => {
 							const slot = render[arc.index]!;
-							const flip = arc.center > 90 && arc.center < 270;
+							// Radial labels: text runs ALONG the spoke (hub → rim), so a long
+							// dare uses the wheel's full radius instead of spilling sideways
+							// into its neighbours. The baseline's screen angle is
+							// `center + spin`; with spin = -90 that stays upright (within ±90°
+							// of horizontal) for the top half and only flips upside-down past
+							// the BOTTOM, so the boundary is 180°, not the sides. Flipped
+							// slices read inward from the rim; the font is fitted to the band.
+							const flip = arc.center > 180;
+							const anchorR = flip ? LABEL_OUTER : LABEL_INNER;
+							const spin = flip ? 90 : -90;
 							// Per-slice ink: dark text on a bright slice, light text on a dark
 							// one (incl. an operator's custom hex), with the opposite-colour
 							// halo. Keeps the label AA-legible on ANY slice colour.
@@ -158,18 +239,20 @@ export function WheelView({
 							const ink = dark ? NAVY : "#ffffff";
 							const halo = dark ? "#ffffff" : NAVY;
 							return (
-								<g key={`label-${slot.index}`} transform={`rotate(${arc.center} ${CX} ${CY})`}>
+								<g
+									key={`label-${slot.index}`}
+									transform={`rotate(${arc.center} ${CX} ${CY}) translate(${CX} ${CY - anchorR}) rotate(${spin})`}
+								>
 									<text
-										x={CX}
-										y={CY - LABEL_R}
-										transform={flip ? `rotate(180 ${CX} ${CY - LABEL_R})` : undefined}
-										textAnchor="middle"
-										dominantBaseline="middle"
+										x={0}
+										y={0}
+										textAnchor="start"
+										dominantBaseline="central"
 										fontSize={fontSizeFor(slot.label, arc.sweep)}
 										fontWeight={700}
 										fill={ink}
 										stroke={halo}
-										strokeWidth={0.5}
+										strokeWidth={0.45}
 										paintOrder="stroke"
 										style={{ fontFamily: "var(--font-montserrat), system-ui, sans-serif" }}
 									>
@@ -178,45 +261,89 @@ export function WheelView({
 								</g>
 							);
 						})}
-						{/* outer rim */}
-						<circle
-							cx={CX}
-							cy={CY}
-							r={R}
-							fill="none"
-							stroke="#ffffff"
-							strokeWidth={0.6}
-							strokeOpacity={0.25}
-						/>
 					</g>
 
-					{/* fixed hub */}
-					<circle cx={CX} cy={CY} r={6.5} fill={NAVY} stroke="#00aced" strokeWidth={1} />
-					<circle cx={CX} cy={CY} r={2.2} fill="#00aced" />
-
-					{/* fixed pointer at top, tip pointing down into the wheel */}
-					<path
-						d={`M${CX} ${CY - R + 5.5} L${CX - 4} ${CY - R - 4} L${CX + 4} ${CY - R - 4} Z`}
-						fill="#00aced"
-						stroke={NAVY}
-						strokeWidth={0.8}
-						strokeLinejoin="round"
-						filter="url(#wheel-shadow)"
+					{/* fixed double rim — outer glow ring (pulses on idle) + crisp inner edge */}
+					<circle
+						className={`rim ${pulse}`}
+						cx={CX}
+						cy={CY}
+						r={R + 0.4}
+						fill="none"
+						stroke={CYAN}
+						strokeWidth={1}
+						strokeOpacity={0.55}
+						filter="url(#wheel-glow)"
 					/>
+					<circle
+						cx={CX}
+						cy={CY}
+						r={R}
+						fill="none"
+						stroke="#ffffff"
+						strokeWidth={0.5}
+						strokeOpacity={0.3}
+					/>
+
+					{/* fixed crescent-moon hub */}
+					<circle
+						cx={CX}
+						cy={CY}
+						r={7}
+						fill={NAVY}
+						stroke={CYAN}
+						strokeWidth={1}
+						filter="url(#wheel-glow)"
+					/>
+					<circle cx={CX} cy={CY} r={2.9} fill={MOON} />
+					{/* navy bite out of the disc carves the crescent (hub bg is navy) */}
+					<circle cx={CX + 1.5} cy={CY - 0.9} r={2.7} fill={NAVY} />
+
+					{/* fixed fang pointer at top, tip biting down into the wheel */}
+					<g filter="url(#wheel-shadow)">
+						<path
+							d={`M${CX - 3.6} ${CY - R - 4.5}
+							    Q${CX} ${CY - R - 6.5} ${CX + 3.6} ${CY - R - 4.5}
+							    Q${CX + 1.9} ${CY - R + 2} ${CX} ${CY - R + 5.5}
+							    Q${CX - 1.9} ${CY - R + 2} ${CX - 3.6} ${CY - R - 4.5} Z`}
+							fill="url(#fang)"
+							stroke={NAVY}
+							strokeWidth={0.7}
+							strokeLinejoin="round"
+						/>
+						{/* highlight down the fang's spine */}
+						<path
+							d={`M${CX} ${CY - R - 4.8} Q${CX - 0.6} ${CY - R} ${CX} ${CY - R + 4.6}`}
+							fill="none"
+							stroke="#eafbff"
+							strokeWidth={0.5}
+							strokeOpacity={0.8}
+							strokeLinecap="round"
+						/>
+					</g>
 				</svg>
 
-				{/* result announcement — opaque navy backing, AA-safe cyan + white text */}
+				{/* result announcement — opaque navy glass, AA-safe cyan + white text */}
 				{phase === "result" && resultLabel && (
 					<div className="pointer-events-none absolute inset-x-0 top-[calc(50%+46cqmin*0.5+2cqmin)] flex justify-center">
 						<div
-							className="animate-wolf-rise max-w-[80cqmin] rounded-2xl px-[4cqmin] py-[2.4cqmin] text-center"
-							style={{ background: NAVY, boxShadow: "0 0.6cqmin 3cqmin rgba(0,172,237,0.45)" }}
+							className="animate-wolf-rise max-w-[80cqmin] rounded-2xl border px-[4cqmin] py-[2.4cqmin] text-center"
+							style={{
+								background: NAVY,
+								borderColor: "rgba(0,172,237,0.55)",
+								boxShadow: "0 0.6cqmin 3.4cqmin rgba(0,172,237,0.5)",
+							}}
 						>
 							<div
-								className="text-[2.4cqmin] font-bold tracking-[0.3em] uppercase"
+								className="flex items-center justify-center gap-[1.4cqmin] text-[2.4cqmin] font-bold tracking-[0.3em] uppercase"
 								style={{ color: "#5bc8f0" }}
 							>
-								Landed on
+								{/* tiny crescent to echo the hub */}
+								<svg width="2.6cqmin" height="2.6cqmin" viewBox="0 0 10 10" aria-hidden>
+									<circle cx="5" cy="5" r="4.4" fill="#5bc8f0" />
+									<circle cx="6.6" cy="4" r="3.9" fill={NAVY} />
+								</svg>
+								The pack lands on
 							</div>
 							<div className="mt-[0.6cqmin] text-[5cqmin] leading-tight font-extrabold text-white">
 								{resultLabel}
@@ -250,18 +377,22 @@ function slicePath(startDeg: number, endDeg: number): string {
 	return `M${CX} ${CY} L${a.x.toFixed(3)} ${a.y.toFixed(3)} A${R} ${R} 0 ${large} 1 ${b.x.toFixed(3)} ${b.y.toFixed(3)} Z`;
 }
 
-/** Point on the rim at a clockwise-from-top angle (0° = 12 o'clock). */
-function polar(angleDeg: number): { x: number; y: number } {
+/** Point at radius `r` (default rim) on a clockwise-from-top angle (0° = 12 o'clock). */
+function polar(angleDeg: number, r: number = R): { x: number; y: number } {
 	const rad = (angleDeg * Math.PI) / 180;
-	return { x: CX + R * Math.sin(rad), y: CY - R * Math.cos(rad) };
+	return { x: CX + r * Math.sin(rad), y: CY - r * Math.cos(rad) };
 }
 
-/** Shrink the slice label a touch for long text / narrow slices. */
+/**
+ * Fit a radial label to the hub→rim band: scale down so the text fits the radial
+ * length (~0.6em per glyph), and cap harder on narrow slices so a thin wedge's
+ * label never grows fat enough to touch its neighbours.
+ */
 function fontSizeFor(label: string, sweep: number): number {
-	const base = sweep < 24 ? 2.4 : 3;
-	if (label.length > 18) return base * 0.7;
-	if (label.length > 12) return base * 0.85;
-	return base;
+	const budget = LABEL_OUTER - LABEL_INNER;
+	const byLength = budget / (Math.max(label.length, 1) * 0.6);
+	const cap = sweep < 14 ? 2 : sweep < 24 ? 2.5 : 2.9;
+	return Math.max(1.4, Math.min(cap, byLength));
 }
 
 /** Hard cap on slice text — the full label always shows in the result banner. */
