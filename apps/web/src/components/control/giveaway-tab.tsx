@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-import type { Entrant, GiveawayDoc } from "@wolfathon/api/giveaway";
+import type { Entrant, GiveawayDoc, Winner } from "@wolfathon/api/giveaway";
 import {
 	AlertDialog,
 	AlertDialogClose,
@@ -105,6 +105,25 @@ export function GiveawayTab() {
 			onError,
 		}),
 	);
+	const start = useMutation(
+		controlTrpc.giveaway.start.mutationOptions({
+			onSuccess: () => {
+				toast.success("Giveaway started — gift subs now count");
+				invalidate();
+			},
+			onError,
+		}),
+	);
+	const reroll = useMutation(
+		controlTrpc.giveaway.reroll.mutationOptions({
+			onSuccess: (r) => {
+				if (r.winner) toast.success(`Rerolled: ${r.winner.name}`);
+				else toast.error("No one left to reroll to");
+				invalidate();
+			},
+			onError,
+		}),
+	);
 	const addEntrant = useMutation(
 		controlTrpc.giveaway.addEntrant.mutationOptions({ onSuccess: invalidate, onError }),
 	);
@@ -165,6 +184,7 @@ export function GiveawayTab() {
 
 	const now = Date.now();
 	const cfg = data.config;
+	const started = data.startedAt != null;
 	const gifters = qualifying(data);
 	const giftWinners = data.winners.filter((w) => w.source === "gift");
 	const raffleWinners = data.winners.filter((w) => w.source === "raffle");
@@ -209,6 +229,61 @@ export function GiveawayTab() {
 		);
 	}
 
+	// One winner row — shipping checkbox, name, note, optional reroll (raffle), remove.
+	function renderWinner(w: Winner, canReroll: boolean) {
+		return (
+			<li
+				key={w.id}
+				className="flex flex-wrap items-center gap-3 rounded-lg border border-border px-3 py-2"
+			>
+				<Checkbox
+					checked={w.shipped}
+					onCheckedChange={(checked) => setShipped.mutate({ id: w.id, shipped: checked === true })}
+					aria-label={`Mark ${w.name} shipped`}
+				/>
+				<Avatar name={w.name} />
+				<a
+					href={twitchUrl(w.login)}
+					target="_blank"
+					rel="noreferrer"
+					className="text-sm font-medium hover:text-primary"
+				>
+					{w.name}
+				</a>
+				<Input
+					className="h-8 min-w-0 flex-1"
+					defaultValue={w.note ?? ""}
+					placeholder="shipping note (address, USA/EU…)"
+					aria-label={`Shipping note for ${w.name}`}
+					onBlur={(e) => {
+						if (e.target.value !== (w.note ?? ""))
+							setNote.mutate({ id: w.id, note: e.target.value });
+					}}
+				/>
+				{canReroll && (
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => reroll.mutate({ id: w.id })}
+						disabled={reroll.isPending}
+						aria-label={`Reroll ${w.name}`}
+					>
+						<Dice5 className="size-3.5" /> Reroll
+					</Button>
+				)}
+				<Button
+					variant="ghost"
+					size="sm"
+					onClick={() => removeWinner.mutate({ id: w.id })}
+					disabled={removeWinner.isPending}
+					aria-label={`Remove ${w.name}`}
+				>
+					<Trash2 className="size-4" />
+				</Button>
+			</li>
+		);
+	}
+
 	return (
 		<div className="flex flex-col gap-6">
 			{/* ── Status header ─────────────────────────────────────────────── */}
@@ -221,25 +296,42 @@ export function GiveawayTab() {
 							First {cfg.giftWinnerSlots} to gift {cfg.giftThreshold}+ subs win automatically (you
 							confirm); {cfg.raffleWinnerSlots} more by open chat raffle ({cfg.command}).
 						</p>
-					</div>
-					<Button
-						size="lg"
-						variant={cfg.open ? "destructive" : "default"}
-						onClick={() => setConfig.mutate({ open: !cfg.open })}
-						disabled={setConfig.isPending}
-					>
-						{cfg.open ? (
-							<>
-								<span className="relative mr-0.5 flex size-2">
-									<span className="absolute inline-flex size-full animate-ping rounded-full bg-current opacity-60" />
-									<span className="relative inline-flex size-2 rounded-full bg-current" />
-								</span>
-								Close entries
-							</>
+						{started ? (
+							<span className="flex items-center gap-1.5 text-xs font-medium text-primary">
+								<span className="inline-flex size-2 rounded-full bg-current" />
+								Tracking gift subs
+							</span>
 						) : (
-							"Open entries"
+							<span className="text-xs text-muted-foreground">
+								Gift subs only count after you hit Start.
+							</span>
 						)}
-					</Button>
+					</div>
+					{started ? (
+						<Button
+							size="lg"
+							variant={cfg.open ? "destructive" : "default"}
+							onClick={() => setConfig.mutate({ open: !cfg.open })}
+							disabled={setConfig.isPending}
+						>
+							{cfg.open ? (
+								<>
+									<span className="relative mr-0.5 flex size-2">
+										<span className="absolute inline-flex size-full animate-ping rounded-full bg-current opacity-60" />
+										<span className="relative inline-flex size-2 rounded-full bg-current" />
+									</span>
+									Close {cfg.command}
+								</>
+							) : (
+								`Open ${cfg.command}`
+							)}
+						</Button>
+					) : (
+						<Button size="lg" onClick={() => start.mutate()} disabled={start.isPending}>
+							{start.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
+							Start giveaway
+						</Button>
+					)}
 				</div>
 
 				{/* Live counts */}
@@ -491,59 +583,40 @@ export function GiveawayTab() {
 						No winners yet. Confirm a gifter or draw the raffle above.
 					</p>
 				) : (
-					<ul className="mt-3 flex flex-col gap-2">
-						{data.winners.map((w) => (
-							<li
-								key={w.id}
-								className="flex flex-wrap items-center gap-3 rounded-lg border border-border px-3 py-2"
-							>
-								<Checkbox
-									checked={w.shipped}
-									onCheckedChange={(checked) =>
-										setShipped.mutate({ id: w.id, shipped: checked === true })
-									}
-									aria-label={`Mark ${w.name} shipped`}
-								/>
-								<Avatar name={w.name} />
-								<a
-									href={twitchUrl(w.login)}
-									target="_blank"
-									rel="noreferrer"
-									className="text-sm font-medium hover:text-primary"
-								>
-									{w.name}
-								</a>
-								<span
-									className={`rounded-full border px-2 py-0.5 text-xs ${
-										w.source === "gift"
-											? "border-primary/40 text-primary"
-											: "border-border text-muted-foreground"
-									}`}
-								>
-									{w.source === "gift" ? "gift" : "raffle"}
-								</span>
-								<Input
-									className="h-8 min-w-0 flex-1"
-									defaultValue={w.note ?? ""}
-									placeholder="shipping note (address, USA/EU…)"
-									aria-label={`Shipping note for ${w.name}`}
-									onBlur={(e) => {
-										if (e.target.value !== (w.note ?? ""))
-											setNote.mutate({ id: w.id, note: e.target.value });
-									}}
-								/>
-								<Button
-									variant="ghost"
-									size="sm"
-									onClick={() => removeWinner.mutate({ id: w.id })}
-									disabled={removeWinner.isPending}
-									aria-label={`Remove ${w.name}`}
-								>
-									<Trash2 className="size-4" />
-								</Button>
-							</li>
-						))}
-					</ul>
+					<div className="mt-3 flex flex-col gap-5">
+						<div>
+							<div className="flex items-center gap-2">
+								<Gift className="size-4 text-primary" />
+								<h4 className="text-sm font-semibold">
+									Gift sub winners{" "}
+									<span className="text-muted-foreground">{giftWinners.length}</span>
+								</h4>
+							</div>
+							{giftWinners.length === 0 ? (
+								<p className="mt-2 text-sm text-muted-foreground">No gift sub winners yet.</p>
+							) : (
+								<ul className="mt-2 flex flex-col gap-2">
+									{giftWinners.map((w) => renderWinner(w, false))}
+								</ul>
+							)}
+						</div>
+						<div>
+							<div className="flex items-center gap-2">
+								<Dice5 className="size-4 text-primary" />
+								<h4 className="text-sm font-semibold">
+									Raffle winners{" "}
+									<span className="text-muted-foreground">{raffleWinners.length}</span>
+								</h4>
+							</div>
+							{raffleWinners.length === 0 ? (
+								<p className="mt-2 text-sm text-muted-foreground">No raffle winners yet.</p>
+							) : (
+								<ul className="mt-2 flex flex-col gap-2">
+									{raffleWinners.map((w) => renderWinner(w, true))}
+								</ul>
+							)}
+						</div>
+					</div>
 				)}
 			</div>
 		</div>
