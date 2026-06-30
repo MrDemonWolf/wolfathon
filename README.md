@@ -77,7 +77,7 @@ Keep the rewards flowing. Keep the clock ticking.
 
 4. Open the surfaces:
 
-   - Control panel: `http://localhost:3001/control`
+   - Control panel: `http://localhost:3001/dashboard`
    - Overlay URLs (tokenized): control panel → **Settings → Overlays**
    - API (overlay data + Twitch webhook): `http://localhost:3000`
 
@@ -87,6 +87,11 @@ Keep the rewards flowing. Keep the clock ticking.
    on first run.
 
 ## Usage
+
+The control panel lives at `/dashboard`. Its top nav holds the four live
+sections — **Rewards**, **Timer**, **Giveaways**, and **Wheel** — and the gear
+opens **Settings**, where the set-once panes live: **Twitch**, **Bot**,
+**Overlays**, **Customizer**, and **Backup**.
 
 ### OBS browser sources
 
@@ -135,8 +140,8 @@ authorization. The **Twitch** tab walks you through it:
    Copy the **Client ID** and generate a **Client Secret**.
 2. Put them in the environment as `TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET`
    (repo secrets or `apps/web/.env`) and redeploy. Keep `/api/twitch/callback`
-   outside the Cloudflare Access app (Access covers only `/control` + `/api/trpc`).
-3. In the control panel **Twitch** tab (it shows "Loaded from environment ✓"),
+   outside the Cloudflare Access app (Access covers only `/dashboard` + `/api/trpc`).
+3. On **Settings → Twitch** (it shows "Loaded from environment ✓"),
    click **Connect Twitch**. You're redirected to Twitch to approve, then back —
    the panel flips to **Connected**.
 4. On connect, the server creates EventSub webhook subscriptions for
@@ -410,17 +415,17 @@ local Alchemy state. (Turbo strict env mode requires these to be declared as
 ### Cloudflare Access (Zero Trust)
 
 The app itself has no login. Security is enforced at the edge by Cloudflare
-Access plus a server-side JWT check. You protect the `/control` page and the
-`/api/trpc` operator API on the web app; the overlays and the Twitch webhook
-stay public.
+Access plus a server-side JWT check. You protect the `/dashboard` control panel
+and the `/api/trpc` operator API on the web app; the overlays and the Twitch
+webhook stay public.
 
 1. In the Cloudflare dashboard, open **Zero Trust → Access → Applications** and
    add a **Self-hosted** application.
 
 2. Set the application paths on the web domain:
 
-   - `wolfathon.mrdemonwolf.workers.dev/control`
-   - `wolfathon.mrdemonwolf.workers.dev/control/*`
+   - `wolfathon.mrdemonwolf.workers.dev/dashboard`
+   - `wolfathon.mrdemonwolf.workers.dev/dashboard/*`
    - `wolfathon.mrdemonwolf.workers.dev/api/trpc/*`
 
    Do **not** add `/api/twitch/callback` here — Twitch must reach it without an
@@ -459,10 +464,10 @@ Object plus WebSocket can replace the 2-second refetch later.
 ```
 wolfathon/
 ├── apps/
-│   ├── web/         # Next.js: /overlay/{timer,rewards} (OBS), /control, /api/trpc
+│   ├── web/         # Next.js: /overlay/{timer,rewards,wheel} (OBS), /dashboard, /api/trpc
 │   └── server/      # Hono on Cloudflare Workers: public API + Twitch EventSub webhook
 ├── packages/
-│   ├── api/         # tRPC routers, timer + Twitch domain, Access verification
+│   ├── api/         # tRPC routers, timer/Twitch/wheel/giveaway domain, Access verification
 │   ├── db/          # Drizzle schema, D1 client, migrations
 │   ├── env/         # Typed environment access
 │   ├── ui/          # Shared design system (brand tokens, components)
