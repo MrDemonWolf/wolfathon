@@ -213,7 +213,7 @@ export function TimerPanel({
 				</summary>
 				<div className="mt-3">
 					<div className="text-xs text-muted-foreground">
-						Simulate events (uses the configured minutes)
+						Preview the overlay alert — doesn't change the timer or sub count
 					</div>
 					<div className="mt-2 flex flex-wrap gap-2">
 						{SIMS.map((s) => (

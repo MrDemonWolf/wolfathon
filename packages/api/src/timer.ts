@@ -409,15 +409,22 @@ export function eventLabel(event: TimerEvent): string {
 	}
 }
 
-/** Apply an event, returning the new state and how many ms were added. */
+/**
+ * Apply an event, returning the new state and how many ms were added.
+ *
+ * `preview` (the control panel's test buttons) still fires the overlay alert so
+ * the overlay can be tested, but leaves the clock and stats untouched — no time
+ * is added and `addedMs` is 0.
+ */
 export function applyEvent(
 	config: TimerConfig,
 	state: TimerState,
 	event: TimerEvent,
 	now: number,
+	preview = false,
 ): { state: TimerState; addedMs: number } {
 	const ms = Math.round(eventMinutes(config, event) * MIN);
-	const next = addMs(config, state, ms, now);
+	const next = preview ? state : addMs(config, state, ms, now);
 	// Record the add so the overlay can show "+Xm" + its source. Only positive
 	// adds count (a −5m correction shouldn't fire the celebratory alert).
 	const state2 =
@@ -431,7 +438,7 @@ export function applyEvent(
 					},
 				}
 			: next;
-	return { state: state2, addedMs: ms };
+	return { state: state2, addedMs: preview ? 0 : ms };
 }
 
 /**
