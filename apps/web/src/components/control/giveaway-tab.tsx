@@ -16,7 +16,7 @@ import { Checkbox } from "@wolfathon/ui/components/checkbox";
 import { Input } from "@wolfathon/ui/components/input";
 import { Label } from "@wolfathon/ui/components/label";
 import { Crown, Dice5, ExternalLink, Gift, Loader2, Search, Trash2, Users } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { controlTrpc, queryClient } from "@/utils/trpc";
@@ -152,15 +152,19 @@ export function GiveawayTab() {
 		}),
 	);
 
-	// Editable config draft (command + threshold), seeded from server.
+	// Editable config draft (command + threshold), seeded once from the server.
+	// A `seeded` ref (not a sentinel like t===5) so a real threshold of 5 or a
+	// command the operator clears isn't silently re-overwritten by the next poll.
 	const [command, setCommand] = useState("");
 	const [threshold, setThreshold] = useState(5);
 	const [manual, setManual] = useState("");
 	const [filter, setFilter] = useState("");
+	const seeded = useRef(false);
 	useEffect(() => {
-		if (!data) return;
-		setCommand((c) => (c === "" ? data.config.command : c));
-		setThreshold((t) => (t === 5 ? data.config.giftThreshold : t));
+		if (!data || seeded.current) return;
+		seeded.current = true;
+		setCommand(data.config.command);
+		setThreshold(data.config.giftThreshold);
 	}, [data]);
 
 	if (!data && isError) {
@@ -190,6 +194,11 @@ export function GiveawayTab() {
 	const raffleWinners = data.winners.filter((w) => w.source === "raffle");
 	const wonLogins = new Set(data.winners.map((w) => w.login));
 	const remainingEntrants = data.entrants.filter((e) => !wonLogins.has(e.login)).length;
+	// A command must be "!" + at least one char or it silently breaks chat entry.
+	const cmdTrimmed = command.trim();
+	const cmdValid = cmdTrimmed.startsWith("!") && cmdTrimmed.length > 1;
+	// All planned raffle slots already drawn — drawing again is an intentional extra.
+	const raffleFull = cfg.raffleWinnerSlots > 0 && raffleWinners.length >= cfg.raffleWinnerSlots;
 
 	// Newest entrants first so new chatters visibly pop in at the top each poll.
 	const ordered = [...data.entrants].sort((a, b) => b.enteredAt - a.enteredAt);
@@ -327,8 +336,13 @@ export function GiveawayTab() {
 							)}
 						</Button>
 					) : (
-						<Button size="lg" onClick={() => start.mutate()} disabled={start.isPending}>
-							{start.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
+						<Button
+							size="lg"
+							onClick={() => start.mutate()}
+							disabled={start.isPending}
+							aria-busy={start.isPending}
+						>
+							{start.isPending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
 							Start giveaway
 						</Button>
 					)}
@@ -364,8 +378,16 @@ export function GiveawayTab() {
 							value={command}
 							onChange={(e) => setCommand(e.target.value)}
 							placeholder="!enter"
+							aria-invalid={!cmdValid}
+							aria-describedby="gv-cmd-hint"
 						/>
-						<span className="text-xs text-muted-foreground">Must start with “!”.</span>
+						<span
+							id="gv-cmd-hint"
+							role={cmdValid ? undefined : "alert"}
+							className={`text-xs ${cmdValid ? "text-muted-foreground" : "text-destructive"}`}
+						>
+							{cmdValid ? "Must start with “!”." : "Enter a command starting with “!” (e.g. !enter)."}
+						</span>
 					</div>
 					<div className="flex flex-col gap-1.5">
 						<Label htmlFor="gv-thr">Gift threshold</Label>
@@ -375,14 +397,20 @@ export function GiveawayTab() {
 							min={1}
 							className="w-28"
 							value={threshold}
-							onChange={(e) => setThreshold(Number(e.target.value))}
+							// Ignore non-numeric/empty input so the field can't become NaN.
+							onChange={(e) => {
+								const n = Number(e.target.value);
+								if (Number.isFinite(n)) setThreshold(n);
+							}}
 						/>
 					</div>
 					<div className="flex items-end">
 						<Button
 							variant="outline"
-							onClick={() => setConfig.mutate({ command, giftThreshold: threshold })}
-							disabled={setConfig.isPending}
+							onClick={() =>
+								setConfig.mutate({ command: cmdTrimmed, giftThreshold: Math.max(1, threshold) })
+							}
+							disabled={setConfig.isPending || !cmdValid}
 						>
 							Save
 						</Button>
@@ -466,18 +494,25 @@ export function GiveawayTab() {
 					<Button
 						onClick={() => draw.mutate()}
 						disabled={draw.isPending || remainingEntrants === 0}
+						aria-busy={draw.isPending}
+						title={raffleFull ? "All planned raffle slots are filled" : undefined}
 					>
 						{draw.isPending ? (
-							<Loader2 className="size-4 animate-spin" />
+							<Loader2 className="size-4 animate-spin" aria-hidden />
 						) : (
-							<Dice5 className="size-4" />
+							<Dice5 className="size-4" aria-hidden />
 						)}
-						Draw winner
+						{raffleFull ? "Draw extra winner" : "Draw winner"}
 					</Button>
 				</div>
 				<p className="mt-1 text-xs text-muted-foreground">
 					{remainingEntrants} eligible {remainingEntrants === 1 ? "entry" : "entries"} ·{" "}
 					{data.entrants.length} entered total.
+				</p>
+				{/* Concise spoken summary so the 3s-polled pool growth is announced once
+				    per change instead of row-by-row spam. */}
+				<p className="sr-only" role="status" aria-live="polite">
+					{data.entrants.length} entered, {remainingEntrants} in pool.
 				</p>
 
 				{/* Filter — only worth showing once the list gets long. */}
@@ -565,8 +600,8 @@ export function GiveawayTab() {
 						<AlertDialogContent>
 							<AlertDialogTitle>Reset round?</AlertDialogTitle>
 							<AlertDialogDescription>
-								This clears all gifters, entrants, and winners to start a new round. This cannot be
-								undone.
+								This clears {data.gifters.length} gifters, {data.entrants.length} entrants, and{" "}
+								{data.winners.length} winners to start a new round. This cannot be undone.
 							</AlertDialogDescription>
 							<AlertDialogFooter>
 								<AlertDialogClose render={<Button variant="outline">Cancel</Button>} />
