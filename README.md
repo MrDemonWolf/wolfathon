@@ -12,8 +12,6 @@ Keep the rewards flowing. Keep the clock ticking.
 
 ![Wolfathon demo](assets/demo.gif)
 
-[Watch the full video (with sound)](assets/demo.mp4)
-
 ## Features
 
 - **Subathon timer** - A timestamp-driven countdown that auto-adds time from
