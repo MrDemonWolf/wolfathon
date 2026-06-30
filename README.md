@@ -35,6 +35,12 @@ Keep the rewards flowing. Keep the clock ticking.
   (`!wolfathon`, `!timer`, `!goals`, `!wheel`, `!giveaway`) from the server,
   reusing the EventSub webhook — no process to babysit. Toggle each command,
   edit text replies, and rate-limit normal viewers (mods/VIPs/broadcaster bypass).
+- **Giveaway tracker** - A two-phase prize draw. Hit **Start** and the first
+  viewers to gift a threshold of subs are captured as gift-sub winners (you
+  confirm each). Then **open `!enter`** when you're ready, watch the live entrant
+  pool, and draw raffle winners with the crypto CSPRNG. Gift and raffle winners
+  are tracked in separate lists; any raffle pick can be rerolled, and nobody can
+  win twice.
 - **Cloudflare Access security** - The control panel and its API sit behind
   Cloudflare Zero Trust. The overlays stay open (OBS can't sign in to Access)
   but are gated by a secret token in their URL, resettable from the control
@@ -242,6 +248,32 @@ on/off, and a per-command **cooldown** rate-limits normal viewers; broadcaster,
 mods, and VIPs bypass the cooldown. If the bot's sign-in is later revoked (its
 password changes, or you de-authorize the app), the Bot tab shows a **reconnect**
 prompt instead of going silently dead.
+
+### Giveaway
+
+The control panel's **Giveaway** tab runs a prize draw in two phases.
+
+1. **Start** the round. Only gift subs that arrive _after_ Start count, so
+   pre-show hype gifts don't pre-decide the winners. Once started, the header
+   shows a live "Tracking gift subs" state and the qualifying gifters appear in
+   the order they crossed the threshold; confirm the first N as **gift-sub
+   winners**.
+2. **Open `!enter`** (the raffle command is configurable) when you want the
+   raffle. Chat
+   entries are ignored until you open the window — the toggle is disabled until
+   the round is started — and each login can enter once. The **raffle pool**
+   lists entrants live (newest first, with a filter and Twitch links); **Draw
+   winner** picks from the pool with the same crypto CSPRNG used for the wheel,
+   so a real draw can't be predicted or rigged.
+
+Gift-sub winners and raffle winners show in **separate lists**, each with a
+shipped checkbox and a private shipping note (never sent anywhere public). A
+**Reroll** on any raffle winner swaps them for a fresh draw without re-picking
+the person rerolled out, and anyone who has already won (either phase) is
+excluded from new draws. **Reset round** clears gifters, entrants, and winners,
+closes the raffle, and un-starts the round for a clean next one. The raffle
+command and the gift threshold are configurable. Nothing in this tab is ever
+exposed publicly — it is operator-only behind Cloudflare Access.
 
 ### Adding your logo
 
