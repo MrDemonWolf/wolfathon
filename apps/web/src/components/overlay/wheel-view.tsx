@@ -108,8 +108,9 @@ export function WheelView({
 
 	const arcs = computeArcs(render);
 	const spinning = phase === "spinning";
-	// Idle "breathing" glow on the halo + rim — off entirely under reduced motion.
-	const pulse = reduced ? "" : "wheel-pulse";
+	// Idle "breathing" glow on the halo + rim — only while waiting, and never
+	// under reduced motion (so it doesn't compete with an in-flight spin).
+	const pulse = !reduced && phase === "idle" ? "wheel-pulse" : "";
 
 	return (
 		<div className="pointer-events-none absolute inset-0 grid select-none place-items-center">
@@ -238,6 +239,9 @@ export function WheelView({
 							const dark = luma(slot.color) > 150;
 							const ink = dark ? NAVY : "#ffffff";
 							const halo = dark ? "#ffffff" : NAVY;
+							// Size from the clipped text that actually renders, so a label
+							// past the clip cap isn't shrunk for characters it never shows.
+							const text = clip(slot.label);
 							return (
 								<g
 									key={`label-${slot.index}`}
@@ -248,7 +252,7 @@ export function WheelView({
 										y={0}
 										textAnchor="start"
 										dominantBaseline="central"
-										fontSize={fontSizeFor(slot.label, arc.sweep)}
+										fontSize={fontSizeFor(text, arc.sweep)}
 										fontWeight={700}
 										fill={ink}
 										stroke={halo}
@@ -256,7 +260,7 @@ export function WheelView({
 										paintOrder="stroke"
 										style={{ fontFamily: "var(--font-montserrat), system-ui, sans-serif" }}
 									>
-										{clip(slot.label)}
+										{text}
 									</text>
 								</g>
 							);
@@ -327,7 +331,7 @@ export function WheelView({
 				{phase === "result" && resultLabel && (
 					<div className="pointer-events-none absolute inset-x-0 top-[calc(50%+46cqmin*0.5+2cqmin)] flex justify-center">
 						<div
-							className="animate-wolf-rise max-w-[80cqmin] rounded-2xl border px-[4cqmin] py-[2.4cqmin] text-center"
+							className={`${reduced ? "" : "animate-wolf-rise"} max-w-[80cqmin] rounded-2xl border px-[4cqmin] py-[2.4cqmin] text-center`}
 							style={{
 								background: NAVY,
 								borderColor: "rgba(0,172,237,0.55)",
