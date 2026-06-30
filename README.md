@@ -30,9 +30,9 @@ Keep the rewards flowing. Keep the clock ticking.
   glow-and-scale celebration (no audio), then settle on the next reward.
 - **Private notes** - Each goal has an internal `note` (for example, "10 subs")
   that is stripped server-side and never reaches the overlay.
-- **Claude-friendly import/export** - For both rewards and the timer config:
-  paste or upload JSON, validate, replace in one click, export, and copy a
-  ready-made prompt so you can have Claude generate a new config to paste back.
+- **Combined backup** - One JSON file bundles your rewards and timer config:
+  validate, replace in one click, export, or copy a ready-made prompt so you can
+  have Claude edit the config and paste it back to restore.
 - **Wheel of dares (Howlwheel)** - A weighted spinner of chat dares. Edit,
   weight, colour, and drag-reorder slots from the dashboard, then spin to a
   weighted-random result or send the wheel to a specific slot. A token-gated OBS
@@ -167,21 +167,24 @@ the signature is wrong or older than 10 minutes. The app credentials come from
 the Worker env (`TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET`); only the resulting
 OAuth tokens are stored in D1, and none of it appears in any public response.
 
-### JSON import and export (rewards and timer)
+### Backup and restore (JSON)
 
-Each tab has an Import / Export panel:
+**Settings → Backup** exports and restores everything in one combined file —
+your rewards and timer config bundled together — so a single file fully restores
+the tracker:
 
 - **Validate** - Checks pasted/uploaded JSON without writing. Shows a preview or
   a list of human-readable errors.
-- **Import (replace)** - Validates, asks you to confirm, then replaces. Nothing
-  is written unless validation passes (no partial writes).
-- **Export** / **Copy current JSON** - Download or copy the current config,
-  pretty-printed (`wolfathon-goals-…json` / `wolfathon-timer-…json`).
+- **Import (replace)** - Validates, asks you to confirm, then replaces both
+  halves. Nothing is written unless validation passes (no partial writes).
+- **Export** / **Copy current JSON** - Download or copy the current backup,
+  pretty-printed (`wolfathon-backup-…json`).
 - **Copy Claude prompt** - Copies a ready prompt (schema + your current config)
   to paste into claude.ai. Ask for the change you want, paste the JSON it
   returns back into the box, and import.
 
-Rewards import shape (minimal form):
+The backup file wraps the two documents below under a version tag. The rewards
+half (minimal form):
 
 ```json
 {
@@ -193,7 +196,7 @@ Rewards import shape (minimal form):
 }
 ```
 
-Timer config shape:
+The timer half:
 
 ```json
 {
