@@ -26,6 +26,20 @@ import { controlTrpc, queryClient } from "@/utils/trpc";
 // past the cap. Raise if a stream ever needs to eyeball more at once.
 const ENTRANT_RENDER_CAP = 200;
 
+// One-tap presets so the config reads as "pick one", not "fill in a form". The
+// "Custom…" chip reveals the free field for anyone who wants something else.
+const COMMAND_PRESETS = ["!enter", "!join", "!giveaway"] as const;
+const THRESHOLD_PRESETS = [3, 5, 10] as const;
+
+/** Active/idle styling for a one-tap preset chip (matches the bot-panel presets). */
+function chipCls(active: boolean): string {
+	return `rounded-lg border px-3 py-1.5 text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
+		active
+			? "border-primary/60 bg-primary/10 text-foreground"
+			: "border-border text-muted-foreground hover:border-primary/40 hover:bg-accent"
+	}`;
+}
+
 /** Gifters who reached the threshold, earliest first ("first to gift N+"). */
 function qualifying(doc: GiveawayDoc) {
 	return doc.gifters
@@ -157,6 +171,10 @@ export function GiveawayTab() {
 	// command the operator clears isn't silently re-overwritten by the next poll.
 	const [command, setCommand] = useState("");
 	const [threshold, setThreshold] = useState(5);
+	const [tosUrl, setTosUrl] = useState("");
+	// Whether the command/threshold are off-preset (so the free field shows).
+	const [customCmd, setCustomCmd] = useState(false);
+	const [customThr, setCustomThr] = useState(false);
 	const [manual, setManual] = useState("");
 	const [filter, setFilter] = useState("");
 	const seeded = useRef(false);
@@ -165,6 +183,13 @@ export function GiveawayTab() {
 		seeded.current = true;
 		setCommand(data.config.command);
 		setThreshold(data.config.giftThreshold);
+		setTosUrl(data.config.tosUrl ?? "");
+		setCustomCmd(
+			!COMMAND_PRESETS.includes(data.config.command as (typeof COMMAND_PRESETS)[number]),
+		);
+		setCustomThr(
+			!THRESHOLD_PRESETS.includes(data.config.giftThreshold as (typeof THRESHOLD_PRESETS)[number]),
+		);
 	}, [data]);
 
 	if (!data && isError) {
@@ -369,52 +394,128 @@ export function GiveawayTab() {
 					<Stat label="Gift-qualified" value={gifters.length} />
 				</div>
 
-				{/* Config */}
-				<div className="mt-4 grid gap-4 border-t border-border pt-4 sm:grid-cols-[1fr_auto_auto]">
+				{/* Config — one-tap presets keep it simple; “Custom…” reveals a free field. */}
+				<div className="mt-4 flex flex-col gap-4 border-t border-border pt-4">
+					{/* Raffle command */}
 					<div className="flex flex-col gap-1.5">
 						<Label htmlFor="gv-cmd">Raffle command</Label>
+						<div className="flex flex-wrap gap-2">
+							{COMMAND_PRESETS.map((p) => (
+								<button
+									key={p}
+									type="button"
+									className={chipCls(!customCmd && command === p)}
+									onClick={() => {
+										setCustomCmd(false);
+										setCommand(p);
+									}}
+								>
+									{p}
+								</button>
+							))}
+							<button
+								type="button"
+								className={chipCls(customCmd)}
+								onClick={() => setCustomCmd(true)}
+							>
+								Custom…
+							</button>
+						</div>
+						{customCmd && (
+							<>
+								<Input
+									id="gv-cmd"
+									className="mt-1 max-w-xs"
+									value={command}
+									onChange={(e) => setCommand(e.target.value)}
+									placeholder="!enter"
+									aria-invalid={!cmdValid}
+									aria-describedby="gv-cmd-hint"
+								/>
+								<span
+									id="gv-cmd-hint"
+									role={cmdValid ? undefined : "alert"}
+									className={`text-xs ${cmdValid ? "text-muted-foreground" : "text-destructive"}`}
+								>
+									{cmdValid
+										? "Must start with “!”."
+										: "Enter a command starting with “!” (e.g. !enter)."}
+								</span>
+							</>
+						)}
+					</div>
+
+					{/* Gift threshold to auto-win */}
+					<div className="flex flex-col gap-1.5">
+						<Label htmlFor="gv-thr">Gift subs to auto-win</Label>
+						<div className="flex flex-wrap gap-2">
+							{THRESHOLD_PRESETS.map((n) => (
+								<button
+									key={n}
+									type="button"
+									className={chipCls(!customThr && threshold === n)}
+									onClick={() => {
+										setCustomThr(false);
+										setThreshold(n);
+									}}
+								>
+									{n} subs
+								</button>
+							))}
+							<button
+								type="button"
+								className={chipCls(customThr)}
+								onClick={() => setCustomThr(true)}
+							>
+								Custom…
+							</button>
+						</div>
+						{customThr && (
+							<Input
+								id="gv-thr"
+								type="number"
+								min={1}
+								className="mt-1 w-28"
+								value={threshold}
+								// Ignore non-numeric/empty input so the field can't become NaN.
+								onChange={(e) => {
+									const n = Number(e.target.value);
+									if (Number.isFinite(n)) setThreshold(n);
+								}}
+							/>
+						)}
+					</div>
+
+					{/* Rules / TOS link — auto-fills the !giveaway chat command */}
+					<div className="flex flex-col gap-1.5">
+						<Label htmlFor="gv-tos">Rules / TOS link</Label>
 						<Input
-							id="gv-cmd"
-							value={command}
-							onChange={(e) => setCommand(e.target.value)}
-							placeholder="!enter"
-							aria-invalid={!cmdValid}
-							aria-describedby="gv-cmd-hint"
+							id="gv-tos"
+							className="max-w-md"
+							value={tosUrl}
+							onChange={(e) => setTosUrl(e.target.value)}
+							placeholder="https://gist.github.com/you/your-giveaway-rules"
+							aria-describedby="gv-tos-hint"
 						/>
-						<span
-							id="gv-cmd-hint"
-							role={cmdValid ? undefined : "alert"}
-							className={`text-xs ${cmdValid ? "text-muted-foreground" : "text-destructive"}`}
-						>
-							{cmdValid
-								? "Must start with “!”."
-								: "Enter a command starting with “!” (e.g. !enter)."}
+						<span id="gv-tos-hint" className="text-xs text-muted-foreground">
+							Paste a GitHub gist or any link. The <code>!giveaway</code> chat command auto-fills
+							with this so viewers always get the current rules.
 						</span>
 					</div>
-					<div className="flex flex-col gap-1.5">
-						<Label htmlFor="gv-thr">Gift threshold</Label>
-						<Input
-							id="gv-thr"
-							type="number"
-							min={1}
-							className="w-28"
-							value={threshold}
-							// Ignore non-numeric/empty input so the field can't become NaN.
-							onChange={(e) => {
-								const n = Number(e.target.value);
-								if (Number.isFinite(n)) setThreshold(n);
-							}}
-						/>
-					</div>
-					<div className="flex items-end">
+
+					<div>
 						<Button
 							variant="outline"
 							onClick={() =>
-								setConfig.mutate({ command: cmdTrimmed, giftThreshold: Math.max(1, threshold) })
+								setConfig.mutate({
+									command: cmdTrimmed,
+									giftThreshold: Math.max(1, threshold),
+									tosUrl: tosUrl.trim(),
+								})
 							}
 							disabled={setConfig.isPending || !cmdValid}
 						>
-							Save
+							Save giveaway settings
 						</Button>
 					</div>
 				</div>
