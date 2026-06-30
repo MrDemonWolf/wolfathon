@@ -8,7 +8,7 @@ export default function manifest(): MetadataRoute.Manifest {
 	return {
 		name: "Wolfathon Control",
 		short_name: "Wolfathon",
-		description: "Subathon reward tracker control panel",
+		description: "Wolfathon reward tracker control panel",
 		start_url: "/",
 		display: "standalone",
 		background_color: "#091533",

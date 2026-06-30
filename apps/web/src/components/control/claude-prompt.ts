@@ -10,6 +10,11 @@ export function buildClaudePrompt(opts: {
 }): string {
 	return `You are editing my Wolfathon ${opts.kind}. Output ONLY valid JSON that matches the schema below — no prose, no markdown, no code fences.
 
+Rules:
+- Keep every existing "id" exactly as-is. Only invent an id for a brand-new item.
+- Don't add keys that aren't in the schema, and don't drop required ones.
+- Return the WHOLE document (everything I pasted), with just my change applied.
+
 Schema:
 ${opts.schemaBullets.map((b) => `- ${b}`).join("\n")}
 

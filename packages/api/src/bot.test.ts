@@ -2,6 +2,9 @@ import { expect, test } from "bun:test";
 
 import {
 	activeWolfathonParts,
+	buildGiveawayClaimAnnouncement,
+	buildGiveawayDrawAnnouncement,
+	buildGiveawayTimeoutAnnouncement,
 	canRun,
 	defaultBotDoc,
 	dynamicTemplate,
@@ -89,13 +92,20 @@ test("live value formatters", () => {
 test("updateCommand clamps response, validates triggers + formatKey", () => {
 	let doc = { ...defaultBotDoc(), enabled: true };
 
-	// Response edit applies to text commands, clamped to the max length.
-	doc = updateCommand(doc, "giveaway", { response: "x".repeat(999) });
-	expect(doc.commands.find((c) => c.id === "giveaway")!.response.length).toBe(400);
-
-	// Response edits are ignored on dynamic commands (they render live).
+	// All five built-ins are live commands now, so response edits are IGNORED on
+	// them (they render from live data) — e.g. !giveaway pulls the TOS link.
+	doc = updateCommand(doc, "giveaway", { response: "hijack" });
+	expect(doc.commands.find((c) => c.id === "giveaway")!.response).toBe("");
 	doc = updateCommand(doc, "timer", { response: "hijack" });
 	expect(doc.commands.find((c) => c.id === "timer")!.response).toBe("");
+
+	// The clamp still guards a (synthetic) text command at the max length.
+	const textDoc = {
+		...defaultBotDoc(),
+		commands: [{ id: "t", triggers: ["!t"], enabled: true, response: "" }],
+	};
+	const clamped = updateCommand(textDoc, "t", { response: "x".repeat(999) });
+	expect(clamped.commands[0]!.response.length).toBe(400);
 
 	// formatKey only accepts keys valid for the command's kind.
 	doc = updateCommand(doc, "timer", { formatKey: "ends" });
@@ -154,7 +164,7 @@ test("!wolfathon parts: default = all, toggles validate + render live", () => {
 	]);
 
 	const full = wolfathonValue(wolf, timer, data, 0);
-	expect(full).toContain("subathon");
+	expect(full).toContain("Wolfathon");
 	expect(full).toContain("1h 0m (paused) on the clock");
 	expect(full).toContain("0 subs so far");
 	expect(full).toContain("Next reward: Q&A at 1 subs (0/1)");
@@ -177,4 +187,18 @@ test("!wolfathon parts: default = all, toggles validate + render live", () => {
 	expect(wolfathonValue({ ...wolf, parts: ["goal"] }, timer, { ...data, goals: [] }, 0)).toBe(
 		"🎯 All rewards unlocked!",
 	);
+});
+
+test("giveaway draw/claim/timeout announcements name the winner + tell them what to do", () => {
+	const draw = buildGiveawayDrawAnnouncement("Foxxo");
+	expect(draw).toContain("@Foxxo");
+	expect(draw).toContain("!claim");
+	expect(draw).toContain("5 minutes"); // the claim window
+	expect(draw).toMatch(/redraw/i);
+
+	expect(buildGiveawayClaimAnnouncement("Foxxo")).toBe("✅ @Foxxo claimed their prize!");
+
+	const timeout = buildGiveawayTimeoutAnnouncement("Foxxo");
+	expect(timeout).toContain("@Foxxo");
+	expect(timeout).toMatch(/redraw/i);
 });

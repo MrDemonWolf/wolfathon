@@ -7,6 +7,7 @@
  */
 
 import {
+	clampScale,
 	defaultOverlayTheme,
 	type OverlayTheme,
 	resolveThemeGradient,
@@ -67,6 +68,8 @@ export type PublicData = {
 	showProgressBar: boolean;
 	/** Show the "N Unlocked" row of already-won rewards. */
 	showUnlocked: boolean;
+	/** Size multiplier for the rewards card (operator-tunable for 1080p). */
+	rewardsScale: number;
 };
 
 export const MAX_TARGET = 10_000_000;
@@ -211,6 +214,7 @@ export function stripNotes(data: Data): PublicData {
 		showLiveDot: theme.showLiveDot,
 		showProgressBar: theme.showProgressBar,
 		showUnlocked: theme.showUnlocked,
+		rewardsScale: clampScale(theme.rewardsScale),
 	};
 }
 

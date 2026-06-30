@@ -4,14 +4,19 @@ import {
 	applyEvent,
 	autoPause,
 	autoResume,
+	clampEmoteScale,
 	currentRemainingMs,
+	DEFAULT_EMOTE_SCALE,
 	defaultTimerConfig,
 	defaultTimerDoc,
 	defaultTimerState,
 	defaultTimerTheme,
+	EMOTE_SCALES,
 	eventLabel,
+	eventMs,
 	isAllowedEmoteUrl,
 	eventMinutes,
+	MAX_CHANNEL_POINT_RULES,
 	pause,
 	resolveThemeGradient,
 	start,
@@ -88,6 +93,99 @@ test("bits prorate by hundreds", () => {
 	const state = defaultTimerState(config);
 	const { addedMs } = applyEvent(config, state, { kind: "bits", bits: 250 }, 0);
 	expect(addedMs).toBe(5 * MIN); // 2.5 * 2 minutes
+});
+
+// A cheer of ANY size must add time, prorated in MILLISECONDS — small cheers
+// (1 bit, 10 bits) must NOT floor to zero minutes. Rate = 1 min per 100 bits, so
+// each bit is worth 600ms (= MIN/100).
+test("bits proration: 1 / 10 / 100 / 250 bits add exact ms at 1 min/100", () => {
+	const config = { ...defaultTimerConfig(), bitsPer100Minutes: 1 };
+	const state = defaultTimerState(config);
+	const add = (bits: number) => applyEvent(config, state, { kind: "bits", bits }, 0).addedMs;
+	expect(add(1)).toBe(600); // 0.6s — sub-minute, still added (not floored to 0)
+	expect(add(10)).toBe(6_000); // 6s
+	expect(add(100)).toBe(MIN); // exactly 1 minute
+	expect(add(250)).toBe(150_000); // 2.5 minutes
+});
+
+test("eventMs adds sub-minute bits even at a fractional rate (never floors to 0)", () => {
+	const config = { ...defaultTimerConfig(), bitsPer100Minutes: 0.5 };
+	// 1 bit at 0.5 min/100 = 300ms — positive, never zero.
+	expect(eventMs(config, { kind: "bits", bits: 1 })).toBe(300);
+	expect(eventMs(config, { kind: "bits", bits: 50 })).toBe(15_000); // 0.25 min
+});
+
+test("a tiny cheer moves the clock even under a cap", () => {
+	// Cap well above current remaining — the 600ms add must land in full.
+	const config = {
+		...defaultTimerConfig(),
+		bitsPer100Minutes: 1,
+		startMinutes: 60,
+		maxMinutes: 120,
+	};
+	const state = defaultTimerState(config);
+	const { state: next, addedMs } = applyEvent(config, state, { kind: "bits", bits: 1 }, 0);
+	expect(addedMs).toBe(600);
+	expect(next.remainingMs).toBe(60 * MIN + 600);
+});
+
+// ---- emote size (emoteScale) ----------------------------------------------
+
+test("clampEmoteScale: only 1/2/3 pass, junk falls back to 1", () => {
+	expect(clampEmoteScale(1)).toBe(1);
+	expect(clampEmoteScale(2)).toBe(2);
+	expect(clampEmoteScale(3)).toBe(3);
+	expect(clampEmoteScale(2.4)).toBe(2); // rounds into the set
+	expect(clampEmoteScale(0)).toBe(DEFAULT_EMOTE_SCALE); // below set → default
+	expect(clampEmoteScale(4)).toBe(DEFAULT_EMOTE_SCALE); // above set → default
+	expect(clampEmoteScale("2")).toBe(DEFAULT_EMOTE_SCALE); // wrong type → default
+	expect(clampEmoteScale(undefined)).toBe(DEFAULT_EMOTE_SCALE);
+});
+
+test("emoteScale: defaults to 1, validates to the allowed set, backfills old rows", () => {
+	expect(defaultTimerConfig().emoteScale).toBe(1);
+	expect(EMOTE_SCALES).toEqual([1, 2, 3]);
+
+	const ok = validateTimerConfig({ ...defaultTimerConfig(), emoteScale: 3 });
+	expect(ok.ok).toBe(true);
+	if (ok.ok) expect(ok.config.emoteScale).toBe(3);
+
+	// Out-of-set junk clamps to the default rather than erroring (lenient, like emoteCount/direction).
+	const junk = validateTimerConfig({ ...defaultTimerConfig(), emoteScale: 9 });
+	expect(junk.ok).toBe(true);
+	if (junk.ok) expect(junk.config.emoteScale).toBe(1);
+
+	// Old import doc without the field backfills to 1.
+	const { emoteScale: _omit, ...noField } = defaultTimerConfig();
+	const back = validateTimerConfig(noField);
+	expect(back.ok && back.config.emoteScale).toBe(1);
+});
+
+test("toPublicTimer carries the clamped emoteScale", () => {
+	const config = { ...defaultTimerConfig(), emoteScale: 3 as const };
+	const pub = toPublicTimer({ config, state: defaultTimerState(config) }, 0, defaultTimerTheme());
+	expect(pub.emoteScale).toBe(3);
+	// A row with a junk persisted scale resolves to 1 in the public payload.
+	const bad = { ...defaultTimerConfig(), emoteScale: 99 as unknown as 1 };
+	const pub2 = toPublicTimer({ config: bad, state: defaultTimerState() }, 0, defaultTimerTheme());
+	expect(pub2.emoteScale).toBe(1);
+});
+
+// ---- channel-point reward cap (now 2, managed on Twitch) ------------------
+
+test("channelPoints are capped at MAX_CHANNEL_POINT_RULES (2)", () => {
+	expect(MAX_CHANNEL_POINT_RULES).toBe(2);
+	const two = [
+		{ rewardId: "a", rewardTitle: "One", minutes: 5 },
+		{ rewardId: "b", rewardTitle: "Two", minutes: 10 },
+	];
+	const ok = validateTimerConfig({ ...defaultTimerConfig(), channelPoints: two });
+	expect(ok.ok).toBe(true);
+	if (ok.ok) expect(ok.config.channelPoints).toHaveLength(2);
+
+	const three = [...two, { rewardId: "c", rewardTitle: "Three", minutes: 1 }];
+	const over = validateTimerConfig({ ...defaultTimerConfig(), channelPoints: three });
+	expect(over.ok).toBe(false);
 });
 
 test("start then pause preserves remaining", () => {

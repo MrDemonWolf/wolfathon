@@ -1,6 +1,7 @@
 "use client";
 
 import {
+	clampScale,
 	defaultOverlayTheme,
 	DEFAULT_TIMER_LABEL,
 	expandHex,
@@ -10,6 +11,8 @@ import {
 	HEX_COLOR,
 	MAX_GRADIENT_STOPS,
 	MAX_LABEL_LEN,
+	MAX_SCALE,
+	MIN_SCALE,
 	type OverlayTheme,
 	OVERLAY_TOGGLE_KEYS,
 	resolveTextColor,
@@ -60,12 +63,20 @@ const CORNER_TILE: Record<ThemeCorners, string> = {
 // 1:1 to OverlayTheme booleans (see OVERLAY_TOGGLE_KEYS in @wolfathon/api/theme).
 type ToggleKey = (typeof OVERLAY_TOGGLE_KEYS)[number];
 const ELEMENT_TOGGLES: { key: ToggleKey; label: string; hint: string }[] = [
-	{ key: "showLabel", label: "Eyebrow label", hint: '"SUBATHON" / "NEXT REWARD"' },
+	{ key: "showLabel", label: "Eyebrow label", hint: '"WOLFATHON" / "NEXT REWARD"' },
 	{ key: "showStatus", label: "Timer status chip", hint: "Play / pause chip on the timer" },
 	{ key: "showLiveDot", label: "Live dot", hint: "Pulsing dot on the rewards card" },
 	{ key: "showUnits", label: "Unit labels", hint: "D / H / M / S under the timer" },
 	{ key: "showProgressBar", label: "Progress bar", hint: "Subs toward the next reward" },
 	{ key: "showUnlocked", label: "Unlocked rewards", hint: "Row of already-won rewards" },
+];
+
+// Per-overlay size sliders. Each overlay is its own OBS source, so the operator
+// drags them where they want and uses these to size them for a 1080p canvas.
+const SCALE_FIELDS: { key: "timerScale" | "rewardsScale" | "wheelScale"; label: string }[] = [
+	{ key: "timerScale", label: "Timer bar" },
+	{ key: "rewardsScale", label: "Rewards card" },
+	{ key: "wheelScale", label: "Wheel" },
 ];
 
 /**
@@ -339,6 +350,56 @@ export function ThemeEditor({
 							</label>
 						</div>
 					))}
+					{/* Wheel idle visibility defaults OFF (hidden until spun) — separate row. */}
+					<div className="flex items-start gap-2 text-xs">
+						<Checkbox
+							id="toggle-showWheelIdle"
+							checked={theme.showWheelIdle}
+							onCheckedChange={(v) => onChange({ ...theme, showWheelIdle: v === true })}
+							className="mt-0.5"
+						/>
+						<label htmlFor="toggle-showWheelIdle" className="cursor-pointer leading-tight">
+							<span className="font-medium text-foreground">Keep wheel on screen</span>
+							<span className="ml-1.5 text-muted-foreground">
+								— off = the wheel only appears when it spins
+							</span>
+						</label>
+					</div>
+				</div>
+			</div>
+
+			{/* overlay sizes — each overlay is its own OBS source; size for 1080p here,
+			    drag to place in OBS */}
+			<div className="mt-5 border-t border-border pt-4">
+				<div className="text-xs font-medium">Overlay sizes</div>
+				<p className="mt-1 text-xs text-muted-foreground">
+					Each overlay is a separate OBS browser source — drag them where you want, and size them
+					here for your 1080p scene.
+				</p>
+				<div className="mt-3 flex flex-col gap-3">
+					{SCALE_FIELDS.map(({ key, label }) => {
+						const value = clampScale(theme[key]);
+						return (
+							<label key={key} htmlFor={`scale-${key}`} className="flex flex-col gap-1 text-xs">
+								<span className="flex items-center justify-between">
+									<span className="font-medium text-foreground">{label}</span>
+									<span className="font-mono text-muted-foreground tabular-nums">
+										{Math.round(value * 100)}%
+									</span>
+								</span>
+								<input
+									id={`scale-${key}`}
+									type="range"
+									min={MIN_SCALE}
+									max={MAX_SCALE}
+									step={0.05}
+									value={value}
+									onChange={(e) => onChange({ ...theme, [key]: Number(e.target.value) })}
+									className="w-full accent-primary"
+								/>
+							</label>
+						);
+					})}
 				</div>
 			</div>
 		</div>

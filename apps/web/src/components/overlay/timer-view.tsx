@@ -1,6 +1,12 @@
 "use client";
 
-import { expandHex, FONT_STACKS, gradientCss, type ThemeCorners } from "@wolfathon/api/theme";
+import {
+	clampScale,
+	expandHex,
+	FONT_STACKS,
+	gradientCss,
+	type ThemeCorners,
+} from "@wolfathon/api/theme";
 import { type EmoteDirection, pad2, type PublicTimer, splitDuration } from "@wolfathon/api/timer";
 import { env } from "@wolfathon/env/web";
 import { Flag, Pause, Play } from "lucide-react";
@@ -28,7 +34,7 @@ const CORNER_RADII: Record<ThemeCorners, string> = {
 };
 
 /**
- * Subathon timer overlay — a single horizontal gradient capsule. Timestamp-
+ * Wolfathon timer overlay — a single horizontal gradient capsule. Timestamp-
  * driven: it counts down locally from `endsAt` (correcting browser-clock skew
  * via `serverNow`) and only resyncs on the page's poll — smooth to the frame,
  * no websocket.
@@ -122,13 +128,18 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 			? "rgba(120,40,70,0.5)"
 			: "rgba(58,68,92,0.45)";
 	const boxShadow = `0 0.8cqw 2.6cqw rgba(4,9,24,0.5), 0 0 2.6cqw ${glow}`;
+	// Operator-tunable capsule width for 1080p placement (drag the source in OBS).
+	const scale = clampScale(data.timerScale);
 
 	return (
 		<div
 			className="pointer-events-none absolute inset-0 flex select-none items-center justify-center"
 			style={{ fontFamily }}
 		>
-			<div className="relative w-[86cqw] max-w-[1560px]">
+			<div
+				className="relative"
+				style={{ width: `${86 * scale}cqw`, maxWidth: `${1560 * scale}px` }}
+			>
 				{/* the capsule — its OWN container, fixed aspect, clips the emote flood.
 				    Glow is a box-shadow (no second rounded element → no double border). */}
 				<div
@@ -155,7 +166,7 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 					{flash && (
 						<div className="pointer-events-none absolute inset-0">
 							{fillParticles(emojis, flash.id, data.emoteCount).map((p) =>
-								renderParticle(p, data.emoteDirection),
+								renderParticle(p, data.emoteDirection, data.emoteScale),
 							)}
 						</div>
 					)}
@@ -303,8 +314,13 @@ function fillParticles(emojis: string[], seed: number, count = 26) {
 	}));
 }
 
-/** Render one flood emote, positioned + animated for the chosen direction. */
-function renderParticle(p: FillParticle, dir: EmoteDirection) {
+/**
+ * Render one flood emote, positioned + animated for the chosen direction.
+ * `scale` (1/2/3) multiplies the glyph size so the operator can make the burst
+ * read bigger on a 1080p source.
+ */
+function renderParticle(p: FillParticle, dir: EmoteDirection, scale = 1) {
+	const size = p.size * scale;
 	const common = {
 		filter: "drop-shadow(0 0.3cqh 0.6cqh rgba(0,0,0,0.35))",
 		"--fill-spin": `${p.spin}deg`,
@@ -330,7 +346,7 @@ function renderParticle(p: FillParticle, dir: EmoteDirection) {
 					} as React.CSSProperties
 				}
 			>
-				<Glyph e={p.e} size={p.size} />
+				<Glyph e={p.e} size={size} />
 			</span>
 		);
 	}
@@ -341,7 +357,7 @@ function renderParticle(p: FillParticle, dir: EmoteDirection) {
 			className="animate-wolf-fill absolute bottom-0 will-change-transform"
 			style={{ ...common, left: `${p.left}%`, "--fill-x": `${p.x}cqw` } as React.CSSProperties}
 		>
-			<Glyph e={p.e} size={p.size} />
+			<Glyph e={p.e} size={size} />
 		</span>
 	);
 }

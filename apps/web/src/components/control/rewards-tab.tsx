@@ -82,7 +82,9 @@ export function RewardsTab() {
 			<div className="flex flex-col gap-6">
 				{!draft && isError && (
 					<div role="status" className="rounded-2xl panel-card p-5">
-						<h2 className="font-heading text-lg font-bold">Couldn&apos;t load the subathon data</h2>
+						<h2 className="font-heading text-lg font-bold">
+							Couldn&apos;t load the Wolfathon data
+						</h2>
 						<p className="mt-1 text-sm text-muted-foreground">
 							The goals failed to load. Check your connection and try again.
 						</p>

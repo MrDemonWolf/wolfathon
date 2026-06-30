@@ -4,17 +4,31 @@ import {
 	addWinner,
 	applyConfig,
 	applyGiveawayEvent,
+	CLAIM_WINDOW_MS,
+	claimPending,
 	defaultGiveawayDoc,
 	drawRaffle,
+	expirePending,
 	parseGiveawayEvent,
 	qualifyingGifters,
 	removeWinner,
 	rerollRaffle,
+	resetPool,
 	resetRound,
 	setShipped,
 	setWinnerNote,
 	startGiveaway,
 } from "./giveaway";
+
+/** A 3-entrant, open, started doc — the common fixture for the raffle/claim tests. */
+function poolOf(logins: string[]) {
+	let doc = startGiveaway(defaultGiveawayDoc(), 0);
+	doc.config.open = true;
+	for (const login of logins) {
+		doc = applyGiveawayEvent(doc, { kind: "entry", login, name: login }, 0);
+	}
+	return doc;
+}
 
 test("gifts are ignored until the round is started", () => {
 	let doc = defaultGiveawayDoc(); // startedAt null
@@ -195,6 +209,7 @@ test("resetRound clears gifters/entrants/winners and un-starts/closes the round"
 	expect(reset.gifters).toHaveLength(0);
 	expect(reset.entrants).toHaveLength(0);
 	expect(reset.winners).toHaveLength(0);
+	expect(reset.pendingClaim).toBeNull(); // claim cleared too
 	expect(reset.startedAt).toBeNull(); // gifts wait for the next Start
 	expect(reset.config.open).toBe(false); // entries closed
 	expect(reset.config.command).toBe(doc.config.command); // rest of config kept
@@ -227,4 +242,94 @@ test("rerollRaffle keeps the winner when there's no one else to draw", () => {
 	const stuck = rerollRaffle(drawn.doc, id, 200, () => 0);
 	expect(stuck.winner).toBeNull();
 	expect(stuck.doc.winners.map((w) => w.login)).toEqual(["solo"]);
+});
+
+test("drawRaffle arms a pending claim pointing at the new winner", () => {
+	const doc = poolOf(["a", "b"]);
+	const { doc: next, winner } = drawRaffle(doc, 100, () => 0); // picks "a"
+	expect(winner!.login).toBe("a");
+	const pc = next.pendingClaim!;
+	expect(pc).toMatchObject({ login: "a", name: "a", drawnAt: 100, announced: false });
+	// winnerId resolves to the freshly-added winner row
+	expect(pc.winnerId).toBe(next.winners.find((w) => w.login === "a")!.id);
+	expect(pc.timedOut).toBeUndefined();
+});
+
+test("an empty-pool draw leaves no pending claim", () => {
+	const { doc, winner } = drawRaffle(defaultGiveawayDoc(), 5, () => 0);
+	expect(winner).toBeNull();
+	expect(doc.pendingClaim).toBeNull();
+});
+
+test("rerollRaffle re-arms the pending claim for the new winner", () => {
+	const doc = poolOf(["a", "b"]);
+	const drawn = drawRaffle(doc, 100, () => 0); // "a"
+	const id = drawn.doc.winners[0]!.id;
+	const re = rerollRaffle(drawn.doc, id, 200, () => 0); // → "b"
+	expect(re.winner!.login).toBe("b");
+	expect(re.doc.pendingClaim).toMatchObject({ login: "b", drawnAt: 200, announced: false });
+	expect(re.doc.pendingClaim!.winnerId).toBe(re.doc.winners.find((w) => w.login === "b")!.id);
+});
+
+test("claimPending marks claimed for the matching login within the window", () => {
+	const drawn = drawRaffle(poolOf(["a", "b"]), 100, () => 0); // pending "a"
+	// wrong login → no claim, doc untouched
+	const wrong = claimPending(drawn.doc, "b", 100 + 1000);
+	expect(wrong.claimed).toBe(false);
+	expect(wrong.doc.pendingClaim).not.toBeNull();
+	// right login, in-window (login is lowercased) → claimed, pending cleared
+	const ok = claimPending(drawn.doc, "A", 100 + CLAIM_WINDOW_MS);
+	expect(ok.claimed).toBe(true);
+	expect(ok.doc.pendingClaim).toBeNull();
+});
+
+test("claimPending rejects a claim after the window lapses", () => {
+	const drawn = drawRaffle(poolOf(["a", "b"]), 100, () => 0);
+	const late = claimPending(drawn.doc, "a", 100 + CLAIM_WINDOW_MS + 1);
+	expect(late.claimed).toBe(false);
+	expect(late.doc.pendingClaim).not.toBeNull(); // still pending → operator can redraw
+});
+
+test("claimPending is a no-op when nothing is pending", () => {
+	const { claimed, doc } = claimPending(defaultGiveawayDoc(), "a", 0);
+	expect(claimed).toBe(false);
+	expect(doc.pendingClaim).toBeNull();
+});
+
+test("expirePending flips only once the window has lapsed", () => {
+	const drawn = drawRaffle(poolOf(["a", "b"]), 100, () => 0);
+	expect(expirePending(drawn.doc, 100 + CLAIM_WINDOW_MS)).toBe(false); // exactly at edge
+	expect(expirePending(drawn.doc, 100 + CLAIM_WINDOW_MS + 1)).toBe(true);
+	expect(expirePending(defaultGiveawayDoc(), 1e9)).toBe(false); // nothing pending
+});
+
+test("removeWinner clears a pending claim that gated the removed winner", () => {
+	const drawn = drawRaffle(poolOf(["a", "b"]), 100, () => 0); // pending "a"
+	const id = drawn.doc.pendingClaim!.winnerId;
+	const gone = removeWinner(drawn.doc, id);
+	expect(gone.winners.some((w) => w.id === id)).toBe(false);
+	expect(gone.pendingClaim).toBeNull(); // no dangling claim
+});
+
+test("removeWinner keeps a pending claim that gated a different winner", () => {
+	let doc = poolOf(["a", "b", "c"]);
+	doc = addWinner(doc, { login: "z", name: "Z", source: "gift" }, 1);
+	const giftId = doc.winners.find((w) => w.login === "z")!.id;
+	const drawn = drawRaffle(doc, 100, () => 0); // pending raffle "a"
+	const gone = removeWinner(drawn.doc, giftId); // remove the unrelated gift winner
+	expect(gone.pendingClaim).not.toBeNull();
+	expect(gone.pendingClaim!.login).toBe("a");
+});
+
+test("resetPool empties entrants + pending claim but keeps the round + winners", () => {
+	let doc = poolOf(["a", "b"]);
+	doc = addWinner(doc, { login: "z", name: "Z", source: "gift" }, 1);
+	const drawn = drawRaffle(doc, 100, () => 0); // pending "a", raffle + gift winners present
+
+	const cleared = resetPool(drawn.doc);
+	expect(cleared.entrants).toHaveLength(0);
+	expect(cleared.pendingClaim).toBeNull();
+	expect(cleared.startedAt).toBe(0); // round still started
+	expect(cleared.config.open).toBe(true); // entries stay open for a fresh wave
+	expect(cleared.winners.map((w) => w.login).sort()).toEqual(["a", "z"]); // winners kept
 });

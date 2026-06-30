@@ -32,7 +32,7 @@ import { controlTrpc, queryClient } from "@/utils/trpc";
 const SOURCES = [
 	{
 		icon: Gauge,
-		title: "Subathon timer",
+		title: "Wolfathon timer",
 		path: "/overlay/timer",
 		// Matches the capsule's locked 131:20 aspect so the bar nearly fills the source.
 		size: "1310×200",
