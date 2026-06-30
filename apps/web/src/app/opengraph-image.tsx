@@ -12,44 +12,40 @@ const WOLF_MARK = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64
 export default function OpengraphImage() {
 	const mark = `data:image/svg+xml;base64,${btoa(WOLF_MARK)}`;
 	return new ImageResponse(
-		(
+		<div
+			style={{
+				width: "100%",
+				height: "100%",
+				display: "flex",
+				flexDirection: "column",
+				alignItems: "center",
+				justifyContent: "center",
+				gap: 28,
+				backgroundColor: "#0a0f1c",
+				backgroundImage:
+					"radial-gradient(60% 50% at 50% 0%, rgba(0,172,237,0.18), transparent 70%)",
+				color: "#f1f5f9",
+				fontFamily: "sans-serif",
+			}}
+		>
+			{/* eslint-disable-next-line @next/next/no-img-element */}
+			<img src={mark} width={150} height={150} alt="" />
 			<div
 				style={{
-					width: "100%",
-					height: "100%",
-					display: "flex",
-					flexDirection: "column",
-					alignItems: "center",
-					justifyContent: "center",
-					gap: 28,
-					backgroundColor: "#0a0f1c",
-					backgroundImage:
-						"radial-gradient(60% 50% at 50% 0%, rgba(0,172,237,0.18), transparent 70%)",
-					color: "#f1f5f9",
-					fontFamily: "sans-serif",
+					fontSize: 30,
+					letterSpacing: 8,
+					textTransform: "uppercase",
+					color: "#00aced",
+					fontWeight: 700,
 				}}
 			>
-				{/* eslint-disable-next-line @next/next/no-img-element */}
-				<img src={mark} width={150} height={150} alt="" />
-				<div
-					style={{
-						fontSize: 30,
-						letterSpacing: 8,
-						textTransform: "uppercase",
-						color: "#00aced",
-						fontWeight: 700,
-					}}
-				>
-					MrDemonWolf presents
-				</div>
-				<div style={{ fontSize: 84, fontWeight: 800, letterSpacing: -2 }}>
-					The Wolf Pack Subathon
-				</div>
-				<div style={{ fontSize: 32, color: "#94a3b8" }}>
-					Live subathon timer, rewards &amp; giveaways
-				</div>
+				MrDemonWolf presents
 			</div>
-		),
+			<div style={{ fontSize: 84, fontWeight: 800, letterSpacing: -2 }}>The Wolf Pack Subathon</div>
+			<div style={{ fontSize: 32, color: "#94a3b8" }}>
+				Live subathon timer, rewards &amp; giveaways
+			</div>
+		</div>,
 		{ ...size },
 	);
 }
