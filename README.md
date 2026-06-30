@@ -140,11 +140,11 @@ the old URLs (re-paste the new ones into OBS). If a source ever shows a small
 Each source also has an **Open in new tab** button to preview the live overlay
 in a browser without wiring up OBS first.
 
-| Source  | URL                    | Size (W×H)  | Shows                                                         |
-| ------- | ---------------------- | ----------- | ------------------------------------------------------------- |
+| Source  | URL                    | Size (W×H)  | Shows                                                        |
+| ------- | ---------------------- | ----------- | ------------------------------------------------------------ |
 | Timer   | `/overlay/timer?t=…`   | `1310×200`  | Compact countdown bar (D/H/M/S); emotes flood it on each add |
-| Rewards | `/overlay/rewards?t=…` | `1920×1080` | Current reward name + unlock celebration                      |
-| Wheel   | `/overlay/wheel?t=…`   | `1080×1080` | Wheel of dares; whirls to the result when you spin            |
+| Rewards | `/overlay/rewards?t=…` | `1920×1080` | Current reward name + unlock celebration                     |
+| Wheel   | `/overlay/wheel?t=…`   | `1080×1080` | Wheel of dares; whirls to the result when you spin           |
 
 The timer is a self-contained widget that fills its source, so resize the
 browser source itself to move or scale the bar — no full-screen canvas needed.
@@ -225,11 +225,11 @@ half (minimal form):
 
 ```json
 {
-  "goals": [
-    { "reward": "Q&A", "note": "1 sub" },
-    { "reward": "Onesie reveal", "note": "10 subs" },
-    { "reward": "Stretch goal", "note": "dream" }
-  ]
+	"goals": [
+		{ "reward": "Q&A", "note": "1 sub" },
+		{ "reward": "Onesie reveal", "note": "10 subs" },
+		{ "reward": "Stretch goal", "note": "dream" }
+	]
 }
 ```
 
@@ -237,24 +237,24 @@ The timer half:
 
 ```json
 {
-  "startMinutes": 60,
-  "maxMinutes": 0,
-  "sub": { "t1": 5, "t2": 10, "t3": 25, "prime": 5 },
-  "giftSubMinutes": 5,
-  "bitsPer100Minutes": 1,
-  "channelPoints": [{ "rewardTitle": "Add 5 minutes", "minutes": 5 }]
+	"startMinutes": 60,
+	"maxMinutes": 0,
+	"sub": { "t1": 5, "t2": 10, "t3": 25, "prime": 5 },
+	"giftSubMinutes": 5,
+	"bitsPer100Minutes": 1,
+	"channelPoints": [{ "rewardTitle": "Add 5 minutes", "minutes": 5 }]
 }
 ```
 
 ### What the rewards overlay shows
 
-| Element           | Shown on stream                                    |
-| ----------------- | -------------------------------------------------- |
-| Current reward    | The next locked goal's `reward` name, prominently  |
-| Unlocked rewards  | A dimmed row of already-unlocked `reward` names    |
-| Future goals      | Hidden entirely                                    |
-| Numbers / amounts | Never shown                                        |
-| `note` field      | Never sent to the browser                          |
+| Element           | Shown on stream                                   |
+| ----------------- | ------------------------------------------------- |
+| Current reward    | The next locked goal's `reward` name, prominently |
+| Unlocked rewards  | A dimmed row of already-unlocked `reward` names   |
+| Future goals      | Hidden entirely                                   |
+| Numbers / amounts | Never shown                                       |
+| `note` field      | Never sent to the browser                         |
 
 ### Wheel of dares
 
@@ -285,13 +285,13 @@ subscription, so the broadcaster account must stay connected.
 
 Five built-in commands ship, each with an enable toggle and editable triggers:
 
-| Command      | Aliases                      | Reply                                               |
-| ------------ | ---------------------------- | --------------------------------------------------- |
-| `!wolfathon` | `!subathon` `!wolf` `!about` | editable text — what the event is                   |
-| `!giveaway`  | `!gw` `!giveaways`           | editable text — paste your giveaway link here       |
-| `!timer`     | `!time`                      | live time left on the subathon                      |
-| `!goals`     | —                            | live next-reward progress (next target only)        |
-| `!wheel`     | `!dares`                     | the Howlwheel, with the live dare count             |
+| Command      | Aliases                      | Reply                                         |
+| ------------ | ---------------------------- | --------------------------------------------- |
+| `!wolfathon` | `!subathon` `!wolf` `!about` | editable text — what the event is             |
+| `!giveaway`  | `!gw` `!giveaways`           | editable text — paste your giveaway link here |
+| `!timer`     | `!time`                      | live time left on the subathon                |
+| `!goals`     | —                            | live next-reward progress (next target only)  |
+| `!wheel`     | `!dares`                     | the Howlwheel, with the live dare count       |
 
 The live commands (`!timer`/`!goals`/`!wheel`) don't take free text — pick one
 of a few built-in **reply formats** per command. A master switch turns the
