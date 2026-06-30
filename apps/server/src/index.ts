@@ -3,6 +3,7 @@ import { createContext } from "@wolfathon/api/context";
 import { applyGiveawayEvent, parseGiveawayEvent } from "@wolfathon/api/giveaway";
 import { publicRouter } from "@wolfathon/api/routers/index";
 import { autoPause, autoResume } from "@wolfathon/api/timer";
+import { isAllowedEmoteUrl } from "@wolfathon/api/timer";
 import { parseEvent, verifyEventsubSignature } from "@wolfathon/api/twitch";
 import {
 	applyTimerEventAndBumpSubs,
@@ -145,6 +146,55 @@ app.post("/twitch/eventsub", async (c) => {
 		return c.body(null, 204);
 	}
 	return c.body(null, 204);
+});
+
+/**
+ * Self-hosted emote proxy. The overlays rewrite each Twitch/3rd-party emote image
+ * to `/emote?u=<cdn url>`; we serve it from R2, lazily mirroring on the first miss
+ * (cache-on-read) so a stream never depends on a third-party CDN staying up. `u`
+ * is gated to the emote-CDN allowlist (`isAllowedEmoteUrl`) so this can't proxy
+ * arbitrary hosts. Images are immutable per URL, so cache hard.
+ */
+const EMOTE_CACHE = "public, max-age=31536000, immutable";
+// Emote images are tiny (a few KB). Cap stored/served bytes so the unauthenticated
+// proxy can't be coerced into mirroring large bodies into R2.
+const EMOTE_MAX_BYTES = 2_000_000;
+app.get("/emote", async (c) => {
+	const u = c.req.query("u");
+	if (!u || !isAllowedEmoteUrl(u)) return c.text("bad emote url", 400);
+	// Canonicalize to origin+path (host already allowlisted): dropping query +
+	// fragment stops `?u=…?x=1`, `…?x=2`, … from minting unbounded distinct R2 keys
+	// for one image (open-cache write/cost amplification).
+	const parsed = new URL(u);
+	const src = parsed.origin + parsed.pathname;
+	const key = src.slice("https://".length);
+
+	const hit = await env.EMOTES.get(key);
+	if (hit) {
+		return new Response(hit.body, {
+			headers: {
+				"content-type": hit.httpMetadata?.contentType ?? "image/png",
+				"cache-control": EMOTE_CACHE,
+			},
+		});
+	}
+
+	// redirect:"manual" so an allowlisted CDN can't 3xx us onto an off-allowlist
+	// host (isAllowedEmoteUrl only checks the initial URL). Any non-2xx — including
+	// a redirect — is treated as a miss/failure.
+	const res = await fetch(src, { redirect: "manual" });
+	if (!res.ok) return c.text("emote fetch failed", 502);
+	if (Number(res.headers.get("content-length") ?? "0") > EMOTE_MAX_BYTES) {
+		return c.text("emote too large", 502);
+	}
+	const body = await res.arrayBuffer();
+	if (body.byteLength > EMOTE_MAX_BYTES) return c.text("emote too large", 502);
+	const contentType = res.headers.get("content-type") ?? "image/png";
+	// Store for next time; serving doesn't block on a put failure.
+	await env.EMOTES.put(key, body, { httpMetadata: { contentType } }).catch(() => {});
+	return new Response(body, {
+		headers: { "content-type": contentType, "cache-control": EMOTE_CACHE },
+	});
 });
 
 app.get("/", (c) => c.text("Wolfathon public API — OK"));

@@ -51,6 +51,7 @@ export function RewardsTab() {
 					note: g.note,
 					unlocked: g.unlocked,
 					...(g.target != null ? { target: g.target } : {}),
+					...(g.hidden ? { hidden: g.hidden } : {}),
 				})),
 				currentSubs: draft.currentSubs,
 			},

@@ -28,6 +28,8 @@ const goalSchema = z.object({
 	note: z.string().optional(),
 	unlocked: z.boolean().optional(),
 	target: z.number().int().nonnegative().max(MAX_TARGET).nullable().optional(),
+	/** Operator-only: hide this reward from the overlay (a secret/surprise goal). */
+	hidden: z.boolean().optional(),
 });
 
 const dataSchema = z.object({
@@ -66,6 +68,7 @@ export const protectedRouter = router({
 				note: normalizeNote(g.note),
 				unlocked: g.unlocked ?? false,
 				...(g.target != null ? { target: g.target } : {}),
+				...(g.hidden ? { hidden: true } : {}),
 			}));
 			const currentSubs = input.currentSubs ?? existing.currentSubs ?? 0;
 			const { goals: bumpedGoals, bumped } = bumpPassedGoals(goals, currentSubs);

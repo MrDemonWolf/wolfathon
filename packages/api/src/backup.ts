@@ -52,5 +52,35 @@ export function splitBackupDoc(value: unknown): BackupSplit {
 	if (!hasRewards || !hasTimer) {
 		return { ok: false, message: "Backup needs both a `rewards` section and a `timer` section." };
 	}
-	return { ok: true, rewards: obj.rewards, timer: obj.timer };
+	return { ok: true, rewards: carryLegacyLabel(obj.rewards, obj.timer), timer: obj.timer };
+}
+
+/**
+ * Migration shim: the timer eyebrow `label` moved from `timer.config.label` to
+ * `rewards.theme.label`. A pre-migration backup carries the operator's custom
+ * label only on the timer half, so copy it onto the rewards theme (when that
+ * theme exists but has no label) before the per-half validators run — otherwise
+ * a restored backup silently resets the label to the default. Pure + non-mutating.
+ */
+function carryLegacyLabel(rewards: unknown, timer: unknown): unknown {
+	if (typeof rewards !== "object" || rewards === null || Array.isArray(rewards)) return rewards;
+	const r = rewards as Record<string, unknown>;
+	const theme = r.theme;
+	if (typeof theme !== "object" || theme === null || Array.isArray(theme)) return rewards;
+	if (typeof (theme as Record<string, unknown>).label === "string") return rewards;
+	const legacy = legacyTimerLabel(timer);
+	if (legacy === undefined) return rewards;
+	return { ...r, theme: { ...(theme as Record<string, unknown>), label: legacy } };
+}
+
+/** Pull a non-empty `label` off a legacy timer half (`{ config: { label } }` or bare). */
+function legacyTimerLabel(timer: unknown): string | undefined {
+	if (typeof timer !== "object" || timer === null || Array.isArray(timer)) return undefined;
+	const t = timer as Record<string, unknown>;
+	const cfg = (typeof t.config === "object" && t.config !== null ? t.config : t) as Record<
+		string,
+		unknown
+	>;
+	const label = cfg.label;
+	return typeof label === "string" && label.trim() ? label : undefined;
 }

@@ -9,14 +9,53 @@ import {
 	stripNotes,
 	subsFromEvent,
 	validateImport,
+	withThemeDefaults,
 } from "./state";
-import { defaultOverlayTheme } from "./theme";
+import { defaultOverlayTheme, type OverlayTheme } from "./theme";
 
 test("recompute backfills a missing theme (pre-theme rows can't crash the editor)", () => {
 	const legacy = { goals: [], currentIndex: 0, currentSubs: 0 } as unknown as Data;
 	const data = recompute(legacy);
 	expect(data.theme).toBeDefined();
 	expect(data.theme.preset).toBe("brand");
+});
+
+test("withThemeDefaults backfills new fields on a pre-migration theme row", () => {
+	// An old stored theme: all the OLD keys, but no `label` and no `showLiveDot`.
+	const old = {
+		preset: "brand",
+		gradient: ["#000000", "#ffffff"],
+		textColor: "auto",
+		font: "inter",
+		corners: "rounded",
+		showLabel: true,
+		showStatus: false,
+		showUnits: true,
+		showProgressBar: true,
+		showUnlocked: true,
+	} as unknown as OverlayTheme;
+
+	const filled = withThemeDefaults(old);
+	expect(filled.label).toBe("SUBATHON"); // new field filled from defaults
+	expect(filled.showLiveDot).toBe(false); // inherited from the old combined showStatus
+	expect(filled.showLabel).toBe(true); // existing value preserved
+
+	// A pre-split row that had the status indicator ON keeps the dot ON.
+	expect(withThemeDefaults({ ...old, showStatus: true } as OverlayTheme).showLiveDot).toBe(true);
+	// No stored theme → full defaults.
+	expect(withThemeDefaults(undefined).label).toBe("SUBATHON");
+	expect(withThemeDefaults(undefined).showLiveDot).toBe(true);
+});
+
+test("validateImport preserves the per-goal hidden flag", () => {
+	const res = validateImport({
+		goals: [{ reward: "Secret reveal", hidden: true }, { reward: "Public goal" }],
+	});
+	expect(res.ok).toBe(true);
+	if (res.ok) {
+		expect(res.data.goals[0]?.hidden).toBe(true);
+		expect(res.data.goals[1]?.hidden).toBeUndefined();
+	}
 });
 
 test("stripNotes never leaks the internal note", () => {
@@ -59,6 +98,25 @@ test("stripNotes exposes the NEXT target + currentSubs but no other targets", ()
 	// Future ceilings (25) must never reach the wire.
 	expect(pub.goals.some((g) => (g as { target?: number }).target === 25)).toBe(false);
 	expect(pub.goals.every((g) => !("target" in g))).toBe(true);
+});
+
+test("stripNotes drops hidden goals and recomputes the next pointer past them", () => {
+	const pub = stripNotes({
+		goals: [
+			{ id: "a", reward: "Q&A", unlocked: true, target: 5 },
+			{ id: "b", reward: "Secret", unlocked: false, target: 8, hidden: true },
+			{ id: "c", reward: "Onesie", unlocked: false, target: 10 },
+		],
+		currentIndex: 1,
+		currentSubs: 7,
+		theme: defaultOverlayTheme(),
+	});
+	// Hidden goal is gone entirely — not even as the "next".
+	expect(pub.goals.map((g) => g.reward)).toEqual(["Q&A", "Onesie"]);
+	// Next pointer + target resolve over the visible list (Onesie, not the secret).
+	expect(pub.goals[pub.currentIndex]?.reward).toBe("Onesie");
+	expect(pub.nextTarget).toBe(10);
+	expect(JSON.stringify(pub)).not.toContain("Secret");
 });
 
 test("subsFromEvent counts subs + gifts, ignores bits/points/manual", () => {
