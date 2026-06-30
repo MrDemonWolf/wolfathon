@@ -28,6 +28,20 @@ function qualifying(doc: GiveawayDoc) {
 		.sort((a, b) => (a.qualifiedAt ?? 0) - (b.qualifiedAt ?? 0));
 }
 
+/** One labelled number in the status strip. */
+function Stat({ label, value, accent }: { label: string; value: number; accent?: boolean }) {
+	return (
+		<div className="rounded-xl border border-border bg-muted/40 px-4 py-3">
+			<div
+				className={`font-heading text-2xl font-bold tabular-nums ${accent ? "text-primary" : ""}`}
+			>
+				{value}
+			</div>
+			<div className="eyebrow mt-0.5 text-[0.65rem]">{label}</div>
+		</div>
+	);
+}
+
 export function GiveawayTab() {
 	const rawOptions = controlTrpc.giveaway.getRaw.queryOptions(undefined, {
 		// Poll so live gifters / entrants appear without a manual refresh.
@@ -127,17 +141,60 @@ export function GiveawayTab() {
 
 	return (
 		<div className="flex flex-col gap-6">
-			<div className="flex flex-col gap-1">
-				<h2 className="font-heading text-lg font-bold">Giveaway</h2>
-				<p className="text-sm text-muted-foreground">
-					First {cfg.giftWinnerSlots} to gift {cfg.giftThreshold}+ subs win automatically (you
-					confirm); {cfg.raffleWinnerSlots} more by open chat raffle ({cfg.command}).
-				</p>
-			</div>
-
-			{/* Settings */}
+			{/* ── Status header ─────────────────────────────────────────────── */}
 			<div className="rounded-2xl panel-card p-5">
-				<div className="grid gap-4 sm:grid-cols-[1fr_auto_auto]">
+				<div className="flex flex-wrap items-start justify-between gap-3">
+					<div className="flex flex-col gap-1">
+						<span className="eyebrow text-[0.7rem]">Giveaway</span>
+						<h2 className="font-heading text-2xl font-bold leading-tight">Sticker giveaway</h2>
+						<p className="max-w-prose text-sm text-muted-foreground">
+							First {cfg.giftWinnerSlots} to gift {cfg.giftThreshold}+ subs win automatically (you
+							confirm); {cfg.raffleWinnerSlots} more by open chat raffle ({cfg.command}).
+						</p>
+					</div>
+					<Button
+						size="lg"
+						variant={cfg.open ? "destructive" : "default"}
+						onClick={() => setConfig.mutate({ open: !cfg.open })}
+						disabled={setConfig.isPending}
+					>
+						{cfg.open ? (
+							<>
+								<span className="relative mr-0.5 flex size-2">
+									<span className="absolute inline-flex size-full animate-ping rounded-full bg-current opacity-60" />
+									<span className="relative inline-flex size-2 rounded-full bg-current" />
+								</span>
+								Close entries
+							</>
+						) : (
+							"Open entries"
+						)}
+					</Button>
+				</div>
+
+				{/* Live counts */}
+				<div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+					<div className="col-span-2 flex items-center gap-2.5 rounded-xl border border-border bg-muted/40 px-4 py-3 sm:col-span-1">
+						<span
+							className={`relative flex size-2.5 ${cfg.open ? "text-primary" : "text-muted-foreground"}`}
+						>
+							{cfg.open && (
+								<span className="absolute inline-flex size-full animate-ping rounded-full bg-current opacity-60" />
+							)}
+							<span className="relative inline-flex size-2.5 rounded-full bg-current" />
+						</span>
+						<div>
+							<div className="font-heading font-bold">{cfg.open ? "OPEN" : "CLOSED"}</div>
+							<div className="eyebrow text-[0.65rem]">{cfg.command}</div>
+						</div>
+					</div>
+					<Stat label="Entered" value={data.entrants.length} accent />
+					<Stat label="In pool" value={remainingEntrants} />
+					<Stat label="Gift-qualified" value={gifters.length} />
+				</div>
+
+				{/* Config */}
+				<div className="mt-4 grid gap-4 border-t border-border pt-4 sm:grid-cols-[1fr_auto_auto]">
 					<div className="flex flex-col gap-1.5">
 						<Label htmlFor="gv-cmd">Raffle command</Label>
 						<Input
@@ -168,24 +225,6 @@ export function GiveawayTab() {
 							Save
 						</Button>
 					</div>
-				</div>
-
-				<div className="mt-4 flex items-center justify-between rounded-xl border border-border p-3">
-					<div>
-						<div className="font-medium">Entries {cfg.open ? "open" : "closed"}</div>
-						<div className="text-xs text-muted-foreground">
-							{cfg.open
-								? `Accepting ${cfg.command} — ${data.entrants.length} entered`
-								: `${cfg.command} is ignored until you open entries`}
-						</div>
-					</div>
-					<Button
-						variant={cfg.open ? "destructive" : "default"}
-						onClick={() => setConfig.mutate({ open: !cfg.open })}
-						disabled={setConfig.isPending}
-					>
-						{cfg.open ? "Close entries" : "Open entries"}
-					</Button>
 				</div>
 			</div>
 
@@ -244,10 +283,7 @@ export function GiveawayTab() {
 					{remainingEntrants} eligible {remainingEntrants === 1 ? "entry" : "entries"} in the pool.
 				</p>
 				<div className="mt-3 flex flex-wrap items-center gap-2">
-					<Button
-						onClick={() => draw.mutate()}
-						disabled={draw.isPending || remainingEntrants === 0}
-					>
+					<Button onClick={() => draw.mutate()} disabled={draw.isPending || remainingEntrants === 0}>
 						{draw.isPending ? (
 							<Loader2 className="size-4 animate-spin" />
 						) : (
