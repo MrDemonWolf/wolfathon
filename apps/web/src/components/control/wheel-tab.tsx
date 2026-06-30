@@ -2,7 +2,13 @@
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { WheelSlot } from "@wolfathon/api/wheel";
-import { MAX_LABEL_LEN, MAX_SLOTS, MAX_WEIGHT, slotColor } from "@wolfathon/api/wheel";
+import {
+	MAX_LABEL_LEN,
+	MAX_SLOTS,
+	MAX_WEIGHT,
+	slotColor,
+	toPublicWheel,
+} from "@wolfathon/api/wheel";
 import { Button } from "@wolfathon/ui/components/button";
 import { Checkbox } from "@wolfathon/ui/components/checkbox";
 import { Input } from "@wolfathon/ui/components/input";
@@ -11,6 +17,7 @@ import { ChevronDown, ChevronUp, Dices, GripVertical, Loader2, Plus, Trash2 } fr
 import { type DragEvent, useState } from "react";
 import { toast } from "sonner";
 
+import { WheelView } from "@/components/overlay/wheel-view";
 import { controlTrpc, queryClient } from "@/utils/trpc";
 
 export function WheelTab() {
@@ -19,6 +26,9 @@ export function WheelTab() {
 		refetchInterval: 3000,
 	});
 	const { data, isError, refetch } = useQuery(rawOptions);
+	// The mini wheel mirrors the overlay chrome — pull the shared overlay theme
+	// (same source the overlay uses); undefined until loaded, WheelView defaults it.
+	const { data: appState } = useQuery(controlTrpc.state.getRaw.queryOptions());
 	const invalidate = () => queryClient.invalidateQueries({ queryKey: rawOptions.queryKey });
 	// Every mutation surfaces failures — the panel polls every 3s, so a silently
 	// rejected save/spin would otherwise just look like nothing happened.
@@ -104,8 +114,18 @@ export function WheelTab() {
 				</p>
 			</div>
 
-			{/* Spin */}
-			<div className="rounded-2xl panel-card p-5">
+			{/* Spin — with a live mini wheel that plays the same spin as the overlay
+			    (same toPublicWheel projection + pendingSpin channel, polled here). */}
+			<div className="flex flex-col items-center gap-4 rounded-2xl panel-card p-5">
+				{enabledCount > 0 ? (
+					<div className="@container relative aspect-square w-full max-w-[260px]">
+						<WheelView
+							slots={toPublicWheel(data).slots}
+							theme={appState?.theme}
+							pending={data.pendingSpin}
+						/>
+					</div>
+				) : null}
 				<Button
 					size="lg"
 					onClick={() => trigger.mutate({})}
