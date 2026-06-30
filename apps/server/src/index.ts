@@ -1,18 +1,41 @@
 import { trpcServer } from "@hono/trpc-server";
+import {
+	canRun,
+	dynamicTemplate,
+	fillTemplate,
+	goalsValue,
+	isPrivileged,
+	markRun,
+	matchCommand,
+	timerValue,
+	wheelValue,
+} from "@wolfathon/api/bot";
 import { createContext } from "@wolfathon/api/context";
 import { applyGiveawayEvent, parseGiveawayEvent } from "@wolfathon/api/giveaway";
 import { publicRouter } from "@wolfathon/api/routers/index";
 import { autoPause, autoResume } from "@wolfathon/api/timer";
 import { isAllowedEmoteUrl } from "@wolfathon/api/timer";
-import { parseEvent, verifyEventsubSignature } from "@wolfathon/api/twitch";
+import {
+	refreshUserToken,
+	sendChatMessage,
+	type TwitchDoc,
+	TwitchAuthError,
+	parseEvent,
+	verifyEventsubSignature,
+} from "@wolfathon/api/twitch";
 import {
 	applyTimerEventAndBumpSubs,
+	mutateBot,
 	mutateGiveaway,
 	mutateTimer,
 	mutateTwitch,
+	readBot,
+	readState,
+	readTimer,
+	readWheel,
 	readTwitch,
 } from "@wolfathon/api/store";
-import { createDb } from "@wolfathon/db";
+import { createDb, type Db } from "@wolfathon/db";
 import { env } from "@wolfathon/env/server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -143,6 +166,17 @@ app.post("/twitch/eventsub", async (c) => {
 				return gEvent ? applyGiveawayEvent(giveaway, gEvent, now) : giveaway;
 			});
 		}
+		// Chat-bot replies. A "!"-prefixed chat line may trigger a bot command; the
+		// reply (a Twitch API call) runs in waitUntil so the webhook returns its 2xx
+		// immediately. The message id is already deduped above, so a Twitch retry
+		// won't double-reply.
+		if (
+			type === "channel.chat.message" &&
+			typeof chatText === "string" &&
+			chatText.trim().startsWith("!")
+		) {
+			c.executionCtx.waitUntil(handleBotCommand(db, twitch, event, now));
+		}
 		return c.body(null, 204);
 	}
 	return c.body(null, 204);
@@ -198,5 +232,120 @@ app.get("/emote", async (c) => {
 });
 
 app.get("/", (c) => c.text("Wolfathon public API — OK"));
+
+/**
+ * Match a "!" chat command and reply as the connected bot account. Reading chat
+ * is free (the broadcaster's existing `channel.chat.message` subscription); only
+ * the SEND needs the bot's token. Live commands render fresh timer/goal/wheel
+ * data; text commands use the operator's stored reply.
+ */
+async function handleBotCommand(
+	db: Db,
+	twitch: TwitchDoc,
+	event: Record<string, unknown>,
+	now: number,
+): Promise<void> {
+	const bot = await readBot(db);
+	const text =
+		typeof (event.message as { text?: unknown } | undefined)?.text === "string"
+			? (event.message as { text: string }).text
+			: "";
+	const cmd = matchCommand(bot, text);
+	if (!cmd) return;
+
+	// Never react to the bot's own messages (its replies don't start with "!", but
+	// guard anyway against a self-trigger loop).
+	if (twitch.bot && event.chatter_user_id === twitch.bot.userId) return;
+
+	// Need a connected bot account, a known channel, and app creds to send at all.
+	if (!twitch.bot || !twitch.broadcasterId || !env.TWITCH_CLIENT_ID) return;
+
+	let reply: string;
+	if (cmd.dynamic === "timer") {
+		reply = fillTemplate(
+			dynamicTemplate("timer", cmd.formatKey),
+			timerValue(await readTimer(db), now),
+		);
+	} else if (cmd.dynamic === "goals") {
+		reply = fillTemplate(dynamicTemplate("goals", cmd.formatKey), goalsValue(await readState(db)));
+	} else if (cmd.dynamic === "wheel") {
+		reply = fillTemplate(dynamicTemplate("wheel", cmd.formatKey), wheelValue(await readWheel(db)));
+	} else {
+		reply = cmd.response;
+	}
+	if (!reply.trim()) return;
+
+	const privileged = isPrivileged(event);
+	// Anti-spam: normal viewers share a per-command cooldown; broadcaster/mod/VIP
+	// bypass it. Claim the slot ATOMICALLY before sending — CAS serializes
+	// concurrent deliveries so a burst can't double-reply. Trade-off: a
+	// claimed-then-failed send consumes the window, which is rarer (and less
+	// annoying) than the double-reply it prevents.
+	if (!privileged) {
+		let allowed = false;
+		await mutateBot(db, (d) => {
+			const c = d.commands.find((x) => x.id === cmd.id);
+			const ok = !!c && canRun(c, d.cooldownSeconds, now, false);
+			allowed = ok;
+			return ok ? markRun(d, cmd.id, now) : d;
+		});
+		if (!allowed) return;
+	}
+
+	const token = await ensureBotToken(db, twitch.bot);
+	if (!token) return;
+	await sendChatMessage({
+		clientId: env.TWITCH_CLIENT_ID,
+		botToken: token,
+		broadcasterId: twitch.broadcasterId,
+		senderId: twitch.bot.userId,
+		message: reply,
+	});
+}
+
+/**
+ * A valid bot user token, refreshing (and persisting the rotated tokens) when
+ * within a minute of expiry. Null if refresh fails — the caller skips the reply
+ * rather than send with a dead token. ponytail: a thundering herd of refreshes
+ * right at expiry would leave all-but-one failing; rare given the cooldown + low
+ * command volume, and the next command reads the persisted fresh token.
+ */
+async function ensureBotToken(db: Db, bot: NonNullable<TwitchDoc["bot"]>): Promise<string | null> {
+	if (Date.now() < bot.expiresAt - 60_000) return bot.accessToken;
+	if (!env.TWITCH_CLIENT_ID || !env.TWITCH_CLIENT_SECRET) return null;
+	try {
+		const t = await refreshUserToken({
+			clientId: env.TWITCH_CLIENT_ID,
+			clientSecret: env.TWITCH_CLIENT_SECRET,
+			refreshToken: bot.refreshToken,
+		});
+		const expiresAt = Date.now() + t.expiresIn * 1000;
+		await mutateTwitch(db, (d) =>
+			d.bot
+				? {
+						...d,
+						bot: {
+							...d.bot,
+							accessToken: t.accessToken,
+							refreshToken: t.refreshToken,
+							expiresAt,
+							tokenInvalid: false,
+						},
+					}
+				: d,
+		);
+		return t.accessToken;
+	} catch (err) {
+		// A 4xx means the refresh token is permanently dead (revoked grant / changed
+		// password) — flag it so the dashboard prompts a reconnect instead of the bot
+		// silently no-opping forever. A 5xx/network blip is transient: leave the flag
+		// so the next command just retries.
+		const status = err instanceof TwitchAuthError ? err.status : 0;
+		if (status >= 400 && status < 500) {
+			await mutateTwitch(db, (d) => (d.bot ? { ...d, bot: { ...d.bot, tokenInvalid: true } } : d));
+		}
+		return null;
+	}
+}
 
 export default app;
