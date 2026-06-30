@@ -10,7 +10,9 @@ Keep the rewards flowing. Keep the clock ticking.
 
 ## Demo
 
-<video src="https://github.com/mrdemonwolf/wolfathon/raw/main/assets/demo.mp4" controls muted width="100%"></video>
+![Wolfathon demo](assets/demo.gif)
+
+[Watch the full video (with sound)](assets/demo.mp4)
 
 ## Features
 
