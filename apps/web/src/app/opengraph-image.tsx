@@ -3,7 +3,7 @@ import { ImageResponse } from "next/og";
 // Social share card for every route (links currently unfurl blank). Rendered at
 // request time by next/og — no binary asset to ship or keep in sync. The mark is
 // inlined as an SVG data URI (satori renders <img>, not arbitrary SVG children).
-export const alt = "The Wolf Pack Subathon — MrDemonWolf";
+export const alt = "The Wolf Pack Wolfathon — MrDemonWolf";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -41,9 +41,11 @@ export default function OpengraphImage() {
 			>
 				MrDemonWolf presents
 			</div>
-			<div style={{ fontSize: 84, fontWeight: 800, letterSpacing: -2 }}>The Wolf Pack Subathon</div>
+			<div style={{ fontSize: 84, fontWeight: 800, letterSpacing: -2 }}>
+				The Wolf Pack Wolfathon
+			</div>
 			<div style={{ fontSize: 32, color: "#94a3b8" }}>
-				Live subathon timer, rewards &amp; giveaways
+				Live Wolfathon timer, rewards &amp; giveaways
 			</div>
 		</div>,
 		{ ...size },

@@ -32,9 +32,9 @@ const inter = Inter({
 	display: "swap",
 });
 
-const TITLE = "The Wolf Pack Subathon — MrDemonWolf";
+const TITLE = "The Wolf Pack Wolfathon — MrDemonWolf";
 const DESCRIPTION =
-	"Join the Wolf Pack. Subathon timer, rewards, and giveaways for MrDemonWolf's stream.";
+	"Join the Wolf Pack. Wolfathon timer, rewards, and giveaways for MrDemonWolf's stream.";
 
 export const metadata: Metadata = {
 	// Absolute base so the auto-detected opengraph-image resolves for crawlers.

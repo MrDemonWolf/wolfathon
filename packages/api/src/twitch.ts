@@ -1,5 +1,5 @@
 /**
- * Twitch integration for the subathon timer.
+ * Twitch integration for the Wolfathon timer.
  *
  * Auth model (see README):
  *  - One confidential Twitch app. `client_id` + `client_secret` come from the
