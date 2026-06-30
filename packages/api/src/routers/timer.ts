@@ -56,10 +56,15 @@ export const timerRouter = router({
 			})),
 		),
 
-	/** Fire a configured event (the control panel's test buttons + EventSub reuse this shape). */
+	/**
+	 * Fire a configured event for the control panel's test buttons. This is a
+	 * preview: it drives the overlay alert so the overlay can be tested, but does
+	 * NOT add time or bump the sub count. Real events arrive via the EventSub
+	 * webhook, which calls `applyTimerEventAndBumpSubs` directly (no preview).
+	 */
 	applyEvent: protectedProcedure
 		.input(eventSchema)
-		.mutation(({ ctx, input }) => applyTimerEventAndBumpSubs(ctx.db, input, Date.now())),
+		.mutation(({ ctx, input }) => applyTimerEventAndBumpSubs(ctx.db, input, Date.now(), true)),
 
 	/** Validate a config import without writing (powers the Validate button). */
 	validateConfig: protectedProcedure.input(z.unknown()).mutation(({ input }) => {

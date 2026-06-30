@@ -253,13 +253,15 @@ export async function applyTimerEventAndBumpSubs(
 	db: Db,
 	event: TimerEvent,
 	now: number,
+	preview = false,
 ): Promise<TimerDoc> {
 	const doc = await mutateTimer(db, (timer) => ({
 		...timer,
-		state: applyEvent(timer.config, timer.state, event, now).state,
+		state: applyEvent(timer.config, timer.state, event, now, preview).state,
 	}));
-	// Sub/gift events also advance the reward goals' running sub count.
-	const subs = subsFromEvent(event);
+	// Sub/gift events also advance the reward goals' running sub count — but a
+	// preview (test button) must not move that either.
+	const subs = preview ? 0 : subsFromEvent(event);
 	if (subs > 0) {
 		await mutateState(db, (data) => ({ ...data, currentSubs: (data.currentSubs ?? 0) + subs }));
 	}
