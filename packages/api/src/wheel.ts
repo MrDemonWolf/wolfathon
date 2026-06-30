@@ -15,6 +15,7 @@
  * `enabledSlots(doc)` in identical order, so an index always names one slot.
  */
 
+import { secureRandom } from "./random";
 import { expandHex, HEX_COLOR } from "./theme";
 
 export type WheelSlot = {
@@ -343,7 +344,7 @@ export function resolveSpin(
 ): { doc: WheelDoc; winner: WheelSlot | null; targetIndex: number } {
 	const enabled = enabledSlots(doc);
 	if (enabled.length === 0) return { doc, winner: null, targetIndex: -1 };
-	const rand = opts.rand ?? Math.random;
+	const rand = opts.rand ?? secureRandom;
 	let targetIndex =
 		opts.slotId !== undefined
 			? enabled.findIndex((s) => s.id === opts.slotId)
