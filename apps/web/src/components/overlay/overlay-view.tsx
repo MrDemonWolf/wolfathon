@@ -1,7 +1,13 @@
 "use client";
 
 import type { PublicData } from "@wolfathon/api/state";
-import { expandHex, FONT_STACKS, gradientCss, type ThemeCorners } from "@wolfathon/api/theme";
+import {
+	clampScale,
+	expandHex,
+	FONT_STACKS,
+	gradientCss,
+	type ThemeCorners,
+} from "@wolfathon/api/theme";
 import { Check } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -73,13 +79,19 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 	const ink = data.textColor === "auto" || !isHex ? "#ffffff" : data.textColor;
 	const fontFamily = FONT_STACKS[data.font] ?? FONT_STACKS.montserrat;
 	const radius = CARD_RADII[data.corners] ?? CARD_RADII.rounded;
+	// Operator-tunable card size for 1080p. Scales from the bottom-left corner so
+	// the card stays pinned where it sits while growing/shrinking.
+	const scale = clampScale(data.rewardsScale);
 
 	return (
 		<div className="pointer-events-none absolute inset-0 select-none" style={{ fontFamily }}>
 			{/* Floating reward card. Hidden until goals exist so an unconfigured
           tracker never broadcasts a false "All Rewards Unlocked". */}
 			{hasGoals && (
-				<div className="absolute bottom-[4cqw] left-[4cqw] max-w-[48cqw]">
+				<div
+					className="absolute bottom-[4cqw] left-[4cqw] max-w-[48cqw]"
+					style={{ transform: `scale(${scale})`, transformOrigin: "bottom left" }}
+				>
 					<div
 						className="relative overflow-hidden border bg-gradient-to-br from-[#0b1a3d]/90 to-[#060f24]/90 backdrop-blur-xl"
 						style={{
@@ -198,6 +210,7 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 							borderColor: `${accent}4d`,
 							borderRadius: radius,
 							boxShadow: `0 1cqw 4cqw rgba(4,9,24,0.55), 0 0 4cqw ${accent}40`,
+							transform: `scale(${scale})`,
 						}}
 					>
 						<div
