@@ -1,5 +1,10 @@
 import { createDb } from "@wolfathon/db";
-import { exchangeCode, finalizeConnection, timingSafeEqual } from "@wolfathon/api/twitch";
+import {
+	exchangeCode,
+	finalizeConnection,
+	getBroadcaster,
+	timingSafeEqual,
+} from "@wolfathon/api/twitch";
 import { readTwitch, writeTwitch } from "@wolfathon/api/store";
 import { type WebBindings } from "@wolfathon/env/web";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
@@ -19,12 +24,23 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
 	const url = new URL(req.url);
+	// The bot account uses the SAME callback with a `bot.`-prefixed state; route by
+	// it so a bot connect lands back on the Bot tab, not the Twitch tab.
+	const rawState = url.searchParams.get("state") ?? "";
+	const isBot = rawState.startsWith("bot.");
 	const back = (status: string) =>
-		NextResponse.redirect(new URL(`/dashboard/settings/twitch?twitch=${status}`, url.origin));
+		NextResponse.redirect(
+			new URL(
+				isBot
+					? `/dashboard/settings/bot?bot=${status}`
+					: `/dashboard/settings/twitch?twitch=${status}`,
+				url.origin,
+			),
+		);
 
 	const code = url.searchParams.get("code");
-	const state = url.searchParams.get("state");
-	// Twitch sends ?error=access_denied when the broadcaster cancels consent.
+	const state = rawState || null;
+	// Twitch sends ?error=access_denied when the user cancels consent.
 	if (url.searchParams.get("error") || !code || !state) return back("error");
 
 	const env = getCloudflareContext().env as unknown as WebBindings;
@@ -34,6 +50,43 @@ export async function GET(req: Request) {
 
 	const db = createDb(env.DB);
 	const doc = await readTwitch(db);
+
+	// ---- bot account connect (separate OAuth grant) -----------------------
+	if (isBot) {
+		// CSRF: match the `bot.`-prefixed state minted by bot.startAuth, then consume
+		// it single-use (clear before any await that could be replayed).
+		if (!doc.botOauthState || !timingSafeEqual(doc.botOauthState, state))
+			return back("state_error");
+		await writeTwitch(db, { ...doc, botOauthState: undefined });
+		try {
+			const tokens = await exchangeCode({
+				clientId: env.TWITCH_CLIENT_ID,
+				clientSecret: env.TWITCH_CLIENT_SECRET,
+				code,
+				redirectUri: `${url.origin}/api/twitch/callback`,
+			});
+			const account = await getBroadcaster(env.TWITCH_CLIENT_ID, tokens.accessToken);
+			// Re-read: finalizeConnection / other flows may have rewritten the doc
+			// during the awaits above; only touch the `bot` field.
+			const fresh = await readTwitch(db);
+			await writeTwitch(db, {
+				...fresh,
+				botOauthState: undefined,
+				bot: {
+					userId: account.id,
+					login: account.login,
+					accessToken: tokens.accessToken,
+					refreshToken: tokens.refreshToken,
+					expiresAt: Date.now() + tokens.expiresIn * 1000,
+				},
+			});
+			return back("connected");
+		} catch {
+			return back("error");
+		}
+	}
+
+	// ---- broadcaster connect ----------------------------------------------
 	// CSRF: the state must match the one minted by startAuth.
 	if (!doc.oauthState || !timingSafeEqual(doc.oauthState, state)) return back("state_error");
 
