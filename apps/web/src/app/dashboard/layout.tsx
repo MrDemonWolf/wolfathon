@@ -25,8 +25,20 @@ const SECTIONS = [
 export default function PanelLayout({ children }: { children: React.ReactNode }) {
 	const pathname = usePathname();
 
+	const active = SECTIONS.find((s) =>
+		s.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(s.href),
+	);
+	const onSettings = pathname.startsWith("/dashboard/settings");
+
 	return (
 		<div className="app-bg flex min-h-svh flex-col text-foreground">
+			{/* Skip past the repeated nav for keyboard/screen-reader users (WCAG 2.4.1). */}
+			<a
+				href="#main"
+				className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-primary-foreground"
+			>
+				Skip to content
+			</a>
 			{/* Full-bleed sticky bar: the glass background spans the viewport, the
 			    logo + nav stay aligned to the same max-w-6xl column as the content. */}
 			<header className="sticky top-0 z-30 border-b border-border bg-card/80 backdrop-blur-xl">
@@ -54,8 +66,12 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
 				</div>
 			</header>
 
-			<main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-				<h1 className="sr-only">Wolfathon control panel</h1>
+			<main id="main" tabIndex={-1} className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 outline-none">
+				{/* Per-section h1 for screen-reader orientation. Settings provides its own
+				    visible h1, so defer to it there; otherwise each panel's heading is an h2. */}
+				<h1 className="sr-only">
+					{onSettings ? "Wolfathon settings" : `Wolfathon — ${active?.label ?? "control panel"}`}
+				</h1>
 				{children}
 			</main>
 
@@ -79,7 +95,7 @@ function NavLink({
 			aria-current={active ? "page" : undefined}
 			className={`inline-flex items-center gap-1.5 rounded-[0.7rem] px-3 py-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
 				active
-					? "bg-primary/15 font-medium text-foreground"
+					? "bg-primary/20 font-semibold text-primary"
 					: "text-muted-foreground hover:bg-accent hover:text-foreground"
 			}`}
 		>
