@@ -6,13 +6,12 @@ import { ExternalLink } from "lucide-react";
  * routes stay bare (no footer) for OBS, so this is opted into per layout rather
  * than living in the root layout.
  *
- * ponytail: external URLs centralised here — edit LINKS to repoint marketing /
- * website / repo without touching markup.
+ * ponytail: external URLs centralised here — edit LINKS to repoint website /
+ * repo without touching markup.
  */
 const LINKS = {
 	website: "https://mrdemonwolf.com",
 	github: "https://github.com/MrDemonWolf/wolfathon",
-	marketing: "https://mrdemonwolf.com/wolfathon",
 } as const;
 
 /** Wolfathon is an independent tool — keep the affiliation disclaimer honest.
@@ -32,7 +31,6 @@ export function SiteFooter() {
 				>
 					<FooterLink href={LINKS.website}>Website</FooterLink>
 					<FooterLink href={LINKS.github}>GitHub</FooterLink>
-					<FooterLink href={LINKS.marketing}>Marketing</FooterLink>
 				</nav>
 
 				<p className="max-w-2xl text-xs leading-relaxed text-muted-foreground/80">{DISCLAIMER}</p>
