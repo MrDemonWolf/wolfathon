@@ -52,6 +52,9 @@ Keep the rewards flowing. Keep the clock ticking.
   but are gated by a secret token in their URL, resettable from the control
   panel. Twitch secrets never reach a public response.
 - **Installable PWA** - The control panel installs as a standalone app.
+- **Customizer** - Tune the overlay look from Settings: colours, font, corner
+  radius, and the eyebrow label, plus per-overlay show/hide toggles, with a live
+  preview of both the timer and rewards surfaces side by side.
 - **Brand-ready** - MrDemonWolf navy and cyan, Montserrat and Roboto, with
   macOS-style rounded panels.
 
@@ -104,7 +107,9 @@ Each URL carries a secret `?t=<token>` — the public overlay API serves nothing
 without it, so an OBS source works while a guessed bare path does not. The
 **Reset** button on Settings → Overlays rotates the token and instantly kills the
 old URLs (re-paste the new ones into OBS). If a source ever shows a small
-"Overlay token invalid" hint in the corner, its URL is stale — re-copy it.
+"Overlay token invalid" hint in the corner, its URL is stale — re-copy it. Each
+source also has an **Open in new tab** button to preview the live overlay in a
+browser without wiring up OBS first.
 
 | Source  | URL                    | Size (W×H)  | Shows                                                        |
 | ------- | ---------------------- | ----------- | ------------------------------------------------------------ |
@@ -288,6 +293,14 @@ excluded from new draws. **Reset round** clears gifters, entrants, and winners,
 closes the raffle, and un-starts the round for a clean next one. The raffle
 command and the gift threshold are configurable. Nothing in this tab is ever
 exposed publicly — it is operator-only behind Cloudflare Access.
+
+### Customizer (overlay look)
+
+**Settings → Customizer** tunes how the overlays paint: accent colours, font,
+corner radius, the eyebrow label, and per-overlay show/hide toggles (units,
+progress bar, unlocked row, status, and the rest). A live preview renders the
+timer and rewards surfaces with sample data so you can compare before saving;
+the wheel overlay inherits the same theme.
 
 ### Adding your logo
 
