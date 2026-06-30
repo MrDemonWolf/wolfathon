@@ -1,6 +1,7 @@
 import { type Db, trackerState } from "@wolfathon/db";
 import { and, eq } from "drizzle-orm";
 
+import { type BotDoc, defaultBotDoc, withBotDefaults } from "./bot";
 import { type GiveawayDoc, defaultGiveawayDoc } from "./giveaway";
 import { type Data, recompute, sampleData, subsFromEvent } from "./state";
 import { type SettingsDoc, defaultSettingsDoc } from "./settings";
@@ -22,6 +23,7 @@ import { type WheelDoc, defaultWheelDoc, withWheelDefaults } from "./wheel";
  *   "twitch"   → Twitch credentials/tokens (secret; never public)
  *   "giveaway" → giveaway gifters / entrants / winners (operator-only)
  *   "wheel"    → wheel-of-dares slots / history / live pending spin
+ *   "bot"      → chat-bot commands + cooldown (bot OAuth creds live in "twitch")
  */
 const STATE_ID = "default";
 const TIMER_ID = "timer";
@@ -29,6 +31,7 @@ const TWITCH_ID = "twitch";
 const SETTINGS_ID = "settings";
 const GIVEAWAY_ID = "giveaway";
 const WHEEL_ID = "wheel";
+const BOT_ID = "bot";
 
 /**
  * Generic doc read with lazy seeding. Returns the parsed JSON, or seeds (and
@@ -240,6 +243,26 @@ export async function writeWheel(db: Db, doc: WheelDoc): Promise<WheelDoc> {
 // ponytail: no mutateWheel — the wheel is operator-only (no EventSub/webhook
 // path), so a plain read→write is fine (matches the giveaway operator router).
 // Add a CAS mutate* only if the wheel ever gains an event-driven writer.
+
+// ---- chat bot -------------------------------------------------------------
+
+export async function readBot(db: Db): Promise<BotDoc> {
+	return withBotDefaults(await readDoc(db, BOT_ID, defaultBotDoc));
+}
+
+export async function writeBot(db: Db, doc: BotDoc): Promise<BotDoc> {
+	return writeDoc(db, BOT_ID, doc);
+}
+
+/**
+ * Concurrency-safe bot mutation. The webhook stamps each command's `lastRunAt`
+ * (the cooldown) on every reply, so this shares the EventSub firehose with the
+ * giveaway/timer writers and MUST compare-and-swap (config defaults backfilled
+ * on read, like readBot).
+ */
+export function mutateBot(db: Db, fn: (doc: BotDoc) => BotDoc): Promise<BotDoc> {
+	return mutateDoc(db, BOT_ID, defaultBotDoc, (raw) => fn(withBotDefaults(raw)));
+}
 
 // ---- combined apply -------------------------------------------------------
 
