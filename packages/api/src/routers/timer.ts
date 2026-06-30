@@ -62,9 +62,10 @@ export const timerRouter = router({
 	 * NOT add time or bump the sub count. Real events arrive via the EventSub
 	 * webhook, which calls `applyTimerEventAndBumpSubs` directly (no preview).
 	 */
-	applyEvent: protectedProcedure
-		.input(eventSchema)
-		.mutation(({ ctx, input }) => applyTimerEventAndBumpSubs(ctx.db, input, Date.now(), true)),
+	applyEvent: protectedProcedure.input(eventSchema).mutation(async ({ ctx, input }) => {
+		const { timer } = await applyTimerEventAndBumpSubs(ctx.db, input, Date.now(), true);
+		return timer;
+	}),
 
 	/** Validate a config import without writing (powers the Validate button). */
 	validateConfig: protectedProcedure.input(z.unknown()).mutation(({ input }) => {

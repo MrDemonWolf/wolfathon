@@ -20,6 +20,15 @@ import { toast } from "sonner";
 
 import { controlTrpc, queryClient } from "@/utils/trpc";
 
+// What the live `{value}` resolves to per command, so the operator knows what a
+// preset will actually say in chat.
+const VALUE_HINTS: Record<string, string> = {
+	timer: "{value} = time left on the clock",
+	goals: "{value} = the next reward",
+	wheel: "{value} = how many dares are loaded",
+	giveaway: "{value} = your Rules / TOS link (set in the Giveaway tab)",
+};
+
 export function BotPanel() {
 	const getOptions = controlTrpc.bot.get.queryOptions();
 	const { data, isLoading } = useQuery(getOptions);
@@ -34,6 +43,9 @@ export function BotPanel() {
 	);
 	const setCooldown = useMutation(
 		controlTrpc.bot.setCooldown.mutationOptions({ onSuccess: invalidate }),
+	);
+	const setAnnounceGifts = useMutation(
+		controlTrpc.bot.setAnnounceGifts.mutationOptions({ onSuccess: invalidate }),
 	);
 
 	// Surface the OAuth redirect result (set by /api/twitch/callback?bot=...).
@@ -228,6 +240,23 @@ export function BotPanel() {
 						/>
 					</div>
 
+					{/* Gift-sub announcements */}
+					<div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-border p-4">
+						<label className="flex items-center gap-2.5">
+							<Checkbox
+								checked={config.announceGifts}
+								onCheckedChange={(v) => setAnnounceGifts.mutate({ announceGifts: Boolean(v) })}
+							/>
+							<span>
+								<span className="font-medium">Announce gift subs in chat</span>
+								<span className="block text-xs text-muted-foreground">
+									Posts one line per gift burst — e.g. “🎁 14 subs gifted by 3 people · +28m on the
+									clock!”. A sub-train is batched into a single message so chat never spams.
+								</span>
+							</span>
+						</label>
+					</div>
+
 					{/* Commands */}
 					<div className="mt-4 space-y-3">
 						<div className="text-sm font-medium">Commands</div>
@@ -341,7 +370,7 @@ function CommandRow({ cmd }: { cmd: BotCommand }) {
 			{isComposite ? (
 				<div className="mt-3">
 					<div className="mb-1 text-xs text-muted-foreground">
-						Parts to include (all pulled live from the subathon)
+						Parts to include (all pulled live from the Wolfathon)
 					</div>
 					<div className="space-y-1.5">
 						{WOLFATHON_PARTS.map((part) => (
@@ -383,6 +412,9 @@ function CommandRow({ cmd }: { cmd: BotCommand }) {
 								?.template
 						}
 					</div>
+					{cmd.dynamic && VALUE_HINTS[cmd.dynamic] && (
+						<div className="mt-1 text-xs text-muted-foreground">{VALUE_HINTS[cmd.dynamic]}</div>
+					)}
 				</div>
 			) : (
 				<div className="mt-3">

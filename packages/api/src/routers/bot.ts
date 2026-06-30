@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
-import { setCooldown, setEnabled, updateCommand } from "../bot";
+import { setAnnounceGifts, setCooldown, setEnabled, updateCommand } from "../bot";
 import { protectedProcedure, router } from "../index";
 import { mutateBot, readBot, readTwitch, writeTwitch } from "../store";
 import { BOT_SCOPES, buildAuthorizeUrl } from "../twitch";
@@ -76,6 +76,13 @@ export const botRouter = router({
 		.input(z.object({ seconds: z.number() }))
 		.mutation(async ({ ctx, input }) =>
 			mutateBot(ctx.db, (doc) => setCooldown(doc, input.seconds)),
+		),
+
+	/** Toggle the batched gift-sub chat announcement. */
+	setAnnounceGifts: protectedProcedure
+		.input(z.object({ announceGifts: z.boolean() }))
+		.mutation(async ({ ctx, input }) =>
+			mutateBot(ctx.db, (doc) => setAnnounceGifts(doc, input.announceGifts)),
 		),
 
 	updateCommand: protectedProcedure
