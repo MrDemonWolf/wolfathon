@@ -30,9 +30,9 @@ Keep the rewards flowing. Keep the clock ticking.
   glow-and-scale celebration (no audio), then settle on the next reward.
 - **Private notes** - Each goal has an internal `note` (for example, "10 subs")
   that is stripped server-side and never reaches the overlay.
-- **Claude-friendly import/export** - For both rewards and the timer config:
-  paste or upload JSON, validate, replace in one click, export, and copy a
-  ready-made prompt so you can have Claude generate a new config to paste back.
+- **Combined backup** - One JSON file bundles your rewards and timer config:
+  validate, replace in one click, export, or copy a ready-made prompt so you can
+  have Claude edit the config and paste it back to restore.
 - **Wheel of dares (Howlwheel)** - A weighted spinner of chat dares. Edit,
   weight, colour, and drag-reorder slots from the dashboard, then spin to a
   weighted-random result or send the wheel to a specific slot. A token-gated OBS
@@ -52,6 +52,9 @@ Keep the rewards flowing. Keep the clock ticking.
   but are gated by a secret token in their URL, resettable from the control
   panel. Twitch secrets never reach a public response.
 - **Installable PWA** - The control panel installs as a standalone app.
+- **Customizer** - Tune the overlay look from Settings: colours, font, corner
+  radius, and the eyebrow label, plus per-overlay show/hide toggles, with a live
+  preview of both the timer and rewards surfaces side by side.
 - **Brand-ready** - MrDemonWolf navy and cyan, Montserrat and Roboto, with
   macOS-style rounded panels.
 
@@ -77,7 +80,7 @@ Keep the rewards flowing. Keep the clock ticking.
 
 4. Open the surfaces:
 
-   - Control panel: `http://localhost:3001/control`
+   - Control panel: `http://localhost:3001/dashboard`
    - Overlay URLs (tokenized): control panel → **Settings → Overlays**
    - API (overlay data + Twitch webhook): `http://localhost:3000`
 
@@ -87,6 +90,11 @@ Keep the rewards flowing. Keep the clock ticking.
    on first run.
 
 ## Usage
+
+The control panel lives at `/dashboard`. Its top nav holds the four live
+sections — **Rewards**, **Timer**, **Giveaways**, and **Wheel** — and the gear
+opens **Settings**, where the set-once panes live: **Twitch**, **Bot**,
+**Overlays**, **Customizer**, and **Backup**.
 
 ### OBS browser sources
 
@@ -99,7 +107,9 @@ Each URL carries a secret `?t=<token>` — the public overlay API serves nothing
 without it, so an OBS source works while a guessed bare path does not. The
 **Reset** button on Settings → Overlays rotates the token and instantly kills the
 old URLs (re-paste the new ones into OBS). If a source ever shows a small
-"Overlay token invalid" hint in the corner, its URL is stale — re-copy it.
+"Overlay token invalid" hint in the corner, its URL is stale — re-copy it. Each
+source also has an **Open in new tab** button to preview the live overlay in a
+browser without wiring up OBS first.
 
 | Source  | URL                    | Size (W×H)  | Shows                                                        |
 | ------- | ---------------------- | ----------- | ------------------------------------------------------------ |
@@ -135,8 +145,8 @@ authorization. The **Twitch** tab walks you through it:
    Copy the **Client ID** and generate a **Client Secret**.
 2. Put them in the environment as `TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET`
    (repo secrets or `apps/web/.env`) and redeploy. Keep `/api/twitch/callback`
-   outside the Cloudflare Access app (Access covers only `/control` + `/api/trpc`).
-3. In the control panel **Twitch** tab (it shows "Loaded from environment ✓"),
+   outside the Cloudflare Access app (Access covers only `/dashboard` + `/api/trpc`).
+3. On **Settings → Twitch** (it shows "Loaded from environment ✓"),
    click **Connect Twitch**. You're redirected to Twitch to approve, then back —
    the panel flips to **Connected**.
 4. On connect, the server creates EventSub webhook subscriptions for
@@ -162,21 +172,24 @@ the signature is wrong or older than 10 minutes. The app credentials come from
 the Worker env (`TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET`); only the resulting
 OAuth tokens are stored in D1, and none of it appears in any public response.
 
-### JSON import and export (rewards and timer)
+### Backup and restore (JSON)
 
-Each tab has an Import / Export panel:
+**Settings → Backup** exports and restores everything in one combined file —
+your rewards and timer config bundled together — so a single file fully restores
+the tracker:
 
 - **Validate** - Checks pasted/uploaded JSON without writing. Shows a preview or
   a list of human-readable errors.
-- **Import (replace)** - Validates, asks you to confirm, then replaces. Nothing
-  is written unless validation passes (no partial writes).
-- **Export** / **Copy current JSON** - Download or copy the current config,
-  pretty-printed (`wolfathon-goals-…json` / `wolfathon-timer-…json`).
+- **Import (replace)** - Validates, asks you to confirm, then replaces both
+  halves. Nothing is written unless validation passes (no partial writes).
+- **Export** / **Copy current JSON** - Download or copy the current backup,
+  pretty-printed (`wolfathon-backup-…json`).
 - **Copy Claude prompt** - Copies a ready prompt (schema + your current config)
   to paste into claude.ai. Ask for the change you want, paste the JSON it
   returns back into the box, and import.
 
-Rewards import shape (minimal form):
+The backup file wraps the two documents below under a version tag. The rewards
+half (minimal form):
 
 ```json
 {
@@ -188,7 +201,7 @@ Rewards import shape (minimal form):
 }
 ```
 
-Timer config shape:
+The timer half:
 
 ```json
 {
@@ -281,6 +294,14 @@ closes the raffle, and un-starts the round for a clean next one. The raffle
 command and the gift threshold are configurable. Nothing in this tab is ever
 exposed publicly — it is operator-only behind Cloudflare Access.
 
+### Customizer (overlay look)
+
+**Settings → Customizer** tunes how the overlays paint: accent colours, font,
+corner radius, the eyebrow label, and per-overlay show/hide toggles (units,
+progress bar, unlocked row, status, and the rest). A live preview renders the
+timer and rewards surfaces with sample data so you can compare before saving;
+the wheel overlay inherits the same theme.
+
 ### Adding your logo
 
 Drop your wolf mark (head only) at `apps/web/public/logo.svg` and it is used
@@ -350,6 +371,9 @@ broken.
 - `bun run dev:server` - Start only the server.
 - `bun run build` - Build all applications.
 - `bun run check-types` - Type-check across the monorepo.
+- `bun run test` - Run the domain test suite (`packages/api/src`).
+- `bun run check` - Lint with ESLint and check formatting with Prettier.
+- `bun run format` - Format the repo with Prettier.
 - `bun run db:generate` - Generate the Drizzle migration from the schema.
 - `bun run deploy` - Deploy web, server, and D1 to Cloudflare.
 - `bun run destroy` - Tear down the deployed Cloudflare resources.
@@ -360,6 +384,8 @@ broken.
 - Shared design tokens and components in `packages/ui`.
 - Domain logic and validation centralized in `packages/api` and reused by the
   overlays, the control panel, and the Twitch webhook.
+- Pure-function domain modules (timer, wheel, giveaway, theme, backup) covered
+  by `bun test`, kept separate from persistence so they stay easy to test.
 
 ## Deploying to Cloudflare
 
@@ -410,17 +436,17 @@ local Alchemy state. (Turbo strict env mode requires these to be declared as
 ### Cloudflare Access (Zero Trust)
 
 The app itself has no login. Security is enforced at the edge by Cloudflare
-Access plus a server-side JWT check. You protect the `/control` page and the
-`/api/trpc` operator API on the web app; the overlays and the Twitch webhook
-stay public.
+Access plus a server-side JWT check. You protect the `/dashboard` control panel
+and the `/api/trpc` operator API on the web app; the overlays and the Twitch
+webhook stay public.
 
 1. In the Cloudflare dashboard, open **Zero Trust → Access → Applications** and
    add a **Self-hosted** application.
 
 2. Set the application paths on the web domain:
 
-   - `wolfathon.mrdemonwolf.workers.dev/control`
-   - `wolfathon.mrdemonwolf.workers.dev/control/*`
+   - `wolfathon.mrdemonwolf.workers.dev/dashboard`
+   - `wolfathon.mrdemonwolf.workers.dev/dashboard/*`
    - `wolfathon.mrdemonwolf.workers.dev/api/trpc/*`
 
    Do **not** add `/api/twitch/callback` here — Twitch must reach it without an
@@ -459,10 +485,10 @@ Object plus WebSocket can replace the 2-second refetch later.
 ```
 wolfathon/
 ├── apps/
-│   ├── web/         # Next.js: /overlay/{timer,rewards} (OBS), /control, /api/trpc
+│   ├── web/         # Next.js: /overlay/{timer,rewards,wheel} (OBS), /dashboard, /api/trpc
 │   └── server/      # Hono on Cloudflare Workers: public API + Twitch EventSub webhook
 ├── packages/
-│   ├── api/         # tRPC routers, timer + Twitch domain, Access verification
+│   ├── api/         # tRPC routers, timer/Twitch/wheel/giveaway domain, Access verification
 │   ├── db/          # Drizzle schema, D1 client, migrations
 │   ├── env/         # Typed environment access
 │   ├── ui/          # Shared design system (brand tokens, components)
