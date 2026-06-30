@@ -166,7 +166,7 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 					{flash && (
 						<div className="pointer-events-none absolute inset-0">
 							{fillParticles(emojis, flash.id, data.emoteCount).map((p) =>
-								renderParticle(p, data.emoteDirection),
+								renderParticle(p, data.emoteDirection, data.emoteScale),
 							)}
 						</div>
 					)}
@@ -314,8 +314,13 @@ function fillParticles(emojis: string[], seed: number, count = 26) {
 	}));
 }
 
-/** Render one flood emote, positioned + animated for the chosen direction. */
-function renderParticle(p: FillParticle, dir: EmoteDirection) {
+/**
+ * Render one flood emote, positioned + animated for the chosen direction.
+ * `scale` (1/2/3) multiplies the glyph size so the operator can make the burst
+ * read bigger on a 1080p source.
+ */
+function renderParticle(p: FillParticle, dir: EmoteDirection, scale = 1) {
+	const size = p.size * scale;
 	const common = {
 		filter: "drop-shadow(0 0.3cqh 0.6cqh rgba(0,0,0,0.35))",
 		"--fill-spin": `${p.spin}deg`,
@@ -341,7 +346,7 @@ function renderParticle(p: FillParticle, dir: EmoteDirection) {
 					} as React.CSSProperties
 				}
 			>
-				<Glyph e={p.e} size={p.size} />
+				<Glyph e={p.e} size={size} />
 			</span>
 		);
 	}
@@ -352,7 +357,7 @@ function renderParticle(p: FillParticle, dir: EmoteDirection) {
 			className="animate-wolf-fill absolute bottom-0 will-change-transform"
 			style={{ ...common, left: `${p.left}%`, "--fill-x": `${p.x}cqw` } as React.CSSProperties}
 		>
-			<Glyph e={p.e} size={p.size} />
+			<Glyph e={p.e} size={size} />
 		</span>
 	);
 }

@@ -46,6 +46,17 @@ export type ChannelPointRule = {
 	minutes: number;
 };
 
+/** Allowed emote-glyph size multipliers (1× / 2× / 3× the base cqw). */
+export const EMOTE_SCALES = [1, 2, 3] as const;
+export type EmoteScale = (typeof EMOTE_SCALES)[number];
+export const DEFAULT_EMOTE_SCALE: EmoteScale = 1;
+
+/** Coerce an arbitrary value to an allowed emote scale (1/2/3), defaulting to 1×. */
+export function clampEmoteScale(v: unknown): EmoteScale {
+	const n = typeof v === "number" && Number.isFinite(v) ? Math.round(v) : DEFAULT_EMOTE_SCALE;
+	return (EMOTE_SCALES as readonly number[]).includes(n) ? (n as EmoteScale) : DEFAULT_EMOTE_SCALE;
+}
+
 export type TimerConfig = {
 	startMinutes: number;
 	/** 0 = no cap. */
@@ -55,11 +66,14 @@ export type TimerConfig = {
 	giftSubMinutes: number;
 	/** Minutes added per 100 bits (fractional bits prorated). */
 	bitsPer100Minutes: number;
+	/** Up to {@link MAX_CHANNEL_POINT_RULES} reward → minutes rules (managed on Twitch). */
 	channelPoints: ChannelPointRule[];
 	/** Emoji that drift behind the overlay + burst when time is added. */
 	emojis: string[];
 	/** How many emotes flood the bar on each time-add (0 = none). */
 	emoteCount: number;
+	/** Emote-glyph size multiplier on the time-add burst (1× / 2× / 3×). */
+	emoteScale: EmoteScale;
 	/** Which way the time-add emote burst travels (up / left→right / right→left). */
 	emoteDirection: EmoteDirection;
 	/** Show who/what added time on the time-add alert (e.g. "Name · Sub +5m"). */
@@ -107,6 +121,8 @@ export type PublicTimer = {
 	emojis: string[];
 	/** How many emotes flood the bar on each time-add. */
 	emoteCount: number;
+	/** Emote-glyph size multiplier on the time-add burst (1× / 2× / 3×). */
+	emoteScale: EmoteScale;
 	/** Which way the time-add emote burst travels. */
 	emoteDirection: EmoteDirection;
 	/** Resolved capsule gradient stops (2+ hex colours). */
@@ -152,7 +168,12 @@ export type TimerConfigResult =
 	| { ok: false; errors: TimerConfigError[] };
 
 const MIN = 60_000;
-export const MAX_CHANNEL_POINT_RULES = 50;
+/**
+ * Channel-point rewards are now created/owned on Twitch (Helix
+ * createCustomReward), so we cap the set hard at 2 — each one is a real reward
+ * on the operator's channel, and two is the deliberate product limit.
+ */
+export const MAX_CHANNEL_POINT_RULES = 2;
 /** Sanity ceiling so a typo can't set a 10-year timer. */
 export const MAX_MINUTES_LIMIT = 525_600; // one year
 export const MAX_EMOJIS = 24;
@@ -228,6 +249,7 @@ export function defaultTimerConfig(): TimerConfig {
 		channelPoints: [],
 		emojis: [...DEFAULT_TIMER_EMOJIS],
 		emoteCount: DEFAULT_EMOTE_COUNT,
+		emoteScale: DEFAULT_EMOTE_SCALE,
 		emoteDirection: DEFAULT_EMOTE_DIRECTION,
 		showEventSource: true,
 		autoPauseOnOffline: true,
@@ -390,6 +412,25 @@ export function eventMinutes(config: TimerConfig, event: TimerEvent): number {
 }
 
 /**
+ * Milliseconds a given event adds to the clock — the authoritative time-add.
+ *
+ * Bits are prorated against `bitsPer100Minutes` IN MILLISECONDS, so a cheer of
+ * ANY size still moves the timer: 1 bit at the default 1 min/100 is
+ * `1 * 1 * 600 = 600ms`, not floored to a whole minute (and not to zero). The
+ * minute→ms factor for bits is `MIN / 100 = 600`, kept as an integer multiply so
+ * an integer bit count + integer rate never hits float-rounding. Every other kind
+ * is whole-minute based, so it routes through {@link eventMinutes} and rounds once
+ * at the ms boundary.
+ */
+export function eventMs(config: TimerConfig, event: TimerEvent): number {
+	if (event.kind === "bits") {
+		// 600 = MIN / 100 ms per (bit × min-per-100). Round once, at the ms level.
+		return Math.round(Math.max(0, event.bits) * config.bitsPer100Minutes * (MIN / 100));
+	}
+	return Math.round(eventMinutes(config, event) * MIN);
+}
+
+/**
  * Human label for the time-add alert: who (if known) + what. Manual adds have no
  * source, so they show just the "+Xm" with no label.
  */
@@ -426,7 +467,7 @@ export function applyEvent(
 	now: number,
 	preview = false,
 ): { state: TimerState; addedMs: number } {
-	const ms = Math.round(eventMinutes(config, event) * MIN);
+	const ms = eventMs(config, event);
 	const next = preview ? state : addMs(config, state, ms, now);
 	// Record the add so the overlay can show "+Xm" + its source. Only positive
 	// adds count (a −5m correction shouldn't fire the celebratory alert).
@@ -459,6 +500,7 @@ export function toPublicTimer(doc: TimerDoc, now: number, theme: OverlayTheme): 
 		serverNow: now,
 		emojis,
 		emoteCount: doc.config.emoteCount ?? DEFAULT_EMOTE_COUNT,
+		emoteScale: clampEmoteScale(doc.config.emoteScale),
 		emoteDirection: doc.config.emoteDirection ?? DEFAULT_EMOTE_DIRECTION,
 		gradient: resolveThemeGradient(theme),
 		textColor: resolveTextColor(theme),
@@ -533,6 +575,8 @@ export function validateTimerConfig(input: unknown): TimerConfigResult {
 			r.emoteCount === undefined
 				? DEFAULT_EMOTE_COUNT
 				: Math.round(num(errors, "emoteCount", r.emoteCount, { min: 0, max: MAX_EMOTE_COUNT })),
+		// Optional; absent or out-of-set (only 1/2/3 allowed) → the default 1×.
+		emoteScale: clampEmoteScale(r.emoteScale),
 		// Optional; absent or unknown → the default well-up direction.
 		emoteDirection: EMOTE_DIRECTIONS.includes(r.emoteDirection as EmoteDirection)
 			? (r.emoteDirection as EmoteDirection)
