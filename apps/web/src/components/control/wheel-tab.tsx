@@ -117,13 +117,15 @@ export function WheelTab() {
 			{/* Spin — with a live mini wheel that plays the same spin as the overlay
 			    (same toPublicWheel projection + pendingSpin channel, polled here). */}
 			<div className="flex flex-col items-center gap-4 rounded-2xl panel-card p-5">
-				<div className="@container relative aspect-square w-full max-w-[260px]">
-					<WheelView
-						slots={toPublicWheel(data).slots}
-						theme={appState?.theme}
-						pending={data.pendingSpin}
-					/>
-				</div>
+				{enabledCount > 0 ? (
+					<div className="@container relative aspect-square w-full max-w-[260px]">
+						<WheelView
+							slots={toPublicWheel(data).slots}
+							theme={appState?.theme}
+							pending={data.pendingSpin}
+						/>
+					</div>
+				) : null}
 				<Button
 					size="lg"
 					onClick={() => trigger.mutate({})}
