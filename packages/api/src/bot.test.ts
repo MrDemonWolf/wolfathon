@@ -2,6 +2,9 @@ import { expect, test } from "bun:test";
 
 import {
 	activeWolfathonParts,
+	buildGiveawayClaimAnnouncement,
+	buildGiveawayDrawAnnouncement,
+	buildGiveawayTimeoutAnnouncement,
 	canRun,
 	defaultBotDoc,
 	dynamicTemplate,
@@ -184,4 +187,18 @@ test("!wolfathon parts: default = all, toggles validate + render live", () => {
 	expect(wolfathonValue({ ...wolf, parts: ["goal"] }, timer, { ...data, goals: [] }, 0)).toBe(
 		"🎯 All rewards unlocked!",
 	);
+});
+
+test("giveaway draw/claim/timeout announcements name the winner + tell them what to do", () => {
+	const draw = buildGiveawayDrawAnnouncement("Foxxo");
+	expect(draw).toContain("@Foxxo");
+	expect(draw).toContain("!claim");
+	expect(draw).toContain("5 minutes"); // the claim window
+	expect(draw).toMatch(/redraw/i);
+
+	expect(buildGiveawayClaimAnnouncement("Foxxo")).toBe("✅ @Foxxo claimed their prize!");
+
+	const timeout = buildGiveawayTimeoutAnnouncement("Foxxo");
+	expect(timeout).toContain("@Foxxo");
+	expect(timeout).toMatch(/redraw/i);
 });
