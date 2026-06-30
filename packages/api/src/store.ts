@@ -19,7 +19,7 @@ import { type WheelDoc, defaultWheelDoc, withWheelDefaults } from "./wheel";
  * The whole app is stored as a few singleton JSON rows in `tracker_state`,
  * keyed by id:
  *   "default"  → rewards (goals)
- *   "timer"    → subathon timer config + state
+ *   "timer"    → Wolfathon timer config + state
  *   "twitch"   → Twitch credentials/tokens (secret; never public)
  *   "giveaway" → giveaway gifters / entrants / winners (operator-only)
  *   "wheel"    → wheel-of-dares slots / history / live pending spin
@@ -240,9 +240,15 @@ export async function writeWheel(db: Db, doc: WheelDoc): Promise<WheelDoc> {
 	return writeDoc(db, WHEEL_ID, doc);
 }
 
-// ponytail: no mutateWheel — the wheel is operator-only (no EventSub/webhook
-// path), so a plain read→write is fine (matches the giveaway operator router).
-// Add a CAS mutate* only if the wheel ever gains an event-driven writer.
+/**
+ * Concurrency-safe wheel mutation. The webhook now auto-spins the wheel on sub
+ * milestones (writing `pendingSpin`/history), so this shares the EventSub
+ * firehose with the timer/giveaway/bot writers and MUST compare-and-swap
+ * (top-level defaults backfilled on read, like readWheel).
+ */
+export function mutateWheel(db: Db, fn: (doc: WheelDoc) => WheelDoc): Promise<WheelDoc> {
+	return mutateDoc(db, WHEEL_ID, defaultWheelDoc, (raw) => fn(withWheelDefaults(raw)));
+}
 
 // ---- chat bot -------------------------------------------------------------
 
@@ -270,23 +276,34 @@ export function mutateBot(db: Db, fn: (doc: BotDoc) => BotDoc): Promise<BotDoc> 
  * Apply one timer event and bump the goals' running sub count, the way both the
  * tRPC `timer.applyEvent` mutation and the EventSub webhook need it. Goes through
  * the concurrency-safe mutate* helpers so overlapping Twitch deliveries can't
- * drop a time-add or a sub. Returns the updated timer doc.
+ * drop a time-add or a sub.
+ *
+ * Returns the updated timer doc plus the running sub count before/after this
+ * event. The before/after are captured INSIDE the CAS apply, so they're the true
+ * sequential values (not a racy post-read) — the webhook uses them to decide
+ * whether this event crossed a wheel auto-spin milestone.
  */
 export async function applyTimerEventAndBumpSubs(
 	db: Db,
 	event: TimerEvent,
 	now: number,
 	preview = false,
-): Promise<TimerDoc> {
-	const doc = await mutateTimer(db, (timer) => ({
-		...timer,
-		state: applyEvent(timer.config, timer.state, event, now, preview).state,
+): Promise<{ timer: TimerDoc; subsBefore: number; subsAfter: number }> {
+	const timer = await mutateTimer(db, (doc) => ({
+		...doc,
+		state: applyEvent(doc.config, doc.state, event, now, preview).state,
 	}));
 	// Sub/gift events also advance the reward goals' running sub count — but a
 	// preview (test button) must not move that either.
 	const subs = preview ? 0 : subsFromEvent(event);
+	let subsBefore = 0;
+	let subsAfter = 0;
 	if (subs > 0) {
-		await mutateState(db, (data) => ({ ...data, currentSubs: (data.currentSubs ?? 0) + subs }));
+		await mutateState(db, (data) => {
+			subsBefore = data.currentSubs ?? 0;
+			subsAfter = subsBefore + subs;
+			return { ...data, currentSubs: subsAfter };
+		});
 	}
-	return doc;
+	return { timer, subsBefore, subsAfter };
 }
