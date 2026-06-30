@@ -51,6 +51,12 @@ export type GiveawayConfig = {
 	raffleWinnerSlots: number;
 	/** Whether `!enter` is currently accepted. Operator opens/closes the window. */
 	open: boolean;
+	/**
+	 * Link to the giveaway rules / TOS — a GitHub gist, a Notion page, any URL.
+	 * The `!giveaway` chat command fills its reply with this, so the operator sets
+	 * it once and the bot always points viewers at the current rules. Empty = unset.
+	 */
+	tosUrl: string;
 };
 
 export type GiveawayDoc = {
@@ -71,6 +77,7 @@ export type GiveawayEvent =
 // unbounded. Raise if a stream ever needs a bigger window.
 export const MAX_ENTRANTS = 5000;
 export const MAX_COMMAND_LENGTH = 32;
+export const MAX_TOS_URL_LENGTH = 300;
 
 export function defaultGiveawayConfig(): GiveawayConfig {
 	return {
@@ -79,6 +86,7 @@ export function defaultGiveawayConfig(): GiveawayConfig {
 		giftWinnerSlots: 2,
 		raffleWinnerSlots: 2,
 		open: false,
+		tosUrl: "",
 	};
 }
 
@@ -262,6 +270,14 @@ export function resetRound(doc: GiveawayDoc): GiveawayDoc {
 
 export type ConfigPatch = Partial<GiveawayConfig>;
 
+/** Normalize a TOS link: trim, cap length, and add `https://` if the operator
+ * pasted a bare domain so the chat link is always clickable. Empty stays empty. */
+export function normalizeTosUrl(raw: string): string {
+	const v = raw.trim().slice(0, MAX_TOS_URL_LENGTH);
+	if (!v) return "";
+	return /^https?:\/\//i.test(v) ? v : `https://${v}`;
+}
+
 /** Validate + merge a config patch (clamps to sane ranges). */
 export function applyConfig(doc: GiveawayDoc, patch: ConfigPatch): GiveawayDoc {
 	const c = doc.config;
@@ -279,6 +295,7 @@ export function applyConfig(doc: GiveawayDoc, patch: ConfigPatch): GiveawayDoc {
 			giftWinnerSlots: clampInt(patch.giftWinnerSlots, c.giftWinnerSlots, 0, 100),
 			raffleWinnerSlots: clampInt(patch.raffleWinnerSlots, c.raffleWinnerSlots, 0, 100),
 			open: patch.open ?? c.open,
+			tosUrl: patch.tosUrl !== undefined ? normalizeTosUrl(patch.tosUrl) : (c.tosUrl ?? ""),
 		},
 	};
 }

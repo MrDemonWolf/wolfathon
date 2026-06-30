@@ -37,6 +37,8 @@ export const giveawayRouter = router({
 				giftWinnerSlots: z.number().optional(),
 				raffleWinnerSlots: z.number().optional(),
 				open: z.boolean().optional(),
+				/** Rules/TOS link (gist or any URL) the `!giveaway` command points at. */
+				tosUrl: z.string().max(400).optional(),
 			}),
 		)
 		.mutation(async ({ ctx, input }) => {
