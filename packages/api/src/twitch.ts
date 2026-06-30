@@ -31,6 +31,14 @@ export const TWITCH_SCOPES = [
 ] as const;
 
 /**
+ * Scopes the SEPARATE bot account grants. `user:write:chat` is what Helix
+ * `POST /chat/messages` actually requires to send; `user:bot` marks the traffic
+ * as a bot. The bot reads chat through the broadcaster's existing subscription,
+ * so it needs no read scope here.
+ */
+export const BOT_SCOPES = ["user:write:chat", "user:bot"] as const;
+
+/**
  * EventSub subscription types we create on connect. Most condition only on the
  * broadcaster; `channel.chat.message` additionally needs `user_id` (the user
  * whose chat view we read — the broadcaster reading their own chat).
@@ -50,12 +58,34 @@ const SUBSCRIPTIONS: { type: string; version: string; needsUserId?: boolean }[] 
 	{ type: "channel.chat.message", version: "1", needsUserId: true },
 ];
 
+/**
+ * The separately-connected chat bot account (own OAuth grant). The bot's user
+ * token sends chat via Helix; reading chat reuses the broadcaster's existing
+ * `channel.chat.message` subscription, so the bot needs no EventSub of its own.
+ */
+export type BotAccount = {
+	userId: string;
+	login: string;
+	accessToken: string;
+	refreshToken: string;
+	/** Epoch ms the bot's user token expires — refreshed on demand before sending. */
+	expiresAt: number;
+	/**
+	 * Set when a token refresh is rejected (revoked grant / changed password): the
+	 * bot is silently dead until reconnected, so the dashboard surfaces a reconnect
+	 * prompt instead of the bot no-opping forever. Cleared on the next good refresh.
+	 */
+	tokenInvalid?: boolean;
+};
+
 /** Persisted Twitch state (secret — never public). */
 export type TwitchDoc = {
 	broadcasterId?: string;
 	broadcasterLogin?: string;
 	/** Transient CSRF token for the redirect flow; set on startAuth, cleared on callback. */
 	oauthState?: string;
+	/** Transient CSRF token for the SEPARATE bot-account connect flow. */
+	botOauthState?: string;
 	accessToken?: string; // user token from the auth-code flow (proves the grant)
 	refreshToken?: string;
 	expiresAt?: number;
@@ -68,6 +98,8 @@ export type TwitchDoc = {
 	/** Recent EventSub message ids for idempotency. */
 	recentEventIds?: string[];
 	connected?: boolean;
+	/** The connected chat bot account (absent until the operator connects one). */
+	bot?: BotAccount;
 };
 
 export function defaultTwitchDoc(): TwitchDoc {
@@ -114,14 +146,23 @@ export function buildAuthorizeUrl(args: {
 	clientId: string;
 	redirectUri: string;
 	state: string;
+	/** Scopes to request — defaults to the broadcaster set; the bot connect passes {@link BOT_SCOPES}. */
+	scopes?: readonly string[];
+	/**
+	 * Force Twitch to re-show the consent screen. The bot connect sets this so the
+	 * operator can pick a DIFFERENT account than the one already logged in (their
+	 * broadcaster), instead of Twitch silently re-using the existing session.
+	 */
+	forceVerify?: boolean;
 }): string {
 	const params = new URLSearchParams({
 		response_type: "code",
 		client_id: args.clientId,
 		redirect_uri: args.redirectUri,
-		scope: TWITCH_SCOPES.join(" "),
+		scope: (args.scopes ?? TWITCH_SCOPES).join(" "),
 		state: args.state,
 	});
+	if (args.forceVerify) params.set("force_verify", "true");
 	return `${ID}/authorize?${params.toString()}`;
 }
 
@@ -193,6 +234,108 @@ export async function getBroadcaster(
 	const user = data.data[0];
 	if (!user) throw new Error("no user for token");
 	return { id: user.id, login: user.login };
+}
+
+/** Carries the HTTP status so callers can tell a permanent 4xx (dead grant) from a transient 5xx. */
+export class TwitchAuthError extends Error {
+	status: number;
+	constructor(status: number, message: string) {
+		super(message);
+		this.name = "TwitchAuthError";
+		this.status = status;
+	}
+}
+
+/**
+ * Refresh a user token (the bot's), returning a fresh {@link TokenSet}. Twitch
+ * rotates the refresh token on each use, so the caller MUST persist the new
+ * `refreshToken` too. Needs the client secret → the API Worker must bind
+ * `TWITCH_CLIENT_ID`/`TWITCH_CLIENT_SECRET` (see alchemy.run.ts). Throws
+ * {@link TwitchAuthError} (with the status) on failure.
+ */
+export async function refreshUserToken(args: {
+	clientId: string;
+	clientSecret: string;
+	refreshToken: string;
+}): Promise<TokenSet> {
+	const res = await fetch(`${ID}/token`, {
+		method: "POST",
+		headers: { "content-type": "application/x-www-form-urlencoded" },
+		body: new URLSearchParams({
+			client_id: args.clientId,
+			client_secret: args.clientSecret,
+			grant_type: "refresh_token",
+			refresh_token: args.refreshToken,
+		}),
+	});
+	if (!res.ok) {
+		throw new TwitchAuthError(
+			res.status,
+			`token refresh failed: ${res.status} ${await res.text()}`,
+		);
+	}
+	const json = (await res.json()) as {
+		access_token: string;
+		refresh_token: string;
+		expires_in: number;
+		scope?: string[];
+	};
+	return {
+		accessToken: json.access_token,
+		refreshToken: json.refresh_token,
+		expiresIn: json.expires_in,
+		scopes: json.scope ?? [],
+	};
+}
+
+/**
+ * Send a chat message as the bot account via Helix. `senderId` is the bot's user
+ * id, `broadcasterId` the channel; `botToken` must carry `user:write:chat`.
+ * Returns false (never throws) so a failed reply can't crash the webhook — Twitch
+ * still gets its 2xx.
+ */
+export async function sendChatMessage(args: {
+	clientId: string;
+	botToken: string;
+	broadcasterId: string;
+	senderId: string;
+	message: string;
+}): Promise<boolean> {
+	try {
+		const res = await fetch(`${HELIX}/chat/messages`, {
+			method: "POST",
+			headers: {
+				"client-id": args.clientId,
+				authorization: `Bearer ${args.botToken}`,
+				"content-type": "application/json",
+			},
+			body: JSON.stringify({
+				broadcaster_id: args.broadcasterId,
+				sender_id: args.senderId,
+				// Twitch hard-caps chat at 500 chars; clamp by code point (not UTF-16
+				// unit) so the cut can't split an emoji/surrogate pair mid-character.
+				message: [...args.message].slice(0, 500).join(""),
+			}),
+		});
+		if (!res.ok) {
+			console.log(`chat send failed: ${res.status} ${await res.text()}`);
+			return false;
+		}
+		// Twitch returns 200 even when it DROPS the message (e.g. duplicate/rate);
+		// surface that so a silent drop is at least logged.
+		const json = (await res.json()) as {
+			data?: { is_sent?: boolean; drop_reason?: { message?: string } }[];
+		};
+		const sent = json.data?.[0];
+		if (sent && sent.is_sent === false) {
+			console.log(`chat send dropped: ${sent.drop_reason?.message ?? "unknown"}`);
+			return false;
+		}
+		return true;
+	} catch (err) {
+		console.log(`chat send error: ${String(err)}`);
+		return false;
+	}
 }
 
 /**
