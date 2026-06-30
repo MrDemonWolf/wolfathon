@@ -258,6 +258,16 @@ test("applyEvent records the last add (minutes + label) only for positive adds",
 	expect(after.lastEvent?.at).toBe(1000);
 });
 
+test("applyEvent preview fires the alert but adds no time (test buttons)", () => {
+	const config = defaultTimerConfig();
+	const base = defaultTimerState(config);
+	const { state, addedMs } = applyEvent(config, base, { kind: "sub", tier: "t2" }, 1000, true);
+	expect(addedMs).toBe(0);
+	expect(state.remainingMs).toBe(base.remainingMs); // clock untouched
+	expect(state.totalAddedMs).toBe(base.totalAddedMs); // stats untouched
+	expect(state.lastEvent).toEqual({ at: 1000, minutes: config.sub.t2, label: "Sub" }); // alert still fires
+});
+
 test("toPublicTimer sources the eyebrow label from the THEME, not the timer config", () => {
 	const doc = defaultTimerDoc();
 	// A stray legacy config.label (pre-migration rows still carry it) must be
