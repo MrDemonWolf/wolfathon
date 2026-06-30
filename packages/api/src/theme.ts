@@ -1,5 +1,5 @@
 /**
- * Shared overlay theme — drives both the subathon timer capsule and the
+ * Shared overlay theme — drives both the Wolfathon timer capsule and the
  * rewards/goals card. Pure data + validation; the views map these choices to
  * their own geometry (a capsule vs a card map `corners` to different radii).
  */
@@ -21,7 +21,7 @@ export type OverlayTheme = {
 	corners: ThemeCorners;
 	/** Editable eyebrow text above the timer countdown (visibility = `showLabel`). */
 	label: string;
-	/** Show the eyebrow label ("SUBATHON" / "NEXT REWARD"). */
+	/** Show the eyebrow label ("WOLFATHON" / "NEXT REWARD"). */
 	showLabel: boolean;
 	/** Show the timer status chip (play/pause). */
 	showStatus: boolean;
@@ -33,9 +33,24 @@ export type OverlayTheme = {
 	showProgressBar: boolean;
 	/** Show the rewards-card "N Unlocked" row of already-won rewards. */
 	showUnlocked: boolean;
+	/**
+	 * Keep the wheel-of-dares overlay on screen while idle. Default off: the wheel
+	 * stays invisible until a spin fires (so it only appears for the reveal), then
+	 * hides again. Turn on to park the wheel permanently in your scene.
+	 */
+	showWheelIdle: boolean;
+	/** Per-overlay size multipliers (1 = the tuned 1080p default). See {@link OVERLAY_SCALE_KEYS}. */
+	timerScale: number;
+	rewardsScale: number;
+	wheelScale: number;
 };
 
-/** Overlay-element visibility flags — the user-toggleable show/hide booleans. */
+/**
+ * Overlay-element visibility flags — the user-toggleable show/hide booleans that
+ * default ON (an element shows out of the box). `showWheelIdle` is deliberately
+ * NOT here: it defaults OFF (the wheel hides until it spins), so it's validated +
+ * rendered on its own.
+ */
 export const OVERLAY_TOGGLE_KEYS = [
 	"showLabel",
 	"showStatus",
@@ -45,12 +60,32 @@ export const OVERLAY_TOGGLE_KEYS = [
 	"showUnlocked",
 ] as const satisfies readonly (keyof OverlayTheme)[];
 
+/**
+ * Per-overlay size multipliers. Each overlay is its own OBS browser source, so
+ * the operator drags them where they like; this just scales the artwork inside
+ * the source so it reads well at whatever size they give it on a 1080p canvas.
+ */
+export const OVERLAY_SCALE_KEYS = [
+	"timerScale",
+	"rewardsScale",
+	"wheelScale",
+] as const satisfies readonly (keyof OverlayTheme)[];
+export const MIN_SCALE = 0.5;
+export const MAX_SCALE = 1.6;
+export const DEFAULT_SCALE = 1;
+
+/** Clamp a raw scale to the allowed range, falling back to 1 for junk. */
+export function clampScale(v: unknown): number {
+	const n = typeof v === "number" && Number.isFinite(v) ? v : DEFAULT_SCALE;
+	return Math.max(MIN_SCALE, Math.min(MAX_SCALE, n));
+}
+
 export const MAX_GRADIENT_STOPS = 6;
 /** Matches `#abc` or `#aabbcc`. */
 export const HEX_COLOR = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
 
 /** Editable eyebrow text above the timer countdown. */
-export const DEFAULT_TIMER_LABEL = "SUBATHON";
+export const DEFAULT_TIMER_LABEL = "WOLFATHON";
 export const MAX_LABEL_LEN = 40;
 
 /**
@@ -114,6 +149,10 @@ export function defaultOverlayTheme(): OverlayTheme {
 		showUnits: true,
 		showProgressBar: true,
 		showUnlocked: true,
+		showWheelIdle: false,
+		timerScale: DEFAULT_SCALE,
+		rewardsScale: DEFAULT_SCALE,
+		wheelScale: DEFAULT_SCALE,
 	};
 }
 
@@ -274,6 +313,19 @@ export function validateOverlayTheme(
 		if (t[key] === undefined) continue;
 		if (typeof t[key] === "boolean") theme[key] = t[key] as boolean;
 		else errors.push({ path: `${at}.${key}`, message: "must be a boolean" });
+	}
+	// `showWheelIdle` defaults off, so it's validated apart from the all-on toggles.
+	if (t.showWheelIdle !== undefined) {
+		if (typeof t.showWheelIdle === "boolean") theme.showWheelIdle = t.showWheelIdle;
+		else errors.push({ path: `${at}.showWheelIdle`, message: "must be a boolean" });
+	}
+
+	// Per-overlay size multipliers — numbers, clamped to [MIN_SCALE, MAX_SCALE].
+	for (const key of OVERLAY_SCALE_KEYS) {
+		if (t[key] === undefined) continue;
+		if (typeof t[key] === "number" && Number.isFinite(t[key])) theme[key] = clampScale(t[key]);
+		else
+			errors.push({ path: `${at}.${key}`, message: `must be a number ${MIN_SCALE}–${MAX_SCALE}` });
 	}
 
 	return theme;

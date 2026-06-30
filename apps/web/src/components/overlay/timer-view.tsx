@@ -1,6 +1,12 @@
 "use client";
 
-import { expandHex, FONT_STACKS, gradientCss, type ThemeCorners } from "@wolfathon/api/theme";
+import {
+	clampScale,
+	expandHex,
+	FONT_STACKS,
+	gradientCss,
+	type ThemeCorners,
+} from "@wolfathon/api/theme";
 import { type EmoteDirection, pad2, type PublicTimer, splitDuration } from "@wolfathon/api/timer";
 import { env } from "@wolfathon/env/web";
 import { Flag, Pause, Play } from "lucide-react";
@@ -28,7 +34,7 @@ const CORNER_RADII: Record<ThemeCorners, string> = {
 };
 
 /**
- * Subathon timer overlay — a single horizontal gradient capsule. Timestamp-
+ * Wolfathon timer overlay — a single horizontal gradient capsule. Timestamp-
  * driven: it counts down locally from `endsAt` (correcting browser-clock skew
  * via `serverNow`) and only resyncs on the page's poll — smooth to the frame,
  * no websocket.
@@ -122,13 +128,18 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 			? "rgba(120,40,70,0.5)"
 			: "rgba(58,68,92,0.45)";
 	const boxShadow = `0 0.8cqw 2.6cqw rgba(4,9,24,0.5), 0 0 2.6cqw ${glow}`;
+	// Operator-tunable capsule width for 1080p placement (drag the source in OBS).
+	const scale = clampScale(data.timerScale);
 
 	return (
 		<div
 			className="pointer-events-none absolute inset-0 flex select-none items-center justify-center"
 			style={{ fontFamily }}
 		>
-			<div className="relative w-[86cqw] max-w-[1560px]">
+			<div
+				className="relative"
+				style={{ width: `${86 * scale}cqw`, maxWidth: `${1560 * scale}px` }}
+			>
 				{/* the capsule — its OWN container, fixed aspect, clips the emote flood.
 				    Glow is a box-shadow (no second rounded element → no double border). */}
 				<div

@@ -1,5 +1,5 @@
 /**
- * Subathon timer domain.
+ * Wolfathon timer domain.
  *
  * The timer is timestamp-based, not tick-based: while running we store `endsAt`
  * (epoch ms); while paused we store the frozen `remainingMs`. The overlay counts
@@ -11,6 +11,7 @@
  */
 
 import {
+	clampScale,
 	type OverlayTheme,
 	resolveTextColor,
 	resolveThemeGradient,
@@ -120,12 +121,14 @@ export type PublicTimer = {
 	autoPaused: boolean;
 	/** Show the eyebrow label. */
 	showLabel: boolean;
-	/** Editable eyebrow text (defaults to "SUBATHON"). */
+	/** Editable eyebrow text (defaults to "WOLFATHON"). */
 	label: string;
 	/** Show the play/pause status chip. */
 	showStatus: boolean;
 	/** Show the unit labels under the countdown digits (D/H/M/S). */
 	showUnits: boolean;
+	/** Size multiplier for the timer capsule (operator-tunable for 1080p). */
+	timerScale: number;
 	/** Whether the alert should name who/what added the time. */
 	showEventSource: boolean;
 	/** The most recent time-add (drives the "+Xm" alert + source line). */
@@ -465,6 +468,7 @@ export function toPublicTimer(doc: TimerDoc, now: number, theme: OverlayTheme): 
 		label: theme.label,
 		showStatus: theme.showStatus,
 		showUnits: theme.showUnits,
+		timerScale: clampScale(theme.timerScale),
 		showEventSource: doc.config.showEventSource ?? true,
 		lastEvent: doc.state.lastEvent ?? null,
 	};
