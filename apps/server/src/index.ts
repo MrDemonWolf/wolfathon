@@ -198,13 +198,7 @@ const EMOTE_MAX_BYTES = 2_000_000;
 // serve webp/gif/avif). Crucially this excludes image/svg+xml and text/html: the
 // proxy is unauthenticated and lives on the API origin, so reflecting a sniffable
 // or active content-type would be a stored-XSS vector. Paired with `nosniff` below.
-const EMOTE_TYPES = new Set([
-	"image/png",
-	"image/jpeg",
-	"image/gif",
-	"image/webp",
-	"image/avif",
-]);
+const EMOTE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"]);
 // Strip any `; charset=…` parameter and normalize before matching the allowlist.
 function safeEmoteType(raw: string | null): string | null {
 	const type = (raw ?? "").split(";")[0]?.trim().toLowerCase() ?? "";

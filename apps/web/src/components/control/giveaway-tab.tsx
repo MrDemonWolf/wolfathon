@@ -386,7 +386,9 @@ export function GiveawayTab() {
 							role={cmdValid ? undefined : "alert"}
 							className={`text-xs ${cmdValid ? "text-muted-foreground" : "text-destructive"}`}
 						>
-							{cmdValid ? "Must start with “!”." : "Enter a command starting with “!” (e.g. !enter)."}
+							{cmdValid
+								? "Must start with “!”."
+								: "Enter a command starting with “!” (e.g. !enter)."}
 						</span>
 					</div>
 					<div className="flex flex-col gap-1.5">

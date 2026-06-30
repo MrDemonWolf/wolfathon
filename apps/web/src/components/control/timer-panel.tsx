@@ -27,7 +27,10 @@ export function TimerPanel({
 	const [confirmingReset, setConfirmingReset] = useState(false);
 	// Surface failures: these live mutations previously failed silently (only the
 	// queryCache toasts, not mutations), so a failed +30m or reset showed nothing.
-	const opts = { onSuccess: onChanged, onError: (e: { message: string }) => toast.error(e.message) };
+	const opts = {
+		onSuccess: onChanged,
+		onError: (e: { message: string }) => toast.error(e.message),
+	};
 	const start = useMutation(controlTrpc.timer.start.mutationOptions(opts));
 	const pause = useMutation(controlTrpc.timer.pause.mutationOptions(opts));
 	const reset = useMutation(controlTrpc.timer.reset.mutationOptions(opts));
@@ -83,11 +86,11 @@ export function TimerPanel({
 			<div className="mt-4 rounded-xl border border-primary/30 bg-primary/[0.06] p-4">
 				{/* status + live countdown */}
 				<div
-						role="status"
-						aria-live="polite"
-						aria-atomic="true"
-						className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/40 px-5 py-4"
-					>
+					role="status"
+					aria-live="polite"
+					aria-atomic="true"
+					className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/40 px-5 py-4"
+				>
 					<div>
 						<div className="eyebrow text-[0.65rem]">Remaining</div>
 						<div className="mt-0.5 font-heading text-4xl font-extrabold tabular-nums tracking-tight">
@@ -188,12 +191,7 @@ export function TimerPanel({
 								+{min}m
 							</Button>
 						))}
-						<Button
-							size="lg"
-							variant="outline"
-							onClick={() => addTime(-5)}
-							disabled={busy}
-						>
+						<Button size="lg" variant="outline" onClick={() => addTime(-5)} disabled={busy}>
 							−5m
 						</Button>
 						<span className="mx-1 h-6 w-px self-center bg-border" />

@@ -66,7 +66,11 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
 				</div>
 			</header>
 
-			<main id="main" tabIndex={-1} className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 outline-none">
+			<main
+				id="main"
+				tabIndex={-1}
+				className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 outline-none"
+			>
 				{/* Per-section h1 for screen-reader orientation. Settings provides its own
 				    visible h1, so defer to it there; otherwise each panel's heading is an h2. */}
 				<h1 className="sr-only">
