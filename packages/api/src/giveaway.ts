@@ -55,6 +55,8 @@ export type GiveawayConfig = {
 
 export type GiveawayDoc = {
 	config: GiveawayConfig;
+	/** Epoch ms the operator started the round; null until then. Gifts only count after this. */
+	startedAt: number | null;
 	gifters: Gifter[];
 	entrants: Entrant[];
 	winners: Winner[];
@@ -81,7 +83,18 @@ export function defaultGiveawayConfig(): GiveawayConfig {
 }
 
 export function defaultGiveawayDoc(): GiveawayDoc {
-	return { config: defaultGiveawayConfig(), gifters: [], entrants: [], winners: [] };
+	return {
+		config: defaultGiveawayConfig(),
+		startedAt: null,
+		gifters: [],
+		entrants: [],
+		winners: [],
+	};
+}
+
+/** Mark the round started so gift events begin counting. Idempotent. */
+export function startGiveaway(doc: GiveawayDoc, now: number): GiveawayDoc {
+	return doc.startedAt == null ? { ...doc, startedAt: now } : doc;
 }
 
 /**
@@ -117,6 +130,9 @@ export function parseGiveawayEvent(
 /** Apply a parsed giveaway event, returning the new doc (pure). */
 export function applyGiveawayEvent(doc: GiveawayDoc, ev: GiveawayEvent, now: number): GiveawayDoc {
 	if (ev.kind === "gift") {
+		// Gifts only count once the operator starts the round — pre-show gifts
+		// shouldn't pre-decide the winners.
+		if (doc.startedAt == null) return doc;
 		const threshold = doc.config.giftThreshold;
 		const exists = doc.gifters.some((g) => g.login === ev.login);
 		const gifters = exists
@@ -190,6 +206,29 @@ export function drawRaffle(
 	return { doc: addWinner(doc, { ...pick, source: "raffle" }, now), winner: pick };
 }
 
+/**
+ * Replace a raffle winner with a fresh draw (the "reroll" button). Removes the
+ * winner `id`, then draws someone new — excluding the just-removed login so a
+ * reroll always yields a different person. If no other entrant is left, the
+ * original winner is kept (returns the doc unchanged with winner null).
+ */
+export function rerollRaffle(
+	doc: GiveawayDoc,
+	id: string,
+	now: number,
+	rand: () => number = secureRandom,
+): { doc: GiveawayDoc; winner: Entrant | null } {
+	const target = doc.winners.find((w) => w.id === id);
+	if (!target || target.source !== "raffle") return { doc, winner: null };
+	const without = removeWinner(doc, id);
+	const taken = new Set(without.winners.map((w) => w.login));
+	taken.add(target.login); // don't re-pick the person we just rerolled out
+	const pool = without.entrants.filter((e) => !taken.has(e.login));
+	if (pool.length === 0) return { doc, winner: null };
+	const pick = pool[Math.floor(rand() * pool.length)]!;
+	return { doc: addWinner(without, { ...pick, source: "raffle" }, now), winner: pick };
+}
+
 export function setShipped(doc: GiveawayDoc, id: string, shipped: boolean): GiveawayDoc {
 	return { ...doc, winners: doc.winners.map((w) => (w.id === id ? { ...w, shipped } : w)) };
 }
@@ -206,9 +245,19 @@ export function removeWinner(doc: GiveawayDoc, id: string): GiveawayDoc {
 	return { ...doc, winners: doc.winners.filter((w) => w.id !== id) };
 }
 
-/** Clear gifters, entrants, and winners for a fresh round. Config is kept. */
+/**
+ * Clear gifters, entrants, and winners for a fresh round. Config is kept but
+ * entries are closed and the round is un-started (so gifts wait for Start).
+ */
 export function resetRound(doc: GiveawayDoc): GiveawayDoc {
-	return { ...doc, gifters: [], entrants: [], winners: [] };
+	return {
+		...doc,
+		startedAt: null,
+		config: { ...doc.config, open: false },
+		gifters: [],
+		entrants: [],
+		winners: [],
+	};
 }
 
 export type ConfigPatch = Partial<GiveawayConfig>;

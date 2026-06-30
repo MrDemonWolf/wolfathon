@@ -9,13 +9,26 @@ import {
 	parseGiveawayEvent,
 	qualifyingGifters,
 	removeWinner,
+	rerollRaffle,
 	resetRound,
 	setShipped,
 	setWinnerNote,
+	startGiveaway,
 } from "./giveaway";
 
+test("gifts are ignored until the round is started", () => {
+	let doc = defaultGiveawayDoc(); // startedAt null
+	doc = applyGiveawayEvent(doc, { kind: "gift", login: "alice", name: "Alice", count: 9 }, 5);
+	expect(doc.gifters).toHaveLength(0); // not started → ignored
+
+	doc = startGiveaway(doc, 10);
+	expect(startGiveaway(doc, 99).startedAt).toBe(10); // idempotent — start time sticks
+	doc = applyGiveawayEvent(doc, { kind: "gift", login: "alice", name: "Alice", count: 9 }, 15);
+	expect(doc.gifters).toHaveLength(1);
+});
+
 test("gifts accumulate and cross the threshold in order", () => {
-	let doc = defaultGiveawayDoc(); // threshold 5
+	let doc = startGiveaway(defaultGiveawayDoc(), 0); // threshold 5, started
 	// alice gifts 3 then 2 → qualifies on the second gift (t=20)
 	doc = applyGiveawayEvent(doc, { kind: "gift", login: "alice", name: "Alice", count: 3 }, 10);
 	doc = applyGiveawayEvent(doc, { kind: "gift", login: "alice", name: "Alice", count: 2 }, 20);
@@ -171,8 +184,8 @@ test("setShipped, setWinnerNote, and removeWinner only touch the matching winner
 	expect(doc.winners.map((w) => w.id)).toEqual([b!.id]);
 });
 
-test("resetRound clears gifters/entrants/winners but keeps config", () => {
-	let doc = defaultGiveawayDoc();
+test("resetRound clears gifters/entrants/winners and un-starts/closes the round", () => {
+	let doc = startGiveaway(defaultGiveawayDoc(), 0);
 	doc.config.open = true;
 	doc = applyGiveawayEvent(doc, { kind: "gift", login: "g", name: "G", count: 9 }, 1);
 	doc = applyGiveawayEvent(doc, { kind: "entry", login: "e", name: "E" }, 2);
@@ -182,5 +195,36 @@ test("resetRound clears gifters/entrants/winners but keeps config", () => {
 	expect(reset.gifters).toHaveLength(0);
 	expect(reset.entrants).toHaveLength(0);
 	expect(reset.winners).toHaveLength(0);
-	expect(reset.config).toEqual(doc.config);
+	expect(reset.startedAt).toBeNull(); // gifts wait for the next Start
+	expect(reset.config.open).toBe(false); // entries closed
+	expect(reset.config.command).toBe(doc.config.command); // rest of config kept
+});
+
+test("rerollRaffle swaps a raffle winner for someone new, never re-picking them", () => {
+	let doc = startGiveaway(defaultGiveawayDoc(), 0);
+	doc.config.open = true;
+	for (const login of ["a", "b"]) {
+		doc = applyGiveawayEvent(doc, { kind: "entry", login, name: login }, 0);
+	}
+	const drawn = drawRaffle(doc, 100, () => 0); // picks "a"
+	expect(drawn.winner!.login).toBe("a");
+	const id = drawn.doc.winners[0]!.id;
+
+	// reroll "a" → only "b" left, so it must land on "b" (never re-picks "a")
+	const re = rerollRaffle(drawn.doc, id, 200, () => 0);
+	expect(re.winner!.login).toBe("b");
+	expect(re.doc.winners.map((w) => w.login)).toEqual(["b"]);
+});
+
+test("rerollRaffle keeps the winner when there's no one else to draw", () => {
+	let doc = startGiveaway(defaultGiveawayDoc(), 0);
+	doc.config.open = true;
+	doc = applyGiveawayEvent(doc, { kind: "entry", login: "solo", name: "Solo" }, 0);
+	const drawn = drawRaffle(doc, 100, () => 0);
+	const id = drawn.doc.winners[0]!.id;
+
+	// "solo" is the only entrant and is excluded → keep them, no-op
+	const stuck = rerollRaffle(drawn.doc, id, 200, () => 0);
+	expect(stuck.winner).toBeNull();
+	expect(stuck.doc.winners.map((w) => w.login)).toEqual(["solo"]);
 });
