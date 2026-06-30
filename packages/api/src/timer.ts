@@ -61,8 +61,6 @@ export type TimerConfig = {
 	emoteCount: number;
 	/** Which way the time-add emote burst travels (up / left→right / right→left). */
 	emoteDirection: EmoteDirection;
-	/** Editable eyebrow text above the countdown (visibility is `theme.showLabel`). */
-	label: string;
 	/** Show who/what added time on the time-add alert (e.g. "Name · Sub +5m"). */
 	showEventSource: boolean;
 	/**
@@ -160,9 +158,6 @@ export const MAX_EMOTE_COUNT = 80;
 export const DEFAULT_EMOTE_COUNT = 26;
 /** Emotes well up by default (the original behaviour). */
 export const DEFAULT_EMOTE_DIRECTION: EmoteDirection = "up";
-/** Editable eyebrow label above the countdown. */
-export const DEFAULT_TIMER_LABEL = "SUBATHON";
-export const MAX_LABEL_LEN = 40;
 /** Longest single entry: fits a unicode emoji OR a Twitch emote CDN URL. */
 const MAX_EMOJI_LEN = 300;
 
@@ -203,6 +198,20 @@ export function sanitizeEmoji(raw: string): string | null {
 	return v;
 }
 
+/**
+ * True if `u` is an https image URL on an allowed emote CDN. The `/emote` proxy
+ * (apps/server) only fetches URLs that pass this, so it can't be turned into an
+ * open SSRF proxy for arbitrary hosts.
+ */
+export function isAllowedEmoteUrl(u: string): boolean {
+	if (!u.startsWith("https://") || u.length > MAX_EMOJI_LEN) return false;
+	try {
+		return EMOTE_CDN_HOSTS.has(new URL(u).hostname.toLowerCase());
+	} catch {
+		return false;
+	}
+}
+
 /** Wolf-themed drift set, used when a config has none (incl. old saved rows). */
 export const DEFAULT_TIMER_EMOJIS = ["🐺", "🌙", "⚡", "💙", "🔥", "✨", "🎮", "🏆"];
 
@@ -217,7 +226,6 @@ export function defaultTimerConfig(): TimerConfig {
 		emojis: [...DEFAULT_TIMER_EMOJIS],
 		emoteCount: DEFAULT_EMOTE_COUNT,
 		emoteDirection: DEFAULT_EMOTE_DIRECTION,
-		label: DEFAULT_TIMER_LABEL,
 		showEventSource: true,
 		autoPauseOnOffline: true,
 		tipMinutesPerDollar: 1,
@@ -447,7 +455,7 @@ export function toPublicTimer(doc: TimerDoc, now: number, theme: OverlayTheme): 
 		font: theme.font,
 		corners: theme.corners,
 		showLabel: theme.showLabel,
-		label: doc.config.label ?? DEFAULT_TIMER_LABEL,
+		label: theme.label,
 		showStatus: theme.showStatus,
 		showUnits: theme.showUnits,
 		showEventSource: doc.config.showEventSource ?? true,
@@ -518,9 +526,7 @@ export function validateTimerConfig(input: unknown): TimerConfigResult {
 		emoteDirection: EMOTE_DIRECTIONS.includes(r.emoteDirection as EmoteDirection)
 			? (r.emoteDirection as EmoteDirection)
 			: DEFAULT_EMOTE_DIRECTION,
-		// Label + alert-source are optional; absent → defaults (lenient, like emojis).
-		label:
-			typeof r.label === "string" ? r.label.trim().slice(0, MAX_LABEL_LEN) : DEFAULT_TIMER_LABEL,
+		// Alert-source is optional; absent → on (lenient, like emojis).
 		showEventSource: typeof r.showEventSource === "boolean" ? r.showEventSource : true,
 		// Optional; absent → on (auto-pause/resume around stream offline).
 		autoPauseOnOffline: typeof r.autoPauseOnOffline === "boolean" ? r.autoPauseOnOffline : true,
