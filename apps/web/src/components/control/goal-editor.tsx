@@ -90,6 +90,7 @@ export function GoalEditor({
 					className="rounded-lg"
 					onClick={add}
 					disabled={goals.length >= 50}
+					title={goals.length >= 50 ? "Maximum 50 goals reached" : undefined}
 				>
 					<Plus className="size-3.5" />
 					Add goal
@@ -150,6 +151,7 @@ export function GoalEditor({
 									className="h-9 w-20 rounded-lg text-center text-sm font-semibold tabular-nums"
 									type="number"
 									min={0}
+									max={MAX_TARGET}
 									aria-label="Next goal sub target"
 									placeholder="—"
 									value={target ?? ""}
@@ -319,6 +321,7 @@ export function GoalEditor({
 											className="h-8 w-20 rounded-lg text-sm tabular-nums"
 											type="number"
 											min={0}
+											max={MAX_TARGET}
 											aria-label={`Goal ${i + 1} sub target`}
 											placeholder="—"
 											value={g.target ?? ""}

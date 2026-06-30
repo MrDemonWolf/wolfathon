@@ -9,6 +9,15 @@ import {
 	slotColor,
 	toPublicWheel,
 } from "@wolfathon/api/wheel";
+import {
+	AlertDialog,
+	AlertDialogClose,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogTitle,
+	AlertDialogTrigger,
+} from "@wolfathon/ui/components/alert-dialog";
 import { Button } from "@wolfathon/ui/components/button";
 import { Checkbox } from "@wolfathon/ui/components/checkbox";
 import { Input } from "@wolfathon/ui/components/input";
@@ -341,10 +350,16 @@ function SlotRow({
 			>
 				{oddsPct === null ? "—" : `${oddsPct.toFixed(oddsPct < 9.95 ? 1 : 0)}%`}
 			</span>
+			{/* Commit on blur, not per-tick: a native colour picker fires onChange
+			    continuously while dragging, which would spam upsertSlot (and clear any
+			    armed spin) dozens of times per pick. defaultValue keeps it uncontrolled
+			    so the live drag stays smooth; the row remounts on id so this re-seeds. */}
 			<input
 				type="color"
-				value={slotColor(slot, index)}
-				onChange={(e) => onColor(e.target.value)}
+				defaultValue={slotColor(slot, index)}
+				onBlur={(e) => {
+					if (e.target.value !== slotColor(slot, index)) onColor(e.target.value);
+				}}
 				aria-label={`Colour for ${slot.label}`}
 				className="size-8 cursor-pointer rounded-[0.6rem] border border-input bg-transparent"
 			/>
@@ -361,9 +376,28 @@ function SlotRow({
 			<Button variant="secondary" size="sm" onClick={onSpin}>
 				<Dices className="size-3.5" /> Spin to this
 			</Button>
-			<Button variant="ghost" size="sm" onClick={onDelete} aria-label={`Delete ${slot.label}`}>
-				<Trash2 className="size-4" />
-			</Button>
+			<AlertDialog>
+				<AlertDialogTrigger
+					render={
+						<Button variant="ghost" size="sm" aria-label={`Delete ${slot.label}`}>
+							<Trash2 className="size-4" />
+						</Button>
+					}
+				/>
+				<AlertDialogContent>
+					<AlertDialogTitle>Delete this dare?</AlertDialogTitle>
+					<AlertDialogDescription>
+						“{slot.label || "Untitled"}” will be removed from the wheel. This can&apos;t be undone.
+					</AlertDialogDescription>
+					<AlertDialogFooter>
+						<AlertDialogClose render={<Button variant="outline">Cancel</Button>} />
+						<AlertDialogClose
+							onClick={onDelete}
+							render={<Button variant="destructive">Delete</Button>}
+						/>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</li>
 	);
 }
