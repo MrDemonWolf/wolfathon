@@ -9,9 +9,11 @@ import {
 	OVERLAY_TOGGLE_KEYS,
 	resolveTextColor,
 	resolveThemeGradient,
+	shade,
 	THEME_PRESETS,
 	type ThemeError,
 	validateOverlayTheme,
+	wheelPalette,
 } from "./theme";
 
 test("expands #rgb shorthand to #rrggbb", () => {
@@ -22,6 +24,22 @@ test("expands #rgb shorthand to #rrggbb", () => {
 test("passes a 6-digit hex through unchanged", () => {
 	expect(expandHex("#00aced")).toBe("#00aced");
 	expect(expandHex("#AABBCC")).toBe("#AABBCC");
+});
+
+test("shade darkens each channel by the factor", () => {
+	expect(shade("#ffffff", 0.5)).toBe("#808080");
+	expect(shade("#00aced", 0)).toBe("#000000");
+	expect(shade("#102030", 1)).toBe("#102030");
+});
+
+test("wheelPalette maps the brand gradient to dark/accent/light chrome", () => {
+	const p = wheelPalette(defaultOverlayTheme());
+	// brand = ["#0077c8", "#00aced", "#5bc8f0"] sorted by luma → accent is the mid
+	// stop, light the brightest, dark a deep tint of the darkest.
+	expect(p.accent).toBe("#00aced");
+	expect(p.light).toBe("#5bc8f0");
+	expect(luma(p.dark)).toBeLessThan(luma(p.accent));
+	expect(luma(p.darkDeep)).toBeLessThan(luma(p.dark));
 });
 
 test("trims surrounding whitespace before matching", () => {

@@ -59,7 +59,9 @@ export const publicRouter = router({
 		/** Enabled slots as render-only fields — no ids beyond render, never the token. */
 		getPublic: publicProcedure.input(tokenInput).query(async ({ ctx, input }) => {
 			assertToken((await readSettings(ctx.db)).overlayToken, input.token);
-			return toPublicWheel(await readWheel(ctx.db));
+			const [wheel, state] = await Promise.all([readWheel(ctx.db), readState(ctx.db)]);
+			// Theme is shared with the timer + rewards card and lives in the state doc.
+			return { ...toPublicWheel(wheel), theme: state.theme };
 		}),
 		/**
 		 * The live pending spin (or null) so the overlay can animate. Does NOT clear

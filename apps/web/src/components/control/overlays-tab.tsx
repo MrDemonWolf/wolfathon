@@ -12,7 +12,18 @@ import {
 } from "@wolfathon/ui/components/alert-dialog";
 import { Button } from "@wolfathon/ui/components/button";
 import { useCopyToClipboard } from "@wolfathon/ui/hooks/use-copy-to-clipboard";
-import { Check, Copy, Disc3, Eye, EyeOff, Gauge, Loader2, RotateCcw, Trophy } from "lucide-react";
+import {
+	Check,
+	Copy,
+	Disc3,
+	ExternalLink,
+	Eye,
+	EyeOff,
+	Gauge,
+	Loader2,
+	RotateCcw,
+	Trophy,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -207,6 +218,24 @@ function OverlayCard({
 				>
 					{copied ? <Check className="size-4 text-primary" /> : <Copy className="size-4" />}
 					{copied ? "Copied" : "Copy"}
+				</Button>
+				{/* Open the live overlay in a new tab — handy to preview without OBS. */}
+				<Button
+					variant="outline"
+					// `disabled:` doesn't style anchors, so gate the click manually.
+					className={`rounded-lg ${url ? "" : "pointer-events-none opacity-50"}`}
+					aria-disabled={!url}
+					render={
+						<a
+							href={url || undefined}
+							target="_blank"
+							rel="noopener noreferrer"
+							aria-label={`Open ${title} overlay in a new tab`}
+						/>
+					}
+				>
+					<ExternalLink className="size-4" />
+					Open
 				</Button>
 			</div>
 		</div>
