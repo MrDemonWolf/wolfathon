@@ -371,6 +371,9 @@ broken.
 - `bun run dev:server` - Start only the server.
 - `bun run build` - Build all applications.
 - `bun run check-types` - Type-check across the monorepo.
+- `bun run test` - Run the domain test suite (`packages/api/src`).
+- `bun run check` - Lint with ESLint and check formatting with Prettier.
+- `bun run format` - Format the repo with Prettier.
 - `bun run db:generate` - Generate the Drizzle migration from the schema.
 - `bun run deploy` - Deploy web, server, and D1 to Cloudflare.
 - `bun run destroy` - Tear down the deployed Cloudflare resources.
@@ -381,6 +384,8 @@ broken.
 - Shared design tokens and components in `packages/ui`.
 - Domain logic and validation centralized in `packages/api` and reused by the
   overlays, the control panel, and the Twitch webhook.
+- Pure-function domain modules (timer, wheel, giveaway, theme, backup) covered
+  by `bun test`, kept separate from persistence so they stay easy to test.
 
 ## Deploying to Cloudflare
 
