@@ -112,7 +112,7 @@ export function ThemeTab() {
 					<div className="rounded-2xl panel-card p-5">
 						<h2 className="font-heading text-lg font-bold">Customizer</h2>
 						<p className="mt-1 text-sm text-muted-foreground">
-							One look for both overlays — the subathon timer and the rewards card share these
+							One look for both overlays — the Wolfathon timer and the rewards card share these
 							colours, font, corners and label.
 						</p>
 						<ThemeEditor theme={draft} onChange={setDraft} />

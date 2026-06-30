@@ -14,7 +14,7 @@ export default function LandingPage() {
 						MrDemonWolf presents
 					</p>
 					<h1 className="font-heading text-5xl font-extrabold tracking-tight">
-						The Wolf Pack Subathon
+						The Wolf Pack Wolfathon
 					</h1>
 					<p className="max-w-md text-muted-foreground">
 						Join the pack — every sub, cheer, and tip keeps the timer running. Live timers, rewards,

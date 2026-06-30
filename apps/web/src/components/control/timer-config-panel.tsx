@@ -20,7 +20,7 @@ const EMOTE_DIRECTION_LABELS: Record<EmoteDirection, string> = {
 	left: "Right → Left",
 };
 
-/** Quick palette for one-tap adding — covers most subathon/stream vibes. */
+/** Quick palette for one-tap adding — covers most Wolfathon/stream vibes. */
 const EMOJI_PRESETS = [
 	"🐺",
 	"🌙",
