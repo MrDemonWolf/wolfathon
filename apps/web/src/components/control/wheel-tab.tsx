@@ -21,6 +21,9 @@ export function WheelTab() {
 		refetchInterval: 3000,
 	});
 	const { data, isError, refetch } = useQuery(rawOptions);
+	// Overlay theme is global (Settings → Theme) — pull it in so the preview
+	// matches what OBS renders.
+	const { data: stateDoc } = useQuery(controlTrpc.state.getRaw.queryOptions());
 	const invalidate = () => queryClient.invalidateQueries({ queryKey: rawOptions.queryKey });
 	// Every mutation surfaces failures — the panel polls every 3s, so a silently
 	// rejected save/spin would otherwise just look like nothing happened.
@@ -215,7 +218,7 @@ export function WheelTab() {
 
 			<div className="flex flex-col gap-3 lg:sticky lg:top-6 lg:self-start">
 				<h2 className="font-heading text-lg font-bold">Live preview</h2>
-				<WheelPreview doc={data} />
+				<WheelPreview doc={data} theme={stateDoc?.theme} />
 			</div>
 		</div>
 	);
