@@ -2,6 +2,7 @@ import alchemy from "alchemy";
 import { Nextjs } from "alchemy/cloudflare";
 import { Worker } from "alchemy/cloudflare";
 import { D1Database } from "alchemy/cloudflare";
+import { R2Bucket } from "alchemy/cloudflare";
 import { config } from "dotenv";
 
 config({ path: "./.env" });
@@ -35,6 +36,11 @@ const db = await D1Database("database", {
 	adopt: true,
 });
 
+// Self-hosted Twitch emote cache. The public API lazily mirrors each emote
+// image here on first request so the overlays load from our own origin instead
+// of Twitch's CDN (stable URLs that never break mid-stream). See apps/server `/emote`.
+const emotes = await R2Bucket("wolfathon-emotes", { adopt: true });
+
 export const server = await Worker("wolfathon-api", {
 	// Explicit script name → wolfathon-api.<subdomain>.workers.dev
 	// (without this, Alchemy prefixes app + stage onto the name).
@@ -47,6 +53,7 @@ export const server = await Worker("wolfathon-api", {
 	bindings: {
 		DB: db,
 		CORS_ORIGIN,
+		EMOTES: emotes,
 	},
 	dev: {
 		port: 3000,
