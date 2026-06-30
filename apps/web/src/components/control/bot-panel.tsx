@@ -74,7 +74,7 @@ export function BotPanel() {
 
 			{/* Connection row */}
 			<div
-				className={`mt-4 flex items-center justify-between gap-3 rounded-xl border p-4 ${
+				className={`mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 ${
 					connected && needsReconnect
 						? "border-amber-400/30 bg-amber-400/[0.06]"
 						: connected
@@ -82,10 +82,13 @@ export function BotPanel() {
 							: "border-border bg-background/40"
 				}`}
 			>
-				<div className="flex min-w-0 items-center gap-2">
+				<div role="status" aria-live="polite" className="flex min-w-0 items-center gap-2">
 					{data === undefined && isLoading ? (
 						<>
-							<Loader2 className="size-5 shrink-0 animate-spin text-muted-foreground" />
+							<Loader2
+								className="size-5 shrink-0 animate-spin text-muted-foreground"
+								aria-label="Checking connection"
+							/>
 							<div className="text-sm text-muted-foreground">Checking connection…</div>
 						</>
 					) : connected && needsReconnect ? (
@@ -239,12 +242,22 @@ export function BotPanel() {
 }
 
 /** Per-command cooldown for normal viewers (mods/VIPs/broadcaster bypass). */
+const MAX_COOLDOWN_SECONDS = 3600;
 function CooldownField({ seconds, onCommit }: { seconds: number; onCommit: (s: number) => void }) {
 	const [value, setValue] = useState(String(seconds));
 	useEffect(() => setValue(String(seconds)), [seconds]);
 	const commit = () => {
 		const n = Number(value);
-		if (Number.isFinite(n) && n !== seconds) onCommit(n);
+		// Reset to the stored value on junk input; otherwise clamp to the same
+		// [0, 3600] range the server enforces and reflect it back so the field
+		// doesn't keep showing e.g. 9999 after a silent server clamp.
+		if (!Number.isFinite(n)) {
+			setValue(String(seconds));
+			return;
+		}
+		const clamped = Math.min(MAX_COOLDOWN_SECONDS, Math.max(0, Math.floor(n)));
+		setValue(String(clamped));
+		if (clamped !== seconds) onCommit(clamped);
 	};
 	return (
 		<label className="flex items-center gap-2 text-sm">
@@ -252,13 +265,14 @@ function CooldownField({ seconds, onCommit }: { seconds: number; onCommit: (s: n
 			<Input
 				type="number"
 				min={0}
+				max={MAX_COOLDOWN_SECONDS}
 				value={value}
 				onChange={(e) => setValue(e.target.value)}
 				onBlur={commit}
 				onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
 				className="w-20"
 			/>
-			<span className="text-muted-foreground">sec</span>
+			<span className="text-muted-foreground">sec (0–3600)</span>
 		</label>
 	);
 }
