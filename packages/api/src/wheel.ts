@@ -61,34 +61,36 @@ export const MAX_HISTORY = 25;
 export const DEFAULT_MIN_TURNS = 5;
 
 /**
- * Default slot colours, cycled by render index when a slot has no explicit hex.
- * Tuned to read on the navy overlay backdrop and stay distinct neighbour-to-
- * neighbour. All AA-legible against dark slice text shadow.
+ * Default slice colours, cycled by render index when a slot has no explicit hex.
+ * A cohesive "moonlit pack" set — cool blues/teals/indigo with a single ember
+ * accent for contrast — so the wheel reads as one palette rather than rainbow
+ * confetti, while neighbours stay distinct. The overlay picks dark-or-white ink
+ * per slice from each colour's luma, so every entry stays AA-legible.
  */
 export const WHEEL_PALETTE = [
-	"#00aced",
-	"#5bc8f0",
-	"#7b6cf6",
-	"#ff5fa2",
-	"#ffb84d",
-	"#3ddc97",
-	"#ff7a59",
-	"#9d6bff",
-	"#27d7f5",
-	"#f6c945",
+	"#2f6df0", // azure
+	"#21c0a8", // teal
+	"#6e6cf6", // indigo
+	"#36c6f4", // sky cyan
+	"#9b6cf6", // amethyst
+	"#46d39a", // mint
+	"#5b8def", // cornflower
+	"#f0a24b", // ember (warm accent)
+	"#7d8bd6", // periwinkle
+	"#2aa9e0", // ocean
 ] as const;
 
-/** The 2026 wheel-of-dares, seeded on first read of a fresh database. */
+/** The default wolf-themed wheel-of-dares, seeded on first read of a fresh DB. */
 const SAMPLE_DARES = [
+	"Howl on mic",
 	"10 push-ups",
-	"20 jumping jacks",
 	"1-min dance break",
+	"Best villain laugh",
 	"Embarrassing story",
 	"Chat picks next game",
-	"Chat picks title 15 min",
-	"Best villain laugh",
-	"Draw sona badly 60s",
-	"Draw chat's request",
+	"Chat renames you 15m",
+	"Draw your sona badly",
+	"Pack shoutout",
 	"Free spin",
 ];
 

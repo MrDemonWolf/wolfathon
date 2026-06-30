@@ -245,8 +245,8 @@ test("withWheelDefaults backfills a legacy/partial row without throwing", () => 
 
 test("slotColor falls back to the palette by index when a slot has no valid hex", () => {
 	expect(slotColor({ color: "#ff8800" }, 3)).toBe("#ff8800"); // explicit wins
-	expect(slotColor({ color: "bogus" }, 0)).toBe("#00aced"); // invalid → palette[0]
-	expect(slotColor({}, 1)).toBe("#5bc8f0"); // none → palette[1]
+	expect(slotColor({ color: "bogus" }, 0)).toBe("#2f6df0"); // invalid → palette[0]
+	expect(slotColor({}, 1)).toBe("#21c0a8"); // none → palette[1]
 });
 
 const _typecheck: WheelSlot = { id: "x", label: "y", weight: 1, enabled: true };
