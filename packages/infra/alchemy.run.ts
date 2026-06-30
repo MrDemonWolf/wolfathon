@@ -54,6 +54,11 @@ export const server = await Worker("wolfathon-api", {
 		DB: db,
 		CORS_ORIGIN,
 		EMOTES: emotes,
+		// The EventSub webhook sends bot chat replies + refreshes the bot's user
+		// token, both of which need the Twitch app creds (refresh needs the secret).
+		// Same repo secrets the web Worker uses.
+		TWITCH_CLIENT_ID: process.env.TWITCH_CLIENT_ID ?? "",
+		TWITCH_CLIENT_SECRET: process.env.TWITCH_CLIENT_SECRET ?? "",
 	},
 	dev: {
 		port: 3000,
