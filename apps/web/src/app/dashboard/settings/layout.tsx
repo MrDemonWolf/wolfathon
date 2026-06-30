@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 /** Set-once config — connect Twitch, grab overlay URLs, back up state. Reached via the gear in the navbar. */
 const SECTIONS = [
 	{ href: "/dashboard/settings/twitch", label: "Twitch" },
+	{ href: "/dashboard/settings/bot", label: "Bot" },
 	{ href: "/dashboard/settings/overlays", label: "Overlays" },
 	{ href: "/dashboard/settings/theme", label: "Customizer" },
 	{ href: "/dashboard/settings/backup", label: "Backup" },
