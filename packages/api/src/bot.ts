@@ -405,6 +405,26 @@ export function buildAutoSpinAnnouncement(subs: number, label: string | null): s
 	return label ? `${head} Landed on: ${label}` : head;
 }
 
+// ---- giveaway draw → claim chat lines (pure) ------------------------------
+
+/** Minutes a drawn raffle winner has to claim (derived from {@link CLAIM_WINDOW_MS}). */
+const GIVEAWAY_CLAIM_MINUTES = 5;
+
+/** "You won — type !claim" line posted right after a raffle draw. */
+export function buildGiveawayDrawAnnouncement(name: string): string {
+	return `🎉 @${name} you won the giveaway! Type !claim in chat within ${GIVEAWAY_CLAIM_MINUTES} minutes or I redraw.`;
+}
+
+/** Confirmation line once the drawn winner types `!claim` in time. */
+export function buildGiveawayClaimAnnouncement(name: string): string {
+	return `✅ @${name} claimed their prize!`;
+}
+
+/** Line when the claim window lapses unclaimed — prompts an operator redraw. */
+export function buildGiveawayTimeoutAnnouncement(name: string): string {
+	return `⏰ @${name} didn't claim in time — an operator can redraw.`;
+}
+
 // ---- !wolfathon composite (pure) ------------------------------------------
 
 /** The enabled `!wolfathon` parts, in canonical order. Undefined `parts` = all. */

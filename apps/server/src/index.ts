@@ -2,6 +2,9 @@ import { trpcServer } from "@hono/trpc-server";
 import {
 	buildAutoSpinAnnouncement,
 	buildGiftAnnouncement,
+	buildGiveawayClaimAnnouncement,
+	buildGiveawayDrawAnnouncement,
+	buildGiveawayTimeoutAnnouncement,
 	canRun,
 	dynamicTemplate,
 	fillTemplate,
@@ -18,7 +21,12 @@ import {
 	wolfathonValue,
 } from "@wolfathon/api/bot";
 import { createContext } from "@wolfathon/api/context";
-import { applyGiveawayEvent, parseGiveawayEvent } from "@wolfathon/api/giveaway";
+import {
+	applyGiveawayEvent,
+	claimPending,
+	expirePending,
+	parseGiveawayEvent,
+} from "@wolfathon/api/giveaway";
 import { publicRouter } from "@wolfathon/api/routers/index";
 import { autoPause, autoResume } from "@wolfathon/api/timer";
 import { isAllowedEmoteUrl } from "@wolfathon/api/timer";
@@ -196,6 +204,10 @@ app.post("/twitch/eventsub", async (c) => {
 			chatText.trim().startsWith("!")
 		) {
 			c.executionCtx.waitUntil(handleBotCommand(db, twitch, event, now));
+			// Giveaway draw → claim flow rides the same "!" fast-path so the giveaway
+			// doc is never read on the ordinary chat firehose. It announces a fresh
+			// draw, accepts the winner's !claim, or surfaces a lapsed window.
+			c.executionCtx.waitUntil(handleGiveawayClaim(db, twitch, event, chatText, now));
 		}
 		return c.body(null, 204);
 	}
@@ -345,6 +357,73 @@ async function handleBotCommand(
 	}
 
 	await sendAsBot(db, twitch, reply);
+}
+
+/**
+ * Drive the giveaway draw → claim chat flow from a "!"-prefixed chat line.
+ *
+ * Three outcomes, all decided + committed in ONE CAS so concurrent deliveries
+ * can't double-announce, then the chosen line is sent once:
+ *
+ *  1. A fresh draw (`pendingClaim` not yet `announced`) → post the "you won, type
+ *     !claim" line and flip `announced`.
+ *  2. The winner types `!claim` within the window → mark claimed (clears
+ *     `pendingClaim`) and post the confirmation.
+ *  3. The window lapsed unclaimed → post the timeout line once (guarded by
+ *     `timedOut`) and leave the pending winner in place so the dashboard prompts
+ *     an operator redraw.
+ *
+ * ponytail: there's no background timer in a stateless Worker, so the timeout
+ * fires on the NEXT "!" chat tick after the window lapses — not on a wall clock.
+ * In a quiet chat the operator's dashboard countdown is the live signal; the
+ * chat line just confirms it the next time anyone types a command.
+ */
+async function handleGiveawayClaim(
+	db: Db,
+	twitch: TwitchDoc,
+	event: Record<string, unknown>,
+	chatText: string,
+	now: number,
+): Promise<void> {
+	const giveaway = await readGiveaway(db);
+	if (!giveaway.pendingClaim) return; // nothing waiting → no giveaway-doc write
+
+	const isClaim = chatText.trim().split(/\s+/)[0]?.toLowerCase() === "!claim";
+	const login =
+		typeof event.chatter_user_login === "string" ? event.chatter_user_login.toLowerCase() : "";
+
+	// Decide + commit atomically. `line` is captured from the winning CAS apply so
+	// we only send for the delivery that actually transitioned the doc.
+	let line: string | null = null;
+	await mutateGiveaway(db, (doc) => {
+		const pc = doc.pendingClaim;
+		if (!pc) return doc; // another delivery already resolved it
+		line = null;
+		// 1) Claim wins over a stale timeout: the winner spoke in time.
+		if (isClaim && login) {
+			const { doc: claimed, claimed: ok } = claimPending(doc, login, now);
+			if (ok) {
+				line = buildGiveawayClaimAnnouncement(pc.name);
+				return claimed;
+			}
+		}
+		// 2) Window lapsed unclaimed → announce the timeout once.
+		if (expirePending(doc, now)) {
+			if (!pc.timedOut) {
+				line = buildGiveawayTimeoutAnnouncement(pc.name);
+				return { ...doc, pendingClaim: { ...pc, timedOut: true } };
+			}
+			return doc; // already announced the timeout
+		}
+		// 3) Still in-window and undrawn-announce → post the "you won" line once.
+		if (!pc.announced) {
+			line = buildGiveawayDrawAnnouncement(pc.name);
+			return { ...doc, pendingClaim: { ...pc, announced: true } };
+		}
+		return doc;
+	});
+
+	if (line) await sendAsBot(db, twitch, line);
 }
 
 /**

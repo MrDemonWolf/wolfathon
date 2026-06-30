@@ -1,7 +1,12 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-import type { Entrant, GiveawayDoc, Winner } from "@wolfathon/api/giveaway";
+import {
+	CLAIM_WINDOW_MS,
+	type Entrant,
+	type GiveawayDoc,
+	type Winner,
+} from "@wolfathon/api/giveaway";
 import {
 	AlertDialog,
 	AlertDialogClose,
@@ -15,7 +20,18 @@ import { Button } from "@wolfathon/ui/components/button";
 import { Checkbox } from "@wolfathon/ui/components/checkbox";
 import { Input } from "@wolfathon/ui/components/input";
 import { Label } from "@wolfathon/ui/components/label";
-import { Crown, Dice5, ExternalLink, Gift, Loader2, Search, Trash2, Users } from "lucide-react";
+import {
+	CheckCircle2,
+	Clock,
+	Crown,
+	Dice5,
+	ExternalLink,
+	Gift,
+	Loader2,
+	Search,
+	Trash2,
+	Users,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -56,6 +72,12 @@ function ago(ms: number, now: number) {
 	const h = Math.floor(m / 60);
 	if (h < 24) return `${h}h ago`;
 	return `${Math.floor(h / 24)}d ago`;
+}
+
+/** "4:07" countdown from a remaining-ms value (clamped at 0:00). */
+function mmss(ms: number) {
+	const s = Math.max(0, Math.ceil(ms / 1000));
+	return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
 const twitchUrl = (login: string) => `https://twitch.tv/${login}`;
@@ -156,6 +178,15 @@ export function GiveawayTab() {
 			onError,
 		}),
 	);
+	const resetPool = useMutation(
+		controlTrpc.giveaway.resetPool.mutationOptions({
+			onSuccess: () => {
+				toast.success("Raffle pool cleared");
+				invalidate();
+			},
+			onError,
+		}),
+	);
 	const resetRound = useMutation(
 		controlTrpc.giveaway.resetRound.mutationOptions({
 			onSuccess: () => {
@@ -177,6 +208,14 @@ export function GiveawayTab() {
 	const [customThr, setCustomThr] = useState(false);
 	const [manual, setManual] = useState("");
 	const [filter, setFilter] = useState("");
+	// 1s ticker so the pending-claim countdown counts down smoothly between the
+	// 3s polls (which already refresh the doc). `tick` is unused as a value — it's
+	// just a render nudge — so the countdown reads a fresh `Date.now()` each second.
+	const [, setTick] = useState(0);
+	useEffect(() => {
+		const id = setInterval(() => setTick((t) => t + 1), 1000);
+		return () => clearInterval(id);
+	}, []);
 	const seeded = useRef(false);
 	useEffect(() => {
 		if (!data || seeded.current) return;
@@ -224,6 +263,13 @@ export function GiveawayTab() {
 	const cmdValid = cmdTrimmed.startsWith("!") && cmdTrimmed.length > 1;
 	// All planned raffle slots already drawn — drawing again is an intentional extra.
 	const raffleFull = cfg.raffleWinnerSlots > 0 && raffleWinners.length >= cfg.raffleWinnerSlots;
+
+	// Pending raffle claim: the drawn winner must type !claim in chat. The remaining
+	// window drives a live countdown; once it lapses unclaimed the bot posts the
+	// timeout line on the next "!" tick and `timedOut` flips so we prompt a redraw.
+	const pending = data.pendingClaim ?? null;
+	const claimRemaining = pending ? CLAIM_WINDOW_MS - (now - pending.drawnAt) : 0;
+	const claimLapsed = pending != null && (pending.timedOut === true || claimRemaining <= 0);
 
 	// Newest entrants first so new chatters visibly pop in at the top each poll.
 	const ordered = [...data.entrants].sort((a, b) => b.enteredAt - a.enteredAt);
@@ -394,96 +440,100 @@ export function GiveawayTab() {
 					<Stat label="Gift-qualified" value={gifters.length} />
 				</div>
 
-				{/* Config — one-tap presets keep it simple; “Custom…” reveals a free field. */}
-				<div className="mt-4 flex flex-col gap-4 border-t border-border pt-4">
-					{/* Raffle command */}
-					<div className="flex flex-col gap-1.5">
-						<Label htmlFor="gv-cmd">Raffle command</Label>
-						<div className="flex flex-wrap gap-2">
-							{COMMAND_PRESETS.map((p) => (
+				{/* Config — one-tap presets keep it simple; “Custom…” reveals a free field.
+				    The two chip-preset controls sit side-by-side on wide screens; the long
+				    Rules URL spans full width below them. */}
+				<div className="mt-4 flex flex-col gap-5 border-t border-border pt-4">
+					<div className="grid gap-5 sm:grid-cols-2">
+						{/* Raffle command */}
+						<div className="flex flex-col gap-1.5">
+							<Label htmlFor="gv-cmd">Raffle command</Label>
+							<div className="flex flex-wrap gap-2">
+								{COMMAND_PRESETS.map((p) => (
+									<button
+										key={p}
+										type="button"
+										className={chipCls(!customCmd && command === p)}
+										onClick={() => {
+											setCustomCmd(false);
+											setCommand(p);
+										}}
+									>
+										{p}
+									</button>
+								))}
 								<button
-									key={p}
 									type="button"
-									className={chipCls(!customCmd && command === p)}
-									onClick={() => {
-										setCustomCmd(false);
-										setCommand(p);
-									}}
+									className={chipCls(customCmd)}
+									onClick={() => setCustomCmd(true)}
 								>
-									{p}
+									Custom…
 								</button>
-							))}
-							<button
-								type="button"
-								className={chipCls(customCmd)}
-								onClick={() => setCustomCmd(true)}
-							>
-								Custom…
-							</button>
+							</div>
+							{customCmd && (
+								<>
+									<Input
+										id="gv-cmd"
+										className="mt-1 max-w-xs"
+										value={command}
+										onChange={(e) => setCommand(e.target.value)}
+										placeholder="!enter"
+										aria-invalid={!cmdValid}
+										aria-describedby="gv-cmd-hint"
+									/>
+									<span
+										id="gv-cmd-hint"
+										role={cmdValid ? undefined : "alert"}
+										className={`text-xs ${cmdValid ? "text-muted-foreground" : "text-destructive"}`}
+									>
+										{cmdValid
+											? "Must start with “!”."
+											: "Enter a command starting with “!” (e.g. !enter)."}
+									</span>
+								</>
+							)}
 						</div>
-						{customCmd && (
-							<>
-								<Input
-									id="gv-cmd"
-									className="mt-1 max-w-xs"
-									value={command}
-									onChange={(e) => setCommand(e.target.value)}
-									placeholder="!enter"
-									aria-invalid={!cmdValid}
-									aria-describedby="gv-cmd-hint"
-								/>
-								<span
-									id="gv-cmd-hint"
-									role={cmdValid ? undefined : "alert"}
-									className={`text-xs ${cmdValid ? "text-muted-foreground" : "text-destructive"}`}
-								>
-									{cmdValid
-										? "Must start with “!”."
-										: "Enter a command starting with “!” (e.g. !enter)."}
-								</span>
-							</>
-						)}
-					</div>
 
-					{/* Gift threshold to auto-win */}
-					<div className="flex flex-col gap-1.5">
-						<Label htmlFor="gv-thr">Gift subs to auto-win</Label>
-						<div className="flex flex-wrap gap-2">
-							{THRESHOLD_PRESETS.map((n) => (
+						{/* Gift threshold to auto-win */}
+						<div className="flex flex-col gap-1.5">
+							<Label htmlFor="gv-thr">Gift subs to auto-win</Label>
+							<div className="flex flex-wrap gap-2">
+								{THRESHOLD_PRESETS.map((n) => (
+									<button
+										key={n}
+										type="button"
+										className={chipCls(!customThr && threshold === n)}
+										onClick={() => {
+											setCustomThr(false);
+											setThreshold(n);
+										}}
+									>
+										{n} subs
+									</button>
+								))}
 								<button
-									key={n}
 									type="button"
-									className={chipCls(!customThr && threshold === n)}
-									onClick={() => {
-										setCustomThr(false);
-										setThreshold(n);
-									}}
+									className={chipCls(customThr)}
+									onClick={() => setCustomThr(true)}
 								>
-									{n} subs
+									Custom…
 								</button>
-							))}
-							<button
-								type="button"
-								className={chipCls(customThr)}
-								onClick={() => setCustomThr(true)}
-							>
-								Custom…
-							</button>
+							</div>
+							{customThr && (
+								<Input
+									id="gv-thr"
+									type="number"
+									min={1}
+									className="mt-1 w-28"
+									value={threshold}
+									// Ignore non-numeric/empty input so the field can't become NaN.
+									onChange={(e) => {
+										const n = Number(e.target.value);
+										if (Number.isFinite(n)) setThreshold(n);
+									}}
+								/>
+							)}
 						</div>
-						{customThr && (
-							<Input
-								id="gv-thr"
-								type="number"
-								min={1}
-								className="mt-1 w-28"
-								value={threshold}
-								// Ignore non-numeric/empty input so the field can't become NaN.
-								onChange={(e) => {
-									const n = Number(e.target.value);
-									if (Number.isFinite(n)) setThreshold(n);
-								}}
-							/>
-						)}
 					</div>
 
 					{/* Rules / TOS link — auto-fills the !giveaway chat command */}
@@ -491,7 +541,7 @@ export function GiveawayTab() {
 						<Label htmlFor="gv-tos">Rules / TOS link</Label>
 						<Input
 							id="gv-tos"
-							className="max-w-md"
+							className="w-full"
 							value={tosUrl}
 							onChange={(e) => setTosUrl(e.target.value)}
 							placeholder="https://gist.github.com/you/your-giveaway-rules"
@@ -594,19 +644,49 @@ export function GiveawayTab() {
 							</span>
 						</h3>
 					</div>
-					<Button
-						onClick={() => draw.mutate()}
-						disabled={draw.isPending || remainingEntrants === 0}
-						aria-busy={draw.isPending}
-						title={raffleFull ? "All planned raffle slots are filled" : undefined}
-					>
-						{draw.isPending ? (
-							<Loader2 className="size-4 animate-spin" aria-hidden />
-						) : (
-							<Dice5 className="size-4" aria-hidden />
-						)}
-						{raffleFull ? "Draw extra winner" : "Draw winner"}
-					</Button>
+					<div className="flex items-center gap-2">
+						<AlertDialog>
+							<AlertDialogTrigger
+								render={
+									<Button
+										variant="outline"
+										size="sm"
+										disabled={resetPool.isPending || data.entrants.length === 0}
+									>
+										<Trash2 className="size-3.5" aria-hidden /> Clear pool
+									</Button>
+								}
+							/>
+							<AlertDialogContent>
+								<AlertDialogTitle>Clear the raffle pool?</AlertDialogTitle>
+								<AlertDialogDescription>
+									This removes all {data.entrants.length} entrants and any pending claim so{" "}
+									{cfg.command} can fill a fresh pool. Gift winners and raffle winners already drawn
+									are kept, and the round stays started. This cannot be undone.
+								</AlertDialogDescription>
+								<AlertDialogFooter>
+									<AlertDialogClose render={<Button variant="outline">Cancel</Button>} />
+									<AlertDialogClose
+										onClick={() => resetPool.mutate()}
+										render={<Button variant="destructive">Clear pool</Button>}
+									/>
+								</AlertDialogFooter>
+							</AlertDialogContent>
+						</AlertDialog>
+						<Button
+							onClick={() => draw.mutate()}
+							disabled={draw.isPending || remainingEntrants === 0}
+							aria-busy={draw.isPending}
+							title={raffleFull ? "All planned raffle slots are filled" : undefined}
+						>
+							{draw.isPending ? (
+								<Loader2 className="size-4 animate-spin" aria-hidden />
+							) : (
+								<Dice5 className="size-4" aria-hidden />
+							)}
+							{raffleFull ? "Draw extra winner" : "Draw winner"}
+						</Button>
+					</div>
 				</div>
 				<p className="mt-1 text-xs text-muted-foreground">
 					{remainingEntrants} eligible {remainingEntrants === 1 ? "entry" : "entries"} ·{" "}
@@ -617,6 +697,59 @@ export function GiveawayTab() {
 				<p className="sr-only" role="status" aria-live="polite">
 					{data.entrants.length} entered, {remainingEntrants} in pool.
 				</p>
+
+				{/* Pending claim — a drawn winner owes a !claim in chat. Shows a live
+				    countdown, the claim state, and a Redraw button. */}
+				{pending && (
+					<div
+						className={`mt-4 flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 ${
+							claimLapsed
+								? "border-destructive/50 bg-destructive/5"
+								: "border-primary/50 bg-primary/5"
+						}`}
+						role="status"
+						aria-live="polite"
+					>
+						{claimLapsed ? (
+							<Clock className="size-5 shrink-0 text-destructive" aria-hidden />
+						) : (
+							<CheckCircle2 className="size-5 shrink-0 text-primary" aria-hidden />
+						)}
+						<Avatar name={pending.name} />
+						<div className="min-w-0 flex-1">
+							<a
+								href={twitchUrl(pending.login)}
+								target="_blank"
+								rel="noreferrer"
+								className="truncate text-sm font-semibold hover:text-primary"
+							>
+								{pending.name}
+							</a>
+							<div className="text-xs text-muted-foreground">
+								{claimLapsed
+									? "Didn’t claim in time — redraw a new winner."
+									: "Drawn — waiting for them to type !claim in chat."}
+							</div>
+						</div>
+						{!claimLapsed && (
+							<span
+								className="font-heading text-lg font-bold tabular-nums text-primary"
+								aria-label={`${mmss(claimRemaining)} left to claim`}
+							>
+								{mmss(claimRemaining)}
+							</span>
+						)}
+						<Button
+							size="sm"
+							variant={claimLapsed ? "default" : "outline"}
+							onClick={() => reroll.mutate({ id: pending.winnerId })}
+							disabled={reroll.isPending}
+							aria-label={`Redraw — replace ${pending.name}`}
+						>
+							<Dice5 className="size-3.5" aria-hidden /> Redraw
+						</Button>
+					</div>
+				)}
 
 				{/* Filter — only worth showing once the list gets long. */}
 				{data.entrants.length > 12 && (

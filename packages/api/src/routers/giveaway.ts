@@ -7,6 +7,7 @@ import {
 	drawRaffle,
 	removeWinner,
 	rerollRaffle,
+	resetPool,
 	resetRound,
 	setShipped,
 	setWinnerNote,
@@ -65,7 +66,11 @@ export const giveawayRouter = router({
 			);
 		}),
 
-	/** Draw one raffle winner from the open pool. */
+	/**
+	 * Draw one raffle winner from the open pool. Arms a pending `!claim`; the
+	 * public Worker announces it and handles the claim/timeout IN CHAT — this
+	 * mutation only mutates the doc and never sends chat directly.
+	 */
 	drawRaffle: protectedProcedure.mutation(async ({ ctx }) => {
 		const doc = await readGiveaway(ctx.db);
 		const { doc: next, winner } = drawRaffle(doc, Date.now());
@@ -120,6 +125,15 @@ export const giveawayRouter = router({
 			const doc = await readGiveaway(ctx.db);
 			return writeGiveaway(ctx.db, removeWinner(doc, input.id));
 		}),
+
+	/**
+	 * Empty the raffle pool (entrants + any pending claim) without un-starting the
+	 * round or clearing gift winners — for reopening `!enter` for a fresh wave.
+	 */
+	resetPool: protectedProcedure.mutation(async ({ ctx }) => {
+		const doc = await readGiveaway(ctx.db);
+		return writeGiveaway(ctx.db, resetPool(doc));
+	}),
 
 	/** Clear gifters, entrants, and winners for a fresh round (keeps config). */
 	resetRound: protectedProcedure.mutation(async ({ ctx }) => {
