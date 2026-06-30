@@ -31,6 +31,10 @@ Keep the rewards flowing. Keep the clock ticking.
   weight, colour, and drag-reorder slots from the dashboard, then spin to a
   weighted-random result or send the wheel to a specific slot. A token-gated OBS
   overlay whirls a multi-turn spin and lands on the result on cue.
+- **Chat bot** - Connect a separate bot account and it answers chat commands
+  (`!wolfathon`, `!timer`, `!goals`, `!wheel`, `!giveaway`) from the server,
+  reusing the EventSub webhook — no process to babysit. Toggle each command,
+  edit text replies, and rate-limit normal viewers (mods/VIPs/broadcaster bypass).
 - **Cloudflare Access security** - The control panel and its API sit behind
   Cloudflare Zero Trust. The overlays stay open (OBS can't sign in to Access)
   but are gated by a secret token in their URL, resettable from the control
@@ -209,6 +213,35 @@ When you spin, the overlay whirls a multi-turn animation and lands on the result
 under a fixed top pointer (it honours `prefers-reduced-motion` by landing without
 the whirl). The overlay shows only enabled slots and never receives the token or
 any internal field.
+
+### Chat bot
+
+Wolfathon can answer chat commands from a **separate bot account**. It runs on
+the server (no extra process — it reuses the Twitch EventSub webhook), so it keeps
+working after you close the dashboard.
+
+**Connect it** from **Settings → Bot**: log into Twitch as your _bot_ account
+first (in another browser/profile, or log out of your main account), then click
+**Connect bot** and approve. The bot grants only `user:write:chat` + `user:bot`;
+it _hears_ chat through the broadcaster's existing chat subscription, so the
+broadcaster account must stay connected.
+
+Five built-in commands ship, each with an enable toggle and editable triggers:
+
+| Command      | Aliases                      | Reply                                                     |
+| ------------ | ---------------------------- | --------------------------------------------------------- |
+| `!wolfathon` | `!subathon` `!wolf` `!about` | editable text — what the event is                         |
+| `!giveaway`  | `!gw` `!giveaways`           | editable text — **paste your giveaway link here**         |
+| `!timer`     | `!time`                      | live time left on the subathon                            |
+| `!goals`     | —                            | live next-reward progress (only the next target is shown) |
+| `!wheel`     | `!dares`                     | the Howlwheel, with the live dare count                   |
+
+The live commands (`!timer`/`!goals`/`!wheel`) don't take free text — pick one of
+a few built-in **reply formats** per command. A master switch turns the whole bot
+on/off, and a per-command **cooldown** rate-limits normal viewers; broadcaster,
+mods, and VIPs bypass the cooldown. If the bot's sign-in is later revoked (its
+password changes, or you de-authorize the app), the Bot tab shows a **reconnect**
+prompt instead of going silently dead.
 
 ### Adding your logo
 
