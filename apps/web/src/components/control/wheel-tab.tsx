@@ -2,22 +2,7 @@
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { WheelSlot } from "@wolfathon/api/wheel";
-import {
-	MAX_LABEL_LEN,
-	MAX_SLOTS,
-	MAX_WEIGHT,
-	slotColor,
-	toPublicWheel,
-} from "@wolfathon/api/wheel";
-import {
-	AlertDialog,
-	AlertDialogClose,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogTitle,
-	AlertDialogTrigger,
-} from "@wolfathon/ui/components/alert-dialog";
+import { MAX_LABEL_LEN, MAX_SLOTS, MAX_WEIGHT, slotColor } from "@wolfathon/api/wheel";
 import { Button } from "@wolfathon/ui/components/button";
 import { Checkbox } from "@wolfathon/ui/components/checkbox";
 import { Input } from "@wolfathon/ui/components/input";
@@ -26,8 +11,9 @@ import { ChevronDown, ChevronUp, Dices, GripVertical, Loader2, Plus, Trash2 } fr
 import { type DragEvent, useState } from "react";
 import { toast } from "sonner";
 
-import { WheelView } from "@/components/overlay/wheel-view";
 import { controlTrpc, queryClient } from "@/utils/trpc";
+
+import { WheelPreview } from "./wheel-preview";
 
 export function WheelTab() {
 	const rawOptions = controlTrpc.wheel.getRaw.queryOptions(undefined, {
@@ -35,9 +21,9 @@ export function WheelTab() {
 		refetchInterval: 3000,
 	});
 	const { data, isError, refetch } = useQuery(rawOptions);
-	// The mini wheel mirrors the overlay chrome — pull the shared overlay theme
-	// (same source the overlay uses); undefined until loaded, WheelView defaults it.
-	const { data: appState } = useQuery(controlTrpc.state.getRaw.queryOptions());
+	// Overlay theme is global (Settings → Theme) — pull it in so the preview
+	// matches what OBS renders.
+	const { data: stateDoc } = useQuery(controlTrpc.state.getRaw.queryOptions());
 	const invalidate = () => queryClient.invalidateQueries({ queryKey: rawOptions.queryKey });
 	// Every mutation surfaces failures — the panel polls every 3s, so a silently
 	// rejected save/spin would otherwise just look like nothing happened.
@@ -88,9 +74,6 @@ export function WheelTab() {
 	const slots = data.slots;
 	const enabledCount = slots.filter((s) => s.enabled).length;
 	const atCap = slots.length >= MAX_SLOTS;
-	// Live odds: a slot's landing chance is its weight over the enabled total
-	// (disabled slots aren't on the wheel), matching the overlay's arc sizing.
-	const totalWeight = slots.reduce((sum, s) => (s.enabled ? sum + s.weight : sum), 0);
 
 	// Move slot at `from` to position `to`, then persist the new order (every id,
 	// exactly once). Shared by mouse drop and the keyboard Move up/down buttons.
@@ -114,132 +97,128 @@ export function WheelTab() {
 	};
 
 	return (
-		<div className="flex flex-col gap-6">
-			<div className="flex flex-col gap-1">
-				<h2 className="font-heading text-lg font-bold">Wheel of dares</h2>
-				<p className="text-sm text-muted-foreground">
-					Spin a weighted wheel of chat dares. Land random, or send the wheel to a specific slot —
-					the overlay plays the spin.
-				</p>
-			</div>
-
-			{/* Spin — with a live mini wheel that plays the same spin as the overlay
-			    (same toPublicWheel projection + pendingSpin channel, polled here). */}
-			<div className="flex flex-col items-center gap-4 rounded-2xl panel-card p-5">
-				{enabledCount > 0 ? (
-					<div className="@container relative aspect-square w-full max-w-[260px]">
-						<WheelView
-							slots={toPublicWheel(data).slots}
-							theme={appState?.theme}
-							pending={data.pendingSpin}
-						/>
-					</div>
-				) : null}
-				<Button
-					size="lg"
-					onClick={() => trigger.mutate({})}
-					disabled={trigger.isPending || enabledCount === 0}
-				>
-					{trigger.isPending ? (
-						<Loader2 className="size-4 animate-spin" />
-					) : (
-						<Dices className="size-4" />
-					)}
-					Spin (random)
-				</Button>
-				<p className="mt-2 text-xs text-muted-foreground">
-					{enabledCount === 0
-						? "Enable at least one dare to spin."
-						: `${enabledCount} ${enabledCount === 1 ? "dare" : "dares"} in the pool.`}
-				</p>
-			</div>
-
-			{/* Slots editor */}
-			<div className="rounded-2xl panel-card p-5">
-				<div className="flex items-center justify-between">
-					<h3 className="font-heading font-bold">Dares</h3>
-					<span className="text-xs text-muted-foreground">
-						{slots.length} / {MAX_SLOTS}
-					</span>
-				</div>
-
-				<div className="mt-3 flex items-center gap-2">
-					<Label htmlFor="wheel-add" className="sr-only">
-						Add a dare
-					</Label>
-					<Input
-						id="wheel-add"
-						value={draft}
-						onChange={(e) => setDraft(e.target.value)}
-						onKeyDown={(e) => {
-							if (e.key === "Enter") addDare();
-						}}
-						maxLength={MAX_LABEL_LEN}
-						placeholder="Add a dare"
-					/>
-					<Button
-						variant="outline"
-						onClick={addDare}
-						disabled={upsertSlot.isPending || atCap || !draft.trim()}
-					>
-						<Plus className="size-4" /> Add
-					</Button>
-				</div>
-				{atCap ? (
-					<p className="mt-2 text-xs text-muted-foreground">
-						Slot cap reached — remove a dare to add another.
+		<div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+			<div className="flex flex-col gap-6">
+				<div className="flex flex-col gap-1">
+					<h2 className="font-heading text-lg font-bold">Wheel of dares</h2>
+					<p className="text-sm text-muted-foreground">
+						Spin a weighted wheel of chat dares. Land random, or send the wheel to a specific slot —
+						the overlay plays the spin.
 					</p>
-				) : null}
+				</div>
 
-				{slots.length === 0 ? (
-					<p className="mt-3 text-sm text-muted-foreground">No dares yet.</p>
-				) : (
-					<ul className="mt-3 flex flex-col gap-2">
-						{slots.map((slot, index) => (
-							<SlotRow
-								key={slot.id}
-								slot={slot}
-								index={index}
-								oddsPct={slot.enabled && totalWeight > 0 ? (slot.weight / totalWeight) * 100 : null}
-								isFirst={index === 0}
-								isLast={index === slots.length - 1}
-								onMoveUp={() => moveTo(index, index - 1)}
-								onMoveDown={() => moveTo(index, index + 1)}
-								onDragStart={() => setDragIndex(index)}
-								onDragOver={(e) => e.preventDefault()}
-								onDrop={() => dropAt(index)}
-								onToggle={(checked) => upsertSlot.mutate({ id: slot.id, enabled: checked })}
-								onLabel={(label) => upsertSlot.mutate({ id: slot.id, label })}
-								onWeight={(weight) => upsertSlot.mutate({ id: slot.id, weight })}
-								onColor={(color) => upsertSlot.mutate({ id: slot.id, color })}
-								onSpin={() => trigger.mutate({ slotId: slot.id })}
-								onDelete={() => removeSlot.mutate({ id: slot.id })}
-							/>
-						))}
-					</ul>
-				)}
+				{/* Spin */}
+				<div className="rounded-2xl panel-card p-5">
+					<Button
+						size="lg"
+						onClick={() => trigger.mutate({})}
+						disabled={trigger.isPending || enabledCount === 0}
+					>
+						{trigger.isPending ? (
+							<Loader2 className="size-4 animate-spin" />
+						) : (
+							<Dices className="size-4" />
+						)}
+						Spin (random)
+					</Button>
+					<p className="mt-2 text-xs text-muted-foreground">
+						{enabledCount === 0
+							? "Enable at least one dare to spin."
+							: `${enabledCount} ${enabledCount === 1 ? "dare" : "dares"} in the pool.`}
+					</p>
+				</div>
+
+				{/* Slots editor */}
+				<div className="rounded-2xl panel-card p-5">
+					<div className="flex items-center justify-between">
+						<h3 className="font-heading font-bold">Dares</h3>
+						<span className="text-xs text-muted-foreground">
+							{slots.length} / {MAX_SLOTS}
+						</span>
+					</div>
+
+					<div className="mt-3 flex items-center gap-2">
+						<Label htmlFor="wheel-add" className="sr-only">
+							Add a dare
+						</Label>
+						<Input
+							id="wheel-add"
+							value={draft}
+							onChange={(e) => setDraft(e.target.value)}
+							onKeyDown={(e) => {
+								if (e.key === "Enter") addDare();
+							}}
+							maxLength={MAX_LABEL_LEN}
+							placeholder="Add a dare"
+						/>
+						<Button
+							variant="outline"
+							onClick={addDare}
+							disabled={upsertSlot.isPending || atCap || !draft.trim()}
+						>
+							<Plus className="size-4" /> Add
+						</Button>
+					</div>
+					{atCap ? (
+						<p className="mt-2 text-xs text-muted-foreground">
+							Slot cap reached — remove a dare to add another.
+						</p>
+					) : null}
+
+					{slots.length === 0 ? (
+						<p className="mt-3 text-sm text-muted-foreground">No dares yet.</p>
+					) : (
+						<ul className="mt-3 flex flex-col gap-2">
+							{slots.map((slot, index) => (
+								<SlotRow
+									key={slot.id}
+									slot={slot}
+									index={index}
+									isFirst={index === 0}
+									isLast={index === slots.length - 1}
+									onMoveUp={() => moveTo(index, index - 1)}
+									onMoveDown={() => moveTo(index, index + 1)}
+									onDragStart={() => setDragIndex(index)}
+									onDragOver={(e) => e.preventDefault()}
+									onDrop={() => dropAt(index)}
+									onToggle={(checked) => upsertSlot.mutate({ id: slot.id, enabled: checked })}
+									onLabel={(label) => upsertSlot.mutate({ id: slot.id, label })}
+									onWeight={(weight) => upsertSlot.mutate({ id: slot.id, weight })}
+									onColor={(color) => upsertSlot.mutate({ id: slot.id, color })}
+									onSpin={() => trigger.mutate({ slotId: slot.id })}
+									onDelete={() => removeSlot.mutate({ id: slot.id })}
+								/>
+							))}
+						</ul>
+					)}
+				</div>
+
+				{/* History */}
+				<div className="rounded-2xl panel-card p-5">
+					<h3 className="font-heading font-bold">Recent spins ({data.history.length})</h3>
+					{data.history.length === 0 ? (
+						<p className="mt-3 text-sm text-muted-foreground">No spins yet.</p>
+					) : (
+						<ul className="mt-3 flex flex-col gap-2">
+							{data.history.map((spin) => (
+								<li
+									key={spin.id}
+									className="flex items-center justify-between rounded-lg border border-border px-3 py-2"
+								>
+									<span className="text-sm font-medium">{spin.label}</span>
+									<span className="text-xs text-muted-foreground">
+										{new Date(spin.at).toLocaleTimeString()}
+									</span>
+								</li>
+							))}
+						</ul>
+					)}
+				</div>
 			</div>
 
-			{/* History */}
-			<div className="rounded-2xl panel-card p-5">
-				<h3 className="font-heading font-bold">Recent spins ({data.history.length})</h3>
-				{data.history.length === 0 ? (
-					<p className="mt-3 text-sm text-muted-foreground">No spins yet.</p>
-				) : (
-					<ul className="mt-3 flex flex-col gap-2">
-						{data.history.map((spin) => (
-							<li
-								key={spin.id}
-								className="flex items-center justify-between rounded-lg border border-border px-3 py-2"
-							>
-								<span className="text-sm font-medium">{spin.label}</span>
-								<span className="text-xs text-muted-foreground">
-									{new Date(spin.at).toLocaleTimeString()}
-								</span>
-							</li>
-						))}
-					</ul>
-				)}
+			<div className="flex flex-col gap-3 lg:sticky lg:top-6 lg:self-start">
+				<h2 className="font-heading text-lg font-bold">Live preview</h2>
+				<WheelPreview doc={data} theme={stateDoc?.theme} />
 			</div>
 		</div>
 	);
@@ -249,7 +228,6 @@ export function WheelTab() {
 function SlotRow({
 	slot,
 	index,
-	oddsPct,
 	isFirst,
 	isLast,
 	onMoveUp,
@@ -266,8 +244,6 @@ function SlotRow({
 }: {
 	slot: WheelSlot;
 	index: number;
-	/** Live landing chance (% of the enabled pool), or null when disabled. */
-	oddsPct: number | null;
 	isFirst: boolean;
 	isLast: boolean;
 	onMoveUp: () => void;
@@ -344,22 +320,10 @@ function SlotRow({
 					if (Number.isFinite(weight) && weight !== slot.weight) onWeight(weight);
 				}}
 			/>
-			<span
-				className="w-12 text-right text-xs tabular-nums text-muted-foreground"
-				title="Landing chance — this slot's share of the enabled pool"
-			>
-				{oddsPct === null ? "—" : `${oddsPct.toFixed(oddsPct < 9.95 ? 1 : 0)}%`}
-			</span>
-			{/* Commit on blur, not per-tick: a native colour picker fires onChange
-			    continuously while dragging, which would spam upsertSlot (and clear any
-			    armed spin) dozens of times per pick. defaultValue keeps it uncontrolled
-			    so the live drag stays smooth; the row remounts on id so this re-seeds. */}
 			<input
 				type="color"
-				defaultValue={slotColor(slot, index)}
-				onBlur={(e) => {
-					if (e.target.value !== slotColor(slot, index)) onColor(e.target.value);
-				}}
+				value={slotColor(slot, index)}
+				onChange={(e) => onColor(e.target.value)}
 				aria-label={`Colour for ${slot.label}`}
 				className="size-8 cursor-pointer rounded-[0.6rem] border border-input bg-transparent"
 			/>
@@ -376,28 +340,9 @@ function SlotRow({
 			<Button variant="secondary" size="sm" onClick={onSpin}>
 				<Dices className="size-3.5" /> Spin to this
 			</Button>
-			<AlertDialog>
-				<AlertDialogTrigger
-					render={
-						<Button variant="ghost" size="sm" aria-label={`Delete ${slot.label}`}>
-							<Trash2 className="size-4" />
-						</Button>
-					}
-				/>
-				<AlertDialogContent>
-					<AlertDialogTitle>Delete this dare?</AlertDialogTitle>
-					<AlertDialogDescription>
-						“{slot.label || "Untitled"}” will be removed from the wheel. This can&apos;t be undone.
-					</AlertDialogDescription>
-					<AlertDialogFooter>
-						<AlertDialogClose render={<Button variant="outline">Cancel</Button>} />
-						<AlertDialogClose
-							onClick={onDelete}
-							render={<Button variant="destructive">Delete</Button>}
-						/>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
+			<Button variant="ghost" size="sm" onClick={onDelete} aria-label={`Delete ${slot.label}`}>
+				<Trash2 className="size-4" />
+			</Button>
 		</li>
 	);
 }
