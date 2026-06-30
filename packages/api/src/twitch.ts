@@ -21,6 +21,11 @@ export const TWITCH_SCOPES = [
 	"channel:read:subscriptions",
 	"bits:read",
 	"channel:read:redemptions",
+	// Create/delete the timer's channel-point rewards on the broadcaster's channel
+	// (Helix createCustomReward / deleteCustomReward, which require the broadcaster's
+	// USER token). NOTE: added after some operators first connected — they must
+	// reconnect Twitch once to re-grant, or createChannelReward 401s.
+	"channel:manage:redemptions",
 	// Read chat so the giveaway `!enter` raffle can ingest entries via EventSub.
 	// channel.chat.message over webhook uses our APP token, which Twitch requires
 	// to also carry user:bot (chatting user) + channel:bot (broadcaster) — without
@@ -444,6 +449,82 @@ export async function getChannelEmotes(
 			.replace("{{scale}}", "3.0");
 		return { id: e.id, name: e.name, url };
 	});
+}
+
+// ---- Channel-point custom rewards -----------------------------------------
+
+/** A custom channel-point reward as created on Twitch (Helix). */
+export type CustomReward = { id: string; title: string };
+
+/**
+ * Create a custom channel-point reward on the broadcaster's channel via Helix
+ * `POST channel_points/custom_rewards`. Requires the broadcaster's USER token
+ * carrying `channel:manage:redemptions` (NOT an app token — custom rewards are
+ * managed only by the channel owner). Throws {@link TwitchAuthError} (with the
+ * HTTP status) so the caller can map a 401 → "reconnect Twitch", a 400 → bad
+ * input, etc. `cost` is the channel-point price the viewer pays to redeem.
+ */
+export async function createCustomReward(args: {
+	clientId: string;
+	userToken: string;
+	broadcasterId: string;
+	title: string;
+	cost: number;
+}): Promise<CustomReward> {
+	const res = await fetch(
+		`${HELIX}/channel_points/custom_rewards?broadcaster_id=${encodeURIComponent(args.broadcasterId)}`,
+		{
+			method: "POST",
+			headers: {
+				"client-id": args.clientId,
+				authorization: `Bearer ${args.userToken}`,
+				"content-type": "application/json",
+			},
+			body: JSON.stringify({ title: args.title, cost: args.cost }),
+		},
+	);
+	if (!res.ok) {
+		throw new TwitchAuthError(
+			res.status,
+			`create reward failed: ${res.status} ${await res.text()}`,
+		);
+	}
+	const json = (await res.json()) as { data: { id: string; title: string }[] };
+	const reward = json.data[0];
+	if (!reward) throw new TwitchAuthError(502, "create reward: empty response");
+	return { id: reward.id, title: reward.title };
+}
+
+/**
+ * Delete a custom channel-point reward by id via Helix
+ * `DELETE channel_points/custom_rewards`. Same auth as {@link createCustomReward}
+ * (broadcaster user token + `channel:manage:redemptions`). Twitch only lets us
+ * delete rewards THIS client_id created, which is exactly the ones we made.
+ * Throws {@link TwitchAuthError} on failure so the caller can decide whether to
+ * still drop the local rule.
+ */
+export async function deleteCustomReward(args: {
+	clientId: string;
+	userToken: string;
+	broadcasterId: string;
+	rewardId: string;
+}): Promise<void> {
+	const res = await fetch(
+		`${HELIX}/channel_points/custom_rewards?broadcaster_id=${encodeURIComponent(
+			args.broadcasterId,
+		)}&id=${encodeURIComponent(args.rewardId)}`,
+		{
+			method: "DELETE",
+			headers: { "client-id": args.clientId, authorization: `Bearer ${args.userToken}` },
+		},
+	);
+	// 204 = deleted; 404 = already gone (treat as success — the rule should drop too).
+	if (!res.ok && res.status !== 404) {
+		throw new TwitchAuthError(
+			res.status,
+			`delete reward failed: ${res.status} ${await res.text()}`,
+		);
+	}
 }
 
 // ---- EventSub management --------------------------------------------------

@@ -1,18 +1,21 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
 	DEFAULT_TIMER_EMOJIS,
 	type EmoteDirection,
 	EMOTE_DIRECTIONS,
+	EMOTE_SCALES,
+	MAX_CHANNEL_POINT_RULES,
 	MAX_EMOJIS,
 	MAX_EMOTE_COUNT,
 	type TimerConfig,
 } from "@wolfathon/api/timer";
 import { Button } from "@wolfathon/ui/components/button";
 import { Input } from "@wolfathon/ui/components/input";
-import { ArrowRight, ArrowUp, Plus, RotateCcw, Twitch, X } from "lucide-react";
+import { ArrowRight, ArrowUp, Plus, RotateCcw, Trash2, Twitch, X } from "lucide-react";
 import { type KeyboardEvent, useState } from "react";
+import { toast } from "sonner";
 
 const EMOTE_DIRECTION_LABELS: Record<EmoteDirection, string> = {
 	up: "Up",
@@ -197,78 +200,8 @@ export function TimerConfigPanel({
 						</div>
 					</div>
 
-					{/* channel point rules */}
-					<div className="mt-4">
-						<div className="flex items-center justify-between">
-							<div className="text-sm font-medium">Channel-point rewards</div>
-							<Button
-								variant="outline"
-								size="sm"
-								className="rounded-lg"
-								onClick={() =>
-									onChange({
-										...config,
-										channelPoints: [...config.channelPoints, { rewardTitle: "", minutes: 5 }],
-									})
-								}
-							>
-								<Plus className="size-3.5" />
-								Add
-							</Button>
-						</div>
-						<div className="mt-2 flex flex-col gap-2">
-							{config.channelPoints.map((rule, i) => (
-								<div key={i} className="flex items-end gap-2">
-									<label className="flex flex-1 flex-col gap-1 text-xs text-muted-foreground">
-										Reward title (exact)
-										<Input
-											className="h-9 rounded-lg"
-											placeholder="Reward title (exact)"
-											value={rule.rewardTitle}
-											onChange={(e) => {
-												const cp = [...config.channelPoints];
-												cp[i] = { ...cp[i]!, rewardTitle: e.target.value };
-												onChange({ ...config, channelPoints: cp });
-											}}
-										/>
-									</label>
-									<label className="flex w-24 flex-col gap-1 text-xs text-muted-foreground">
-										Minutes
-										<Input
-											className="h-9 rounded-lg"
-											type="number"
-											value={String(rule.minutes)}
-											onChange={(e) => {
-												const cp = [...config.channelPoints];
-												cp[i] = { ...cp[i]!, minutes: n(e.target.value) };
-												onChange({ ...config, channelPoints: cp });
-											}}
-										/>
-									</label>
-									<Button
-										variant="destructive"
-										size="icon-sm"
-										className="mb-px rounded-lg"
-										aria-label="Remove rule"
-										onClick={() =>
-											onChange({
-												...config,
-												channelPoints: config.channelPoints.filter((_, j) => j !== i),
-											})
-										}
-									>
-										<X className="size-4" />
-									</Button>
-								</div>
-							))}
-							{config.channelPoints.length === 0 && (
-								<p className="text-xs text-muted-foreground">
-									No channel-point rules. Add one and match the reward title exactly (or connect
-									Twitch and redeem once to capture its id).
-								</p>
-							)}
-						</div>
-					</div>
+					{/* channel point rewards — created/owned on Twitch */}
+					<ChannelRewards config={config} onChange={onChange} />
 				</div>
 			)}
 
@@ -310,6 +243,39 @@ export function TimerConfigPanel({
 								How many emotes flood the bar on each add (0–{MAX_EMOTE_COUNT}, 0 = off).
 							</span>
 						</label>
+					</div>
+
+					{/* emote glyph size */}
+					<div className="mt-4">
+						<div className="text-sm font-medium">Emote size</div>
+						<p className="mt-1 text-xs text-muted-foreground">
+							How big each flooding emote renders. Bump it up for a 1080p source.
+						</p>
+						<div
+							role="radiogroup"
+							aria-label="Emote size"
+							className="segmented mt-2 inline-flex w-fit gap-1 rounded-[0.95rem] p-1"
+						>
+							{EMOTE_SCALES.map((scale) => {
+								const active = config.emoteScale === scale;
+								return (
+									<button
+										key={scale}
+										type="button"
+										role="radio"
+										aria-checked={active}
+										onClick={() => onChange({ ...config, emoteScale: scale })}
+										className={`rounded-[0.7rem] px-4 py-1.5 text-sm font-medium transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
+											active
+												? "segmented-on text-primary-foreground"
+												: "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+										}`}
+									>
+										{scale}×
+									</button>
+								);
+							})}
+						</div>
 					</div>
 
 					{/* emote travel direction */}
@@ -432,6 +398,153 @@ export function TimerConfigPanel({
 						</div>
 					</div>
 				</div>
+			)}
+		</div>
+	);
+}
+
+/**
+ * Channel-point rewards card. Unlike the rest of the timer config (which is a
+ * draft saved by the DirtyBar), creating/removing a reward hits Twitch
+ * IMMEDIATELY (Helix create/delete) and persists the rule server-side — so these
+ * mutations write straight through and we sync the draft + the saved baseline
+ * from the returned doc, never leaving a phantom-dirty channelPoints diff.
+ */
+function ChannelRewards({
+	config,
+	onChange,
+}: {
+	config: TimerConfig;
+	onChange: (c: TimerConfig) => void;
+}) {
+	const [title, setTitle] = useState("");
+	const [minutes, setMinutes] = useState("5");
+	const rules = config.channelPoints;
+	const atCap = rules.length >= MAX_CHANNEL_POINT_RULES;
+
+	// Keep the saved baseline in sync so the through-write doesn't read as dirty.
+	const invalidate = () =>
+		queryClient.invalidateQueries({
+			queryKey: controlTrpc.timer.getRaw.queryOptions().queryKey,
+		});
+
+	const create = useMutation(
+		controlTrpc.timer.createChannelReward.mutationOptions({
+			onSuccess: (doc) => {
+				onChange({ ...config, channelPoints: doc.config.channelPoints });
+				setTitle("");
+				setMinutes("5");
+				toast.success("Reward created on Twitch");
+				invalidate();
+			},
+			onError: (err) => toast.error(err.message),
+		}),
+	);
+	const remove = useMutation(
+		controlTrpc.timer.removeChannelReward.mutationOptions({
+			onSuccess: (doc) => {
+				onChange({ ...config, channelPoints: doc.config.channelPoints });
+				toast.success("Reward removed");
+				invalidate();
+			},
+			onError: (err) => toast.error(err.message),
+		}),
+	);
+	const busy = create.isPending || remove.isPending;
+
+	function submit() {
+		const t = title.trim();
+		const m = Number(minutes);
+		if (!t || !Number.isFinite(m)) return;
+		create.mutate({ title: t, minutes: Math.max(0, m) });
+	}
+
+	return (
+		<div className="mt-4">
+			<div className="text-sm font-medium">Channel-point rewards</div>
+			<p className="mt-1 text-xs text-muted-foreground">
+				Creating a reward adds it to your Twitch channel and links it to a timer add. Needs the
+				channel-point reward scope — if it returns a 401, reconnect Twitch in Settings → Twitch. Up
+				to {MAX_CHANNEL_POINT_RULES}.
+			</p>
+
+			{/* existing rewards (up to 2) */}
+			<div className="mt-2 flex flex-col gap-2">
+				{rules.map((rule, i) => (
+					<div
+						key={rule.rewardId ?? i}
+						className="flex items-center gap-2 rounded-lg border border-border bg-background/40 px-3 py-2"
+					>
+						<div className="flex-1 truncate text-sm font-medium">
+							{rule.rewardTitle || "Untitled reward"}
+						</div>
+						<div className="text-xs text-muted-foreground">+{rule.minutes}m</div>
+						<Button
+							variant="destructive"
+							size="icon-sm"
+							className="rounded-lg"
+							aria-label={`Remove ${rule.rewardTitle || "reward"}`}
+							disabled={busy}
+							onClick={() =>
+								remove.mutate(rule.rewardId ? { rewardId: rule.rewardId } : { index: i })
+							}
+						>
+							<Trash2 className="size-4" />
+						</Button>
+					</div>
+				))}
+				{rules.length === 0 && (
+					<p className="text-xs text-muted-foreground">
+						No rewards yet. Create one below to add a redeemable timer-add to your channel.
+					</p>
+				)}
+			</div>
+
+			{/* create form */}
+			<div className="mt-3 flex items-end gap-2">
+				<label className="flex flex-1 flex-col gap-1 text-xs text-muted-foreground">
+					Reward title
+					<Input
+						className="h-9 rounded-lg"
+						placeholder="e.g. Add 5 minutes"
+						value={title}
+						maxLength={45}
+						disabled={atCap || busy}
+						onChange={(e) => setTitle(e.target.value)}
+						onKeyDown={(e) => {
+							if (e.key === "Enter") {
+								e.preventDefault();
+								submit();
+							}
+						}}
+					/>
+				</label>
+				<label className="flex w-24 flex-col gap-1 text-xs text-muted-foreground">
+					Minutes
+					<Input
+						className="h-9 rounded-lg"
+						type="number"
+						min={0}
+						value={minutes}
+						disabled={atCap || busy}
+						onChange={(e) => setMinutes(e.target.value)}
+					/>
+				</label>
+				<Button
+					variant="outline"
+					size="sm"
+					className="mb-px rounded-lg"
+					disabled={atCap || busy || !title.trim()}
+					onClick={submit}
+				>
+					<Plus className="size-3.5" />
+					{create.isPending ? "Creating…" : "Create"}
+				</Button>
+			</div>
+			{atCap && (
+				<p className="mt-2 text-xs text-muted-foreground">
+					At the {MAX_CHANNEL_POINT_RULES}-reward limit. Remove one to create another.
+				</p>
 			)}
 		</div>
 	);
