@@ -10,6 +10,8 @@
  * display name. Both come straight from EventSub payloads.
  */
 
+import { secureRandom } from "./random";
+
 export type WinnerSource = "gift" | "raffle";
 
 export type Winner = {
@@ -173,12 +175,13 @@ export function addWinner(
 
 /**
  * Draw one raffle winner from entrants not already won. Returns the new doc and
- * the picked entrant (null if the pool is empty). `rand` is injectable for tests.
+ * the picked entrant (null if the pool is empty). Defaults to a crypto CSPRNG so
+ * a real prize draw can't be predicted/rigged; `rand` is injectable for tests.
  */
 export function drawRaffle(
 	doc: GiveawayDoc,
 	now: number,
-	rand: () => number = Math.random,
+	rand: () => number = secureRandom,
 ): { doc: GiveawayDoc; winner: Entrant | null } {
 	const taken = new Set(doc.winners.map((w) => w.login));
 	const pool = doc.entrants.filter((e) => !taken.has(e.login));
