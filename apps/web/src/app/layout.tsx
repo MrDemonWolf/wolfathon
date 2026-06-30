@@ -32,10 +32,33 @@ const inter = Inter({
 	display: "swap",
 });
 
+const TITLE = "The Wolf Pack Subathon — MrDemonWolf";
+const DESCRIPTION =
+	"Join the Wolf Pack. Subathon timer, rewards, and giveaways for MrDemonWolf's stream.";
+
 export const metadata: Metadata = {
-	title: "The Wolf Pack Subathon — MrDemonWolf",
-	description:
-		"Join the Wolf Pack. Subathon timer, rewards, and giveaways for MrDemonWolf's stream.",
+	// Absolute base so the auto-detected opengraph-image resolves for crawlers.
+	metadataBase: new URL("https://wolfathon.mrdemonwolf.workers.dev"),
+	title: TITLE,
+	description: DESCRIPTION,
+	icons: {
+		icon: [
+			{ url: "/favicon/favicon.svg", type: "image/svg+xml" },
+			{ url: "/favicon/favicon-96x96.png", sizes: "96x96", type: "image/png" },
+		],
+		apple: "/favicon/apple-touch-icon.png",
+	},
+	openGraph: {
+		type: "website",
+		siteName: "Wolfathon",
+		title: TITLE,
+		description: DESCRIPTION,
+	},
+	twitter: {
+		card: "summary_large_image",
+		title: TITLE,
+		description: DESCRIPTION,
+	},
 };
 
 export default function RootLayout({
