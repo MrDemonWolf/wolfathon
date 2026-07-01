@@ -31,7 +31,8 @@ function dummyTimerDoc(): TimerDoc {
 	};
 }
 
-/** Dummy rewards state for the preview — two unlocked, one in progress. */
+/** Dummy rewards state for the preview — two unlocked, one in progress, a few
+ *  upcoming so the "Coming up" row has something to show. */
 function dummyData(theme: OverlayTheme): Data {
 	return {
 		currentIndex: 2,
@@ -42,6 +43,8 @@ function dummyData(theme: OverlayTheme): Data {
 			{ id: "2", reward: "Phasmophobia", unlocked: true, target: 5 },
 			{ id: "3", reward: "Onesie reveal", unlocked: false, target: 10 },
 			{ id: "4", reward: "Cake on cam", unlocked: false, target: 15 },
+			{ id: "5", reward: "Karaoke hour", unlocked: false, target: 20 },
+			{ id: "6", reward: "Subscriber game night", unlocked: false, target: 30 },
 		],
 	};
 }
