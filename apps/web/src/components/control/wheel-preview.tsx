@@ -16,7 +16,7 @@ import { PreviewFrame } from "./preview-frame";
  */
 export function WheelPreview({ doc, theme }: { doc: WheelDoc | undefined; theme?: OverlayTheme }) {
 	return (
-		<PreviewFrame label="Wheel source" resolution="1080 × 1080" aspectClass="aspect-square">
+		<PreviewFrame label="Wheel source" aspectClass="aspect-square">
 			<WheelView slots={doc ? toPublicWheel(doc).slots : undefined} theme={theme} pending={null} />
 		</PreviewFrame>
 	);

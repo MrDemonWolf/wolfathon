@@ -15,7 +15,7 @@ import { PreviewFrame } from "./preview-frame";
  */
 export function TimerPreview({ doc, theme }: { doc: TimerDoc | undefined; theme?: OverlayTheme }) {
 	return (
-		<PreviewFrame label="Timer source" resolution="1310 × 200" aspectClass="aspect-[131/20]">
+		<PreviewFrame label="Timer source" aspectClass="aspect-[131/20]">
 			<TimerView
 				data={doc ? toPublicTimer(doc, Date.now(), theme ?? defaultOverlayTheme()) : undefined}
 			/>

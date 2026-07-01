@@ -17,7 +17,7 @@ export function OverlayPreview({ data }: { data: Data | undefined }) {
 	// top of the live card or the centered unlock celebration.
 	const empty = !data || data.goals.length === 0;
 	return (
-		<PreviewFrame label="Rewards source" resolution="1920 × 1080" aspectClass="aspect-video">
+		<PreviewFrame label="Rewards source" aspectClass="aspect-[2/1]">
 			{/* Explains the empty canvas — only while nothing is rendered. */}
 			{empty && (
 				<div className="pointer-events-none absolute inset-0 flex items-center justify-center">

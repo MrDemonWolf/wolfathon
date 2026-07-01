@@ -43,8 +43,9 @@ const SOURCES = [
 		icon: Trophy,
 		title: "Rewards",
 		path: "/overlay/rewards",
-		size: "1920×1080",
-		blurb: "Current reward name with unlock celebration. Names only — no numbers.",
+		size: "760×380",
+		blurb:
+			"Compact reward card that fills its source — current reward name with unlock celebration. Names only, no numbers.",
 	},
 	{
 		icon: Disc3,
@@ -88,8 +89,9 @@ export function OverlaysTab() {
 				<h2 className="font-heading text-lg font-bold">Overlays</h2>
 				<p className="mt-1 text-sm text-muted-foreground">
 					Add each as an OBS <span className="text-foreground">Browser</span> source with a
-					transparent background, sized as noted. Each URL holds a secret token — keep them private,
-					and reset below if one ever leaks.
+					transparent background, sized to the dimensions on each card — then place it anywhere in
+					your scene. Each URL holds a secret token — keep them private, and reset below if one ever
+					leaks.
 				</p>
 			</div>
 

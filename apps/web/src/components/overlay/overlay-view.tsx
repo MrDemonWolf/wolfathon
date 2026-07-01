@@ -12,8 +12,8 @@ import { useEffect, useRef, useState } from "react";
 
 /** Card corner radius per style (cqw = % of the source width). */
 const CARD_RADII: Record<ThemeCorners, string> = {
-	rounded: "2cqw",
-	pill: "3.4cqw",
+	rounded: "4cqw",
+	pill: "6.8cqw",
 	sharp: "0",
 };
 
@@ -28,8 +28,10 @@ const CARD_RADII: Record<ThemeCorners, string> = {
  *  - On a new unlock, celebrates "Unlocked: <reward>" (glow + scale, no audio),
  *    then settles onto the next reward.
  *
- * All sizing uses container-query units (`cqw`) so it looks identical full-screen
- * in OBS (1920×1080) and shrunk into the control panel preview.
+ * The card FILLS its OBS source (recommended 760×380) instead of floating in a
+ * corner of a full-screen canvas, so the operator drops a compact browser source
+ * anywhere in their scene. All sizing uses container-query units (`cqw`) — % of
+ * the source width — so the card scales to whatever size the source is set to.
  */
 export function OverlayView({ data }: { data: PublicData | undefined }) {
 	const seen = useRef<Set<string> | null>(null);
@@ -85,36 +87,37 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 
 	return (
 		<div className="pointer-events-none absolute inset-0 select-none" style={{ fontFamily }}>
-			{/* Floating reward card. Hidden until goals exist so an unconfigured
-          tracker never broadcasts a false "All Rewards Unlocked". */}
+			{/* Reward card — fills the source width, anchored top with a small margin
+          so the glow/border isn't flush to the edge. Hidden until goals exist so
+          an unconfigured tracker never broadcasts a false "All Rewards Unlocked". */}
 			{hasGoals && (
-				<div className="absolute bottom-[4cqw] left-[4cqw] max-w-[48cqw]">
+				<div className="absolute inset-x-[2.5cqw] top-[2.5cqw]">
 					<div
 						className="relative overflow-hidden border bg-gradient-to-br from-[#0b1a3d]/90 to-[#060f24]/90 backdrop-blur-xl"
 						style={{
 							borderColor: `${accent}55`,
 							borderRadius: radius,
 							// Same glow family as the timer — soft drop + accent halo, no gloss.
-							boxShadow: `0 0.8cqw 3cqw rgba(4,9,24,0.5), 0 0 2.6cqw ${accent}33`,
+							boxShadow: `0 1.6cqw 6cqw rgba(4,9,24,0.5), 0 0 5.2cqw ${accent}33`,
 						}}
 					>
 						{/* one thin top hairline for depth (matches the timer bar) */}
 						<div className="pointer-events-none absolute inset-x-[8%] top-0 h-px bg-white/30" />
 						{/* Glowing accent rail down the left edge. */}
 						<div
-							className="absolute inset-y-0 left-0 w-[0.55cqw]"
+							className="absolute inset-y-0 left-0 w-[1.1cqw]"
 							style={{ backgroundImage: gradientCss([accent, accentDeep], 180) }}
 						/>
 
-						<div className="relative p-[2.2cqw] pl-[2.6cqw]">
+						<div className="relative p-[4.4cqw] pl-[5.2cqw]">
 							{(data.showLabel || (current && data.showLiveDot)) && (
-								<div className="flex items-center gap-[1cqw]">
+								<div className="flex items-center gap-[2cqw]">
 									<span
-										className="flex items-center gap-[0.7cqw] text-[1.5cqw] font-semibold tracking-[0.28em] uppercase"
+										className="flex items-center gap-[1.4cqw] text-[3cqw] font-semibold tracking-[0.28em] uppercase"
 										style={{ color: accent }}
 									>
 										{current && data.showLiveDot && (
-											<span className="relative flex size-[1cqw]">
+											<span className="relative flex size-[2cqw]">
 												<span
 													className="absolute inline-flex size-full animate-ping rounded-full opacity-70"
 													style={{ backgroundColor: accentDeep }}
@@ -134,21 +137,21 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 								<>
 									<div
 										key={current.id}
-										className="animate-wolf-rise mt-[1.4cqw] text-[5cqw] leading-[1.04] font-extrabold [text-shadow:0_0_2.4cqw_rgba(0,0,0,0.45)]"
+										className="animate-wolf-rise mt-[2.8cqw] text-[10cqw] leading-[1.04] font-extrabold line-clamp-2 [text-shadow:0_0_4.8cqw_rgba(0,0,0,0.45)]"
 										style={{ color: ink }}
 									>
 										{current.reward}
 									</div>
 									{showProgress && (
-										<div className="mt-[1.4cqw]">
-											<div className="h-[0.9cqw] w-full overflow-hidden rounded-full bg-white/10">
+										<div className="mt-[2.8cqw]">
+											<div className="h-[1.8cqw] w-full overflow-hidden rounded-full bg-white/10">
 												<div
 													className="h-full rounded-full transition-[width] duration-500"
 													style={{ width: `${progressPct}%`, backgroundImage: gradientCss(stops) }}
 												/>
 											</div>
 											<div
-												className="mt-[0.7cqw] text-[1.35cqw] font-bold tracking-wide tabular-nums"
+												className="mt-[1.4cqw] text-[2.7cqw] font-bold tracking-wide tabular-nums"
 												style={{ color: `${accent}d9` }}
 											>
 												{currentSubs} / {nextTarget} subs
@@ -158,7 +161,7 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 								</>
 							) : (
 								<div
-									className="mt-[1.4cqw] text-[3.4cqw] leading-tight font-bold"
+									className="mt-[2.8cqw] text-[6.8cqw] leading-tight font-bold"
 									style={{ color: accent }}
 								>
 									Thank you 🐺
@@ -168,18 +171,18 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 							{data.showNext && next.length > 0 && (
 								<>
 									<div
-										className="mt-[1.8cqw] flex items-center gap-[0.7cqw] text-[1.2cqw] font-semibold tracking-[0.18em] uppercase"
+										className="mt-[3.6cqw] flex items-center gap-[1.4cqw] text-[2.4cqw] font-semibold tracking-[0.18em] uppercase"
 										style={{ color: `${accent}b3` }}
 									>
 										<span className="h-px flex-1 bg-gradient-to-r from-white/25 to-transparent" />
 										Coming up
 										<span className="h-px flex-1 bg-gradient-to-l from-white/25 to-transparent" />
 									</div>
-									<div className="mt-[1.1cqw] flex flex-wrap gap-[0.8cqw]">
-										{next.map((g) => (
+									<div className="mt-[2.2cqw] flex flex-wrap gap-[1.6cqw]">
+										{next.slice(0, 3).map((g) => (
 											<span
 												key={g.id}
-												className="inline-flex items-center rounded-full border border-white/15 bg-[#13244d]/90 px-[2.8cqw] py-[1cqw] text-[1.35cqw] text-white/85"
+												className="inline-flex items-center rounded-full border border-white/15 bg-[#13244d]/90 px-[5.6cqw] py-[2cqw] text-[2.7cqw] text-white/85"
 											>
 												{g.reward}
 											</span>
@@ -192,24 +195,25 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 				</div>
 			)}
 
-			{/* Unlock celebration — opaque backing keeps the peak moment legible. */}
+			{/* Unlock celebration — opaque backing keeps the peak moment legible.
+          Width-capped so a long reward name can't spill past a compact source. */}
 			{celebrate && (
 				<div className="absolute inset-0 flex items-center justify-center">
 					<div
-						className="animate-wolf-pop border bg-[#091533]/88 px-[5cqw] py-[3.4cqw] text-center backdrop-blur-xl"
+						className="animate-wolf-pop max-w-[90cqw] border bg-[#091533]/88 px-[10cqw] py-[6.8cqw] text-center backdrop-blur-xl"
 						style={{
 							borderColor: `${accent}4d`,
 							borderRadius: radius,
-							boxShadow: `0 1cqw 4cqw rgba(4,9,24,0.55), 0 0 4cqw ${accent}40`,
+							boxShadow: `0 2cqw 8cqw rgba(4,9,24,0.55), 0 0 8cqw ${accent}40`,
 						}}
 					>
 						<div
-							className="text-[2cqw] font-semibold tracking-[0.3em] uppercase"
+							className="text-[4cqw] font-semibold tracking-[0.3em] uppercase"
 							style={{ color: accent }}
 						>
 							Unlocked
 						</div>
-						<div className="wolf-glow mt-[0.6cqw] text-[6.5cqw] leading-none font-extrabold text-white">
+						<div className="wolf-glow mt-[1.2cqw] text-[13cqw] leading-none font-extrabold text-white line-clamp-2">
 							{celebrate}
 						</div>
 					</div>
