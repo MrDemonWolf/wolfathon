@@ -3,7 +3,6 @@ import { z } from "zod";
 
 import { protectedProcedure, router } from "../index";
 import {
-	bumpPassedGoals,
 	type Data,
 	type Goal,
 	MAX_GOALS,
@@ -57,9 +56,11 @@ export const protectedRouter = router({
 		getRaw: protectedProcedure.query(async ({ ctx }) => readState(ctx.db)),
 
 		/**
-		 * Replace the entire state with an operator-provided document. On save,
-		 * any numeric target at/below the current sub count is auto-bumped ~10% so
-		 * goals stay ahead of the count. Theme is preserved (goal edits never touch it).
+		 * Replace the entire state with an operator-provided document. Targets are
+		 * saved exactly as sent — nothing is auto-raised. Raising goals that have
+		 * fallen at/below the sub count is an explicit, operator-driven action in the
+		 * control panel (the "Raise past goals" button), never a silent save-time edit.
+		 * Theme is preserved (goal edits never touch it).
 		 */
 		replace: protectedProcedure.input(dataSchema).mutation(async ({ ctx, input }) => {
 			const existing = await readState(ctx.db);
@@ -72,7 +73,6 @@ export const protectedRouter = router({
 				...(g.hidden ? { hidden: true } : {}),
 			}));
 			const currentSubs = input.currentSubs ?? existing.currentSubs ?? 0;
-			const { goals: bumpedGoals, bumped } = bumpPassedGoals(goals, currentSubs);
 			// Theme rides along when present; otherwise the existing one is preserved.
 			let theme = existing.theme;
 			if (input.theme !== undefined) {
@@ -86,12 +86,12 @@ export const protectedRouter = router({
 				}
 			}
 			const state = await writeState(ctx.db, {
-				goals: bumpedGoals,
+				goals,
 				currentIndex: input.currentIndex ?? 0,
 				currentSubs,
 				theme,
 			});
-			return { ok: true as const, state, bumped };
+			return { ok: true as const, state };
 		}),
 
 		/** Adjust the running sub count (positive or negative); clamps at zero. */
