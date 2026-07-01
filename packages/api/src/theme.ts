@@ -31,18 +31,14 @@ export type OverlayTheme = {
 	showUnits: boolean;
 	/** Show the rewards-card progress bar toward the next goal. */
 	showProgressBar: boolean;
-	/** Show the rewards-card "N Unlocked" row of already-won rewards. */
-	showUnlocked: boolean;
+	/** Show the rewards-card "Coming up" row of the next few upcoming rewards. */
+	showNext: boolean;
 	/**
 	 * Keep the wheel-of-dares overlay on screen while idle. Default off: the wheel
 	 * stays invisible until a spin fires (so it only appears for the reveal), then
 	 * hides again. Turn on to park the wheel permanently in your scene.
 	 */
 	showWheelIdle: boolean;
-	/** Per-overlay size multipliers (1 = the tuned 1080p default). See {@link OVERLAY_SCALE_KEYS}. */
-	timerScale: number;
-	rewardsScale: number;
-	wheelScale: number;
 };
 
 /**
@@ -57,28 +53,11 @@ export const OVERLAY_TOGGLE_KEYS = [
 	"showLiveDot",
 	"showUnits",
 	"showProgressBar",
-	"showUnlocked",
+	"showNext",
 ] as const satisfies readonly (keyof OverlayTheme)[];
 
-/**
- * Per-overlay size multipliers. Each overlay is its own OBS browser source, so
- * the operator drags them where they like; this just scales the artwork inside
- * the source so it reads well at whatever size they give it on a 1080p canvas.
- */
-export const OVERLAY_SCALE_KEYS = [
-	"timerScale",
-	"rewardsScale",
-	"wheelScale",
-] as const satisfies readonly (keyof OverlayTheme)[];
-export const MIN_SCALE = 0.5;
-export const MAX_SCALE = 1.6;
-export const DEFAULT_SCALE = 1;
-
-/** Clamp a raw scale to the allowed range, falling back to 1 for junk. */
-export function clampScale(v: unknown): number {
-	const n = typeof v === "number" && Number.isFinite(v) ? v : DEFAULT_SCALE;
-	return Math.max(MIN_SCALE, Math.min(MAX_SCALE, n));
-}
+/** How many upcoming rewards the "Coming up" row shows when {@link OverlayTheme.showNext} is on. */
+export const NEXT_REWARDS_SHOWN = 5;
 
 export const MAX_GRADIENT_STOPS = 6;
 /** Matches `#abc` or `#aabbcc`. */
@@ -148,11 +127,8 @@ export function defaultOverlayTheme(): OverlayTheme {
 		showLiveDot: true,
 		showUnits: true,
 		showProgressBar: true,
-		showUnlocked: true,
+		showNext: true,
 		showWheelIdle: false,
-		timerScale: DEFAULT_SCALE,
-		rewardsScale: DEFAULT_SCALE,
-		wheelScale: DEFAULT_SCALE,
 	};
 }
 
@@ -320,13 +296,8 @@ export function validateOverlayTheme(
 		else errors.push({ path: `${at}.showWheelIdle`, message: "must be a boolean" });
 	}
 
-	// Per-overlay size multipliers — numbers, clamped to [MIN_SCALE, MAX_SCALE].
-	for (const key of OVERLAY_SCALE_KEYS) {
-		if (t[key] === undefined) continue;
-		if (typeof t[key] === "number" && Number.isFinite(t[key])) theme[key] = clampScale(t[key]);
-		else
-			errors.push({ path: `${at}.${key}`, message: `must be a number ${MIN_SCALE}–${MAX_SCALE}` });
-	}
+	// ponytail: old rows may still carry timerScale/rewardsScale/wheelScale from the
+	// retired size sliders — they're simply ignored (overlays render at native size).
 
 	return theme;
 }

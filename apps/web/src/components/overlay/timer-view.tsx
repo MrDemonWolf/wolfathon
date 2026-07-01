@@ -1,12 +1,6 @@
 "use client";
 
-import {
-	clampScale,
-	expandHex,
-	FONT_STACKS,
-	gradientCss,
-	type ThemeCorners,
-} from "@wolfathon/api/theme";
+import { expandHex, FONT_STACKS, gradientCss, type ThemeCorners } from "@wolfathon/api/theme";
 import { type EmoteDirection, pad2, type PublicTimer, splitDuration } from "@wolfathon/api/timer";
 import { env } from "@wolfathon/env/web";
 import { Flag, Pause, Play } from "lucide-react";
@@ -128,18 +122,13 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 			? "rgba(120,40,70,0.5)"
 			: "rgba(58,68,92,0.45)";
 	const boxShadow = `0 0.8cqw 2.6cqw rgba(4,9,24,0.5), 0 0 2.6cqw ${glow}`;
-	// Operator-tunable capsule width for 1080p placement (drag the source in OBS).
-	const scale = clampScale(data.timerScale);
 
 	return (
 		<div
 			className="pointer-events-none absolute inset-0 flex select-none items-center justify-center"
 			style={{ fontFamily }}
 		>
-			<div
-				className="relative"
-				style={{ width: `${86 * scale}cqw`, maxWidth: `${1560 * scale}px` }}
-			>
+			<div className="relative" style={{ width: "86cqw", maxWidth: "1560px" }}>
 				{/* the capsule — its OWN container, fixed aspect, clips the emote flood.
 				    Glow is a box-shadow (no second rounded element → no double border). */}
 				<div
@@ -212,7 +201,7 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 					{flash && (
 						<div
 							key={`label-${flash.id}`}
-							className="animate-wolf-rise absolute top-[12%] right-[2.5cqw] z-10 flex items-baseline gap-[0.6cqw] rounded-full bg-black/45 px-[1.8cqw] py-[0.5cqw] font-extrabold whitespace-nowrap text-white backdrop-blur-md"
+							className="animate-wolf-rise absolute top-[10%] right-[2.5cqw] z-10 flex items-baseline gap-[0.8cqw] rounded-full bg-black/45 px-[4.5cqw] py-[1.3cqw] font-extrabold whitespace-nowrap text-white backdrop-blur-md"
 							style={{ boxShadow: `0 0 2cqw ${glow}` }}
 						>
 							{flash.label && (

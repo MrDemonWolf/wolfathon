@@ -11,7 +11,6 @@
  */
 
 import {
-	clampScale,
 	type OverlayTheme,
 	resolveTextColor,
 	resolveThemeGradient,
@@ -143,8 +142,6 @@ export type PublicTimer = {
 	showStatus: boolean;
 	/** Show the unit labels under the countdown digits (D/H/M/S). */
 	showUnits: boolean;
-	/** Size multiplier for the timer capsule (operator-tunable for 1080p). */
-	timerScale: number;
 	/** Whether the alert should name who/what added the time. */
 	showEventSource: boolean;
 	/** The most recent time-add (drives the "+Xm" alert + source line). */
@@ -510,7 +507,6 @@ export function toPublicTimer(doc: TimerDoc, now: number, theme: OverlayTheme): 
 		label: theme.label,
 		showStatus: theme.showStatus,
 		showUnits: theme.showUnits,
-		timerScale: clampScale(theme.timerScale),
 		showEventSource: doc.config.showEventSource ?? true,
 		lastEvent: doc.state.lastEvent ?? null,
 	};

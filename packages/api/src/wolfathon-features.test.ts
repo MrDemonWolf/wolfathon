@@ -7,7 +7,6 @@ import {
 	mergeGiftBatch,
 } from "./bot";
 import { defaultGiveawayDoc, normalizeTosUrl } from "./giveaway";
-import { clampScale } from "./theme";
 import { clampSpinEvery, defaultWheelDoc, setWheelConfig, shouldAutoSpin } from "./wheel";
 
 test("shouldAutoSpin fires once per crossed multiple, even when a gift vaults several", () => {
@@ -68,11 +67,4 @@ test("normalizeTosUrl adds https to a bare domain and keeps an explicit scheme",
 	expect(normalizeTosUrl("  gist.github.com/x  ")).toBe("https://gist.github.com/x");
 	expect(normalizeTosUrl("http://example.com")).toBe("http://example.com");
 	expect(normalizeTosUrl("")).toBe("");
-});
-
-test("clampScale keeps overlay sizes in range and defaults junk to 1", () => {
-	expect(clampScale(1)).toBe(1);
-	expect(clampScale(0.1)).toBe(0.5);
-	expect(clampScale(9)).toBe(1.6);
-	expect(clampScale("x")).toBe(1);
 });

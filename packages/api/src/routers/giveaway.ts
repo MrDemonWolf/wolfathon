@@ -67,6 +67,31 @@ export const giveawayRouter = router({
 		}),
 
 	/**
+	 * Add a winner directly by login — the manual override for winners picked
+	 * outside the auto-capture flow (e.g. gift-sub winners already chosen). Dedups
+	 * by login; `name` falls back to the login when omitted.
+	 */
+	addManualWinner: protectedProcedure
+		.input(
+			z.object({
+				login: loginSchema,
+				name: z.string().trim().max(50).optional(),
+				source: z.enum(["gift", "raffle"]).default("gift"),
+			}),
+		)
+		.mutation(async ({ ctx, input }) => {
+			const doc = await readGiveaway(ctx.db);
+			return writeGiveaway(
+				ctx.db,
+				addWinner(
+					doc,
+					{ login: input.login, name: input.name?.trim() || input.login, source: input.source },
+					Date.now(),
+				),
+			);
+		}),
+
+	/**
 	 * Draw one raffle winner from the open pool. Arms a pending `!claim`; the
 	 * public Worker announces it and handles the claim/timeout IN CHAT — this
 	 * mutation only mutates the doc and never sends chat directly.

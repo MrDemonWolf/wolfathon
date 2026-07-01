@@ -20,14 +20,18 @@ import { Button } from "@wolfathon/ui/components/button";
 import { Checkbox } from "@wolfathon/ui/components/checkbox";
 import { Input } from "@wolfathon/ui/components/input";
 import { Label } from "@wolfathon/ui/components/label";
+import { useCopyToClipboard } from "@wolfathon/ui/hooks/use-copy-to-clipboard";
 import {
+	Check,
 	CheckCircle2,
 	Clock,
+	Copy,
 	Crown,
 	Dice5,
 	ExternalLink,
 	Gift,
 	Loader2,
+	Plus,
 	Search,
 	Trash2,
 	Users,
@@ -81,6 +85,15 @@ function mmss(ms: number) {
 }
 
 const twitchUrl = (login: string) => `https://twitch.tv/${login}`;
+
+/** Paste-friendly winner list, grouped by source — for copying into chat/DMs. */
+function winnersText(gift: Winner[], raffle: Winner[]): string {
+	const line = (w: Winner, i: number) => `${i + 1}. ${w.name} (@${w.login})`;
+	const parts: string[] = [];
+	if (gift.length) parts.push(`Gift sub winners:\n${gift.map(line).join("\n")}`);
+	if (raffle.length) parts.push(`Raffle winners:\n${raffle.map(line).join("\n")}`);
+	return parts.join("\n\n");
+}
 
 /** Brand-tinted initial bubble — we only have login/name, no avatar URLs. */
 function Avatar({ name, className = "" }: { name: string; className?: string }) {
@@ -169,6 +182,15 @@ export function GiveawayTab() {
 	const setNote = useMutation(
 		controlTrpc.giveaway.setNote.mutationOptions({ onSuccess: invalidate, onError }),
 	);
+	const addManualWinner = useMutation(
+		controlTrpc.giveaway.addManualWinner.mutationOptions({
+			onSuccess: () => {
+				toast.success("Winner added");
+				invalidate();
+			},
+			onError,
+		}),
+	);
 	const removeWinner = useMutation(
 		controlTrpc.giveaway.removeWinner.mutationOptions({
 			onSuccess: () => {
@@ -208,6 +230,11 @@ export function GiveawayTab() {
 	const [customThr, setCustomThr] = useState(false);
 	const [manual, setManual] = useState("");
 	const [filter, setFilter] = useState("");
+	// Manual winner override — add someone you picked outside the auto-capture flow.
+	const [winLogin, setWinLogin] = useState("");
+	const [winName, setWinName] = useState("");
+	const [winSource, setWinSource] = useState<"gift" | "raffle">("gift");
+	const { copied, copy } = useCopyToClipboard();
 	// 1s ticker so the pending-claim countdown counts down smoothly between the
 	// 3s polls (which already refresh the doc). `tick` is unused as a value — it's
 	// just a render nudge — so the countdown reads a fresh `Date.now()` each second.
@@ -361,6 +388,20 @@ export function GiveawayTab() {
 					<Trash2 className="size-4" />
 				</Button>
 			</li>
+		);
+	}
+
+	function submitManualWinner() {
+		const login = winLogin.trim();
+		if (!login) return;
+		addManualWinner.mutate(
+			{ login, name: winName.trim() || undefined, source: winSource },
+			{
+				onSuccess: () => {
+					setWinLogin("");
+					setWinName("");
+				},
+			},
 		);
 	}
 
@@ -821,34 +862,101 @@ export function GiveawayTab() {
 
 			{/* ── Winners ───────────────────────────────────────────────────── */}
 			<div className="rounded-2xl panel-card p-5">
-				<div className="flex items-center justify-between">
+				<div className="flex flex-wrap items-center justify-between gap-2">
 					<h3 className="font-heading font-bold">
 						Winners <span className="text-muted-foreground">{data.winners.length}</span>
 					</h3>
-					<AlertDialog>
-						<AlertDialogTrigger
-							render={
-								<Button variant="destructive" size="sm" disabled={resetRound.isPending}>
-									Reset round
-								</Button>
-							}
-						/>
-						<AlertDialogContent>
-							<AlertDialogTitle>Reset round?</AlertDialogTitle>
-							<AlertDialogDescription>
-								This clears {data.gifters.length} gifters, {data.entrants.length} entrants, and{" "}
-								{data.winners.length} winners to start a new round. This cannot be undone.
-							</AlertDialogDescription>
-							<AlertDialogFooter>
-								<AlertDialogClose render={<Button variant="outline">Cancel</Button>} />
-								<AlertDialogClose
-									onClick={() => resetRound.mutate()}
-									render={<Button variant="destructive">Reset round</Button>}
-								/>
-							</AlertDialogFooter>
-						</AlertDialogContent>
-					</AlertDialog>
+					<div className="flex items-center gap-2">
+						<Button
+							variant="outline"
+							size="sm"
+							disabled={data.winners.length === 0}
+							onClick={() => copy(winnersText(giftWinners, raffleWinners), "Winner list copied")}
+						>
+							{copied ? <Check className="size-3.5 text-primary" /> : <Copy className="size-3.5" />}
+							{copied ? "Copied" : "Copy list"}
+						</Button>
+						<AlertDialog>
+							<AlertDialogTrigger
+								render={
+									<Button variant="destructive" size="sm" disabled={resetRound.isPending}>
+										Reset round
+									</Button>
+								}
+							/>
+							<AlertDialogContent>
+								<AlertDialogTitle>Reset round?</AlertDialogTitle>
+								<AlertDialogDescription>
+									This clears {data.gifters.length} gifters, {data.entrants.length} entrants, and{" "}
+									{data.winners.length} winners to start a new round. This cannot be undone.
+								</AlertDialogDescription>
+								<AlertDialogFooter>
+									<AlertDialogClose render={<Button variant="outline">Cancel</Button>} />
+									<AlertDialogClose
+										onClick={() => resetRound.mutate()}
+										render={<Button variant="destructive">Reset round</Button>}
+									/>
+								</AlertDialogFooter>
+							</AlertDialogContent>
+						</AlertDialog>
+					</div>
 				</div>
+
+				{/* Manual override — add a winner picked outside the auto-capture flow. */}
+				<div className="mt-4 flex flex-wrap items-end gap-2 border-t border-border pt-4">
+					<label className="flex flex-col gap-1 text-xs font-medium">
+						Login
+						<Input
+							className="h-9 w-40"
+							value={winLogin}
+							onChange={(e) => setWinLogin(e.target.value)}
+							placeholder="twitch login"
+							aria-label="Winner Twitch login"
+							onKeyDown={(e) => {
+								if (e.key === "Enter") submitManualWinner();
+							}}
+						/>
+					</label>
+					<label className="flex flex-col gap-1 text-xs font-medium">
+						Display name (optional)
+						<Input
+							className="h-9 w-40"
+							value={winName}
+							onChange={(e) => setWinName(e.target.value)}
+							placeholder="Display name"
+							aria-label="Winner display name"
+							onKeyDown={(e) => {
+								if (e.key === "Enter") submitManualWinner();
+							}}
+						/>
+					</label>
+					<div className="flex flex-col gap-1 text-xs font-medium">
+						Source
+						<div className="flex gap-1">
+							<button
+								type="button"
+								className={chipCls(winSource === "gift")}
+								onClick={() => setWinSource("gift")}
+							>
+								Gift
+							</button>
+							<button
+								type="button"
+								className={chipCls(winSource === "raffle")}
+								onClick={() => setWinSource("raffle")}
+							>
+								Raffle
+							</button>
+						</div>
+					</div>
+					<Button
+						onClick={submitManualWinner}
+						disabled={addManualWinner.isPending || !winLogin.trim()}
+					>
+						<Plus className="size-4" /> Add winner
+					</Button>
+				</div>
+
 				{data.winners.length === 0 ? (
 					<p className="mt-3 text-sm text-muted-foreground">
 						No winners yet. Confirm a gifter or draw the raffle above.

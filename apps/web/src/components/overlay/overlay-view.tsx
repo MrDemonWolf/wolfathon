@@ -2,13 +2,12 @@
 
 import type { PublicData } from "@wolfathon/api/state";
 import {
-	clampScale,
 	expandHex,
 	FONT_STACKS,
 	gradientCss,
+	NEXT_REWARDS_SHOWN,
 	type ThemeCorners,
 } from "@wolfathon/api/theme";
-import { Check } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 /** Card corner radius per style (cqw = % of the source width). */
@@ -23,8 +22,9 @@ const CARD_RADII: Record<ThemeCorners, string> = {
  *
  * Rules it enforces (no exceptions):
  *  - Shows reward NAMES only. Never a number, amount, total, or ceiling.
- *  - Renders the current reward + already-unlocked rewards. Future goals are
- *    hidden entirely, so a big gifter never sees a "final" target.
+ *  - Renders the current reward + a short "Coming up" peek at the next few
+ *    upcoming reward NAMES (targets stay hidden — a gifter sees names, not the
+ *    numbers behind them).
  *  - On a new unlock, celebrates "Unlocked: <reward>" (glow + scale, no audio),
  *    then settles onto the next reward.
  *
@@ -56,8 +56,11 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 
 	if (!data) return null;
 
-	const unlocked = data.goals.filter((g) => g.unlocked);
 	const current = data.goals[data.currentIndex]; // first locked goal = next reward
+	// The upcoming rewards after the current one — names only, capped so the card
+	// stays compact. Goals unlock top-to-bottom, so everything past currentIndex
+	// is still locked (see recompute()).
+	const next = data.goals.slice(data.currentIndex + 1, data.currentIndex + 1 + NEXT_REWARDS_SHOWN);
 	const hasGoals = data.goals.length > 0;
 
 	// Progress toward the NEXT goal only (never future ceilings — see stripNotes).
@@ -79,19 +82,13 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 	const ink = data.textColor === "auto" || !isHex ? "#ffffff" : data.textColor;
 	const fontFamily = FONT_STACKS[data.font] ?? FONT_STACKS.montserrat;
 	const radius = CARD_RADII[data.corners] ?? CARD_RADII.rounded;
-	// Operator-tunable card size for 1080p. Scales from the bottom-left corner so
-	// the card stays pinned where it sits while growing/shrinking.
-	const scale = clampScale(data.rewardsScale);
 
 	return (
 		<div className="pointer-events-none absolute inset-0 select-none" style={{ fontFamily }}>
 			{/* Floating reward card. Hidden until goals exist so an unconfigured
           tracker never broadcasts a false "All Rewards Unlocked". */}
 			{hasGoals && (
-				<div
-					className="absolute bottom-[4cqw] left-[4cqw] max-w-[48cqw]"
-					style={{ transform: `scale(${scale})`, transformOrigin: "bottom left" }}
-				>
+				<div className="absolute bottom-[4cqw] left-[4cqw] max-w-[48cqw]">
 					<div
 						className="relative overflow-hidden border bg-gradient-to-br from-[#0b1a3d]/90 to-[#060f24]/90 backdrop-blur-xl"
 						style={{
@@ -168,31 +165,25 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 								</div>
 							)}
 
-							{data.showUnlocked && unlocked.length > 0 && (
+							{data.showNext && next.length > 0 && (
 								<>
 									<div
 										className="mt-[1.8cqw] flex items-center gap-[0.7cqw] text-[1.2cqw] font-semibold tracking-[0.18em] uppercase"
 										style={{ color: `${accent}b3` }}
 									>
 										<span className="h-px flex-1 bg-gradient-to-r from-white/25 to-transparent" />
-										{unlocked.length} Unlocked
+										Coming up
 										<span className="h-px flex-1 bg-gradient-to-l from-white/25 to-transparent" />
 									</div>
 									<div className="mt-[1.1cqw] flex flex-wrap gap-[0.8cqw]">
-										{unlocked.slice(-4).map((g) => (
+										{next.map((g) => (
 											<span
 												key={g.id}
-												className="inline-flex items-center gap-[0.5cqw] rounded-full border border-white/15 bg-[#13244d]/90 px-[1.1cqw] py-[0.4cqw] text-[1.35cqw] text-white/85"
+												className="inline-flex items-center rounded-full border border-white/15 bg-[#13244d]/90 px-[2.8cqw] py-[1cqw] text-[1.35cqw] text-white/85"
 											>
-												<Check className="size-[1.3cqw]" style={{ color: accent }} />
 												{g.reward}
 											</span>
 										))}
-										{unlocked.length > 4 && (
-											<span className="inline-flex items-center rounded-full bg-[#13244d]/80 px-[1.1cqw] py-[0.4cqw] text-[1.35cqw] text-white/70">
-												+{unlocked.length - 4}
-											</span>
-										)}
 									</div>
 								</>
 							)}
@@ -210,7 +201,6 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 							borderColor: `${accent}4d`,
 							borderRadius: radius,
 							boxShadow: `0 1cqw 4cqw rgba(4,9,24,0.55), 0 0 4cqw ${accent}40`,
-							transform: `scale(${scale})`,
 						}}
 					>
 						<div
