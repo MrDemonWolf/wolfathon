@@ -37,6 +37,33 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 	const seen = useRef<Set<string> | null>(null);
 	const [celebrate, setCelebrate] = useState<string | null>(null);
 
+	// Auto-fit: the card's height is content-driven (reward name wraps to 1–2
+	// lines, progress/coming-up toggle), so a fixed-aspect source can't hold every
+	// combination. Measure the card's natural (layout) height — `offsetHeight`
+	// ignores our own transform, so the reading is stable across re-fits — and
+	// scale it down to fit whatever source the operator sized. Scale-up is capped
+	// at 1 so a short card never balloons; it just centres with transparent margin.
+	const boxRef = useRef<HTMLDivElement>(null);
+	const cardRef = useRef<HTMLDivElement>(null);
+	const [fit, setFit] = useState(1);
+	useEffect(() => {
+		const box = boxRef.current;
+		const card = cardRef.current;
+		if (!box || !card) return;
+		const measure = () => {
+			// Reserve a 2.5cqw top+bottom breathing margin (matches the side inset).
+			const avail = box.clientHeight - box.clientWidth * 0.05;
+			const natural = card.offsetHeight; // layout height — ignores our scale transform
+			setFit(natural > 0 && natural > avail ? avail / natural : 1);
+		};
+		// Measure now (content just changed) and on any source resize. The OBS
+		// browser-source size is the viewport, so `resize` catches an operator
+		// resizing the source; content changes come through the `data` dep.
+		measure();
+		window.addEventListener("resize", measure);
+		return () => window.removeEventListener("resize", measure);
+	}, [data]);
+
 	useEffect(() => {
 		if (!data) return;
 		const unlockedIds = data.goals.filter((g) => g.unlocked).map((g) => g.id);
@@ -86,12 +113,20 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 	const radius = CARD_RADII[data.corners] ?? CARD_RADII.rounded;
 
 	return (
-		<div className="pointer-events-none absolute inset-0 select-none" style={{ fontFamily }}>
-			{/* Reward card — fills the source width, anchored top with a small margin
-          so the glow/border isn't flush to the edge. Hidden until goals exist so
-          an unconfigured tracker never broadcasts a false "All Rewards Unlocked". */}
+		<div
+			ref={boxRef}
+			className="pointer-events-none absolute inset-0 select-none"
+			style={{ fontFamily }}
+		>
+			{/* Reward card — fills the source width and auto-scales to fit the source
+          height, centred vertically. Hidden until goals exist so an unconfigured
+          tracker never broadcasts a false "All Rewards Unlocked". */}
 			{hasGoals && (
-				<div className="absolute inset-x-[2.5cqw] top-[2.5cqw]">
+				<div
+					ref={cardRef}
+					className="absolute inset-x-[2.5cqw] top-1/2"
+					style={{ transform: `translateY(-50%) scale(${fit})`, transformOrigin: "center" }}
+				>
 					<div
 						className="relative overflow-hidden border bg-gradient-to-br from-[#0b1a3d]/90 to-[#060f24]/90 backdrop-blur-xl"
 						style={{
