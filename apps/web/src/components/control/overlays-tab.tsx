@@ -43,7 +43,7 @@ const SOURCES = [
 		icon: Trophy,
 		title: "Rewards",
 		path: "/overlay/rewards",
-		size: "760×380",
+		size: "760×540",
 		blurb:
 			"Compact reward card that fills its source — current reward name with unlock celebration. Names only, no numbers.",
 	},
