@@ -35,7 +35,7 @@ export function SiteFooter() {
 
 				<p className="max-w-2xl text-xs leading-relaxed text-muted-foreground/80">{DISCLAIMER}</p>
 
-				<div className="flex items-center gap-3 text-sm text-muted-foreground">
+				<div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-sm text-muted-foreground">
 					<p>
 						© {new Date().getFullYear()} Wolfathon by{" "}
 						<a

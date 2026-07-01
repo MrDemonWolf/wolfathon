@@ -36,6 +36,11 @@ export function PreviewFrame({
 				<div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_8%,rgba(0,172,237,0.12),transparent_60%)]" />
 				{children}
 			</div>
+			{/* Tell the operator exactly what to size the OBS browser source to. */}
+			<div className="border-t border-white/5 bg-white/[0.02] px-3 py-1.5 text-center text-[0.7rem] text-muted-foreground">
+				Set your OBS browser source to{" "}
+				<span className="font-mono text-foreground">{resolution}</span>
+			</div>
 		</div>
 	);
 }

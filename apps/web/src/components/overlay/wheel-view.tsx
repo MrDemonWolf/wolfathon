@@ -1,7 +1,6 @@
 "use client";
 
 import {
-	clampScale,
 	defaultOverlayTheme,
 	FONT_STACKS,
 	luma,
@@ -68,7 +67,6 @@ export function WheelView({
 	const t = theme ?? defaultOverlayTheme();
 	const { accent: CYAN, light: MOON, dark: NAVY, darkDeep: NAVY_DEEP } = wheelPalette(t);
 	const fontFamily = FONT_STACKS[t.font];
-	const scale = clampScale(t.wheelScale);
 	const [rotation, setRotation] = useState(0);
 	// The active spin's from/to angles + a restart key. Keying the wheel group on
 	// `key` re-arms the CSS keyframe animation for each new spin.
@@ -138,10 +136,10 @@ export function WheelView({
 	// Hidden-until-spin: by default the wheel only appears for the reveal (spin +
 	// result), then fades back out. `showWheelIdle` parks it on screen permanently.
 	const visible = t.showWheelIdle || phase !== "idle";
-	// Size of the wheel within its (square) OBS source — operator-tunable for 1080p.
-	const wheelSize = `${84 * scale}cqmin`;
-	// Result banner sits just below the wheel rim; its offset follows the scale.
-	const bannerTop = `calc(50% + ${42 * scale}cqmin + 2cqmin)`;
+	// Size of the wheel within its (square) OBS source, tuned for 1080p.
+	const wheelSize = "84cqmin";
+	// Result banner sits just below the wheel rim.
+	const bannerTop = "calc(50% + 42cqmin + 2cqmin)";
 
 	return (
 		<div
