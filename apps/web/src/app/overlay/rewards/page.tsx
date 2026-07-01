@@ -8,7 +8,7 @@ import { useOverlayToken } from "@/components/overlay/use-overlay-token";
 import { publicTrpc } from "@/utils/trpc";
 
 /**
- * Rewards OBS browser source (1920×1080, transparent). Rewards change rarely
+ * Rewards OBS browser source (760×380, transparent). Rewards change rarely
  * (only on a sub/unlock), so a 10s poll is plenty and keeps daily request volume
  * well under the Cloudflare Workers free tier.
  */
