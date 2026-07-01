@@ -62,11 +62,7 @@ export function RewardsTab() {
 						return;
 					}
 					seed(res.state);
-					toast.success(
-						res.bumped > 0
-							? `Saved · ${res.bumped} goal${res.bumped > 1 ? "s" : ""} raised above the count`
-							: "Goals saved",
-					);
+					toast.success("Goals saved");
 					invalidate();
 				},
 			},
