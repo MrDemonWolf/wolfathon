@@ -137,7 +137,7 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 								<>
 									<div
 										key={current.id}
-										className="animate-wolf-rise mt-[2.8cqw] text-[10cqw] leading-[1.04] font-extrabold [text-shadow:0_0_4.8cqw_rgba(0,0,0,0.45)]"
+										className="animate-wolf-rise mt-[2.8cqw] text-[10cqw] leading-[1.04] font-extrabold line-clamp-2 [text-shadow:0_0_4.8cqw_rgba(0,0,0,0.45)]"
 										style={{ color: ink }}
 									>
 										{current.reward}
@@ -179,7 +179,7 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 										<span className="h-px flex-1 bg-gradient-to-l from-white/25 to-transparent" />
 									</div>
 									<div className="mt-[2.2cqw] flex flex-wrap gap-[1.6cqw]">
-										{next.map((g) => (
+										{next.slice(0, 3).map((g) => (
 											<span
 												key={g.id}
 												className="inline-flex items-center rounded-full border border-white/15 bg-[#13244d]/90 px-[5.6cqw] py-[2cqw] text-[2.7cqw] text-white/85"
@@ -213,7 +213,7 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 						>
 							Unlocked
 						</div>
-						<div className="wolf-glow mt-[1.2cqw] text-[13cqw] leading-none font-extrabold text-white">
+						<div className="wolf-glow mt-[1.2cqw] text-[13cqw] leading-none font-extrabold text-white line-clamp-2">
 							{celebrate}
 						</div>
 					</div>
