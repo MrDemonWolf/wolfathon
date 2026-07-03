@@ -142,7 +142,7 @@ export const DYNAMIC_FORMATS: Record<
 			key: "how",
 			label: "How it works",
 			template:
-				"🎡 The Howlwheel is our wheel of dares — every spin lands on a random dare I have to do! {value} loaded. It auto-spins as the Wolfathon rolls, or a mod can trigger it.",
+				"🎡 The Howlwheel is our wheel of dares — every spin lands on a random dare I have to do! {value} loaded. A mod spins it live when the moment's right.",
 		},
 		{
 			key: "explain",
@@ -397,12 +397,6 @@ export function buildGiftAnnouncement(batch: GiftBatch, minutesAdded: number): s
 	}
 	const people = batch.gifters.length;
 	return `🎁 ${batch.subs} ${subWord} gifted by ${people} ${people === 1 ? "person" : "people"}${tail}`;
-}
-
-/** Chat line when the wheel auto-spins on a sub milestone (winner known synchronously). */
-export function buildAutoSpinAnnouncement(subs: number, label: string | null): string {
-	const head = `🎡 ${subs} subs — spinning the Howlwheel!`;
-	return label ? `${head} Landed on: ${label}` : head;
 }
 
 // ---- giveaway draw → claim chat lines (pure) ------------------------------

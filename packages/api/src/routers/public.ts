@@ -56,21 +56,18 @@ export const publicRouter = router({
 		}),
 	}),
 	wheel: router({
-		/** Enabled slots as render-only fields — no ids beyond render, never the token. */
+		/**
+		 * Everything one overlay poll needs: render-only slots (no ids beyond render,
+		 * never the token), the theme, and the live `pending` spin. Folded into a
+		 * single call so the overlay polls once, not twice. `pending` does NOT clear
+		 * on read — multiple browser sources are safe and the overlay dedupes by
+		 * `spinId`; a structural slot edit clears it server-side.
+		 */
 		getPublic: publicProcedure.input(tokenInput).query(async ({ ctx, input }) => {
 			assertToken((await readSettings(ctx.db)).overlayToken, input.token);
 			const [wheel, state] = await Promise.all([readWheel(ctx.db), readState(ctx.db)]);
 			// Theme is shared with the timer + rewards card and lives in the state doc.
-			return { ...toPublicWheel(wheel), theme: state.theme };
-		}),
-		/**
-		 * The live pending spin (or null) so the overlay can animate. Does NOT clear
-		 * on read — multiple browser sources are safe and the overlay dedupes by
-		 * `spinId`. A new structural slot edit clears it server-side.
-		 */
-		poll: publicProcedure.input(tokenInput).query(async ({ ctx, input }) => {
-			assertToken((await readSettings(ctx.db)).overlayToken, input.token);
-			return (await readWheel(ctx.db)).pendingSpin;
+			return { ...toPublicWheel(wheel), theme: state.theme, pending: wheel.pendingSpin };
 		}),
 	}),
 });

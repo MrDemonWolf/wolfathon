@@ -240,16 +240,6 @@ export async function writeWheel(db: Db, doc: WheelDoc): Promise<WheelDoc> {
 	return writeDoc(db, WHEEL_ID, doc);
 }
 
-/**
- * Concurrency-safe wheel mutation. The webhook now auto-spins the wheel on sub
- * milestones (writing `pendingSpin`/history), so this shares the EventSub
- * firehose with the timer/giveaway/bot writers and MUST compare-and-swap
- * (top-level defaults backfilled on read, like readWheel).
- */
-export function mutateWheel(db: Db, fn: (doc: WheelDoc) => WheelDoc): Promise<WheelDoc> {
-	return mutateDoc(db, WHEEL_ID, defaultWheelDoc, (raw) => fn(withWheelDefaults(raw)));
-}
-
 // ---- chat bot -------------------------------------------------------------
 
 export async function readBot(db: Db): Promise<BotDoc> {
@@ -281,7 +271,7 @@ export function mutateBot(db: Db, fn: (doc: BotDoc) => BotDoc): Promise<BotDoc> 
  * Returns the updated timer doc plus the running sub count before/after this
  * event. The before/after are captured INSIDE the CAS apply, so they're the true
  * sequential values (not a racy post-read) — the webhook uses them to decide
- * whether this event crossed a wheel auto-spin milestone.
+ * whether the count actually moved (a gift-sub announcement only fires then).
  */
 export async function applyTimerEventAndBumpSubs(
 	db: Db,

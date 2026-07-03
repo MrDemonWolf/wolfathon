@@ -93,7 +93,6 @@ test("default doc seeds the sample wheel, all enabled, palette-coloured", () => 
 	expect(enabledSlots(doc).length).toBe(14);
 	expect(doc.slots.every((s) => !!s.color)).toBe(true);
 	expect(doc.pendingSpin).toBeNull();
-	expect(doc.config.spinEvery).toBe(10);
 });
 
 test("trigger's targetIndex names the same slot the overlay renders", () => {
@@ -241,7 +240,6 @@ test("withWheelDefaults backfills a legacy/partial row without throwing", () => 
 		slots: [],
 		history: [],
 		pendingSpin: null,
-		config: { spinEvery: 10 },
 	});
 });
 

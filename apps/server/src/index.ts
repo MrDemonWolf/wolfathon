@@ -1,6 +1,5 @@
 import { trpcServer } from "@hono/trpc-server";
 import {
-	buildAutoSpinAnnouncement,
 	buildGiftAnnouncement,
 	buildGiveawayClaimAnnouncement,
 	buildGiveawayDrawAnnouncement,
@@ -30,7 +29,6 @@ import {
 import { publicRouter } from "@wolfathon/api/routers/index";
 import { autoPause, autoResume } from "@wolfathon/api/timer";
 import { isAllowedEmoteUrl } from "@wolfathon/api/timer";
-import { enabledSlots, resolveSpin, shouldAutoSpin } from "@wolfathon/api/wheel";
 import {
 	refreshUserToken,
 	sendChatMessage,
@@ -45,7 +43,6 @@ import {
 	mutateGiveaway,
 	mutateTimer,
 	mutateTwitch,
-	mutateWheel,
 	readBot,
 	readGiveaway,
 	readState,
@@ -177,15 +174,11 @@ app.post("/twitch/eventsub", async (c) => {
 		}
 		if (timerEvent) {
 			const { subsBefore, subsAfter } = await applyTimerEventAndBumpSubs(db, timerEvent, now);
-			// Sub/gift events can trip two chat-side effects: a batched gift-sub
-			// announcement and a wheel auto-spin on a sub milestone. Both may SEND
-			// chat (and the gift one sleeps out a debounce window), so they run in
-			// waitUntil after the 2xx. Only fire when the count actually moved
-			// (bits/points do not bump subs).
+			// A gift-sub event fires a batched chat announcement. It SENDs chat and
+			// sleeps out a debounce window, so it runs in waitUntil after the 2xx.
+			// Only fire when the count actually moved (bits/points do not bump subs).
 			if (subsAfter > subsBefore) {
-				c.executionCtx.waitUntil(
-					handleSubMilestones(db, twitch, event, timerEvent, subsBefore, subsAfter, now),
-				);
+				c.executionCtx.waitUntil(handleGiftAnnouncement(db, twitch, event, timerEvent, now));
 			}
 		}
 		if (maybeGiveaway) {
@@ -451,45 +444,20 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * After a sub/gift bumps the count, run the two milestone side-effects:
+ * Fold a gift-sub event into a pending burst, then schedule a single delayed
+ * flush so a sub-train collapses into one chat line.
  *
- *  1. Wheel auto-spin — if this event crossed a multiple of `wheel.config.spinEvery`,
- *     arm one spin (the overlay animates it) and, if the bot can send, announce the
- *     milestone + the dare it landed on. The spin itself runs regardless of the bot;
- *     only the chat shout-out needs a connected bot account.
- *  2. Gift-sub announcement — fold the gift into a pending burst, then schedule a
- *     single delayed flush so a sub-train collapses into one chat line.
- *
- * ponytail: the auto-spin "crossed a milestone" check reads before/after from the
- * CAS-sequential bump, so it's correct under concurrency; a single gift that vaults
- * several multiples still fires exactly one spin (see `shouldAutoSpin`). The gift
- * debounce uses waitUntil + setTimeout, not a Durable Object — fine for one
- * channel's gift rate; a burst that outlives the worker (~30s) would lose its
- * trailing flush, at which point a DO alarm is the upgrade.
+ * ponytail: the gift debounce uses waitUntil + setTimeout, not a Durable Object —
+ * fine for one channel's gift rate; a burst that outlives the worker (~30s) would
+ * lose its trailing flush, at which point a DO alarm is the upgrade.
  */
-async function handleSubMilestones(
+async function handleGiftAnnouncement(
 	db: Db,
 	twitch: TwitchDoc,
 	event: Record<string, unknown>,
 	timerEvent: NonNullable<ReturnType<typeof parseEvent>>,
-	subsBefore: number,
-	subsAfter: number,
 	now: number,
 ): Promise<void> {
-	const wheel = await readWheel(db);
-	if (shouldAutoSpin(wheel.config.spinEvery, subsBefore, subsAfter)) {
-		let winnerLabel: string | null = null;
-		await mutateWheel(db, (w) => {
-			if (enabledSlots(w).length === 0) return w; // nothing to spin
-			const { doc, winner } = resolveSpin(w, { spinId: crypto.randomUUID(), now });
-			winnerLabel = winner?.label ?? null;
-			return doc;
-		});
-		if (winnerLabel !== null) {
-			await sendAsBot(db, twitch, buildAutoSpinAnnouncement(subsAfter, winnerLabel));
-		}
-	}
-
 	if (timerEvent.kind === "gift") {
 		const bot = await readBot(db);
 		if (bot.enabled && bot.announceGifts) {

@@ -6,12 +6,10 @@ import { readWheel, writeWheel } from "../store";
 import {
 	enabledSlots,
 	MAX_LABEL_LEN,
-	MAX_SPIN_EVERY,
 	MAX_WEIGHT,
 	removeSlot,
 	reorderSlots,
 	resolveSpin,
-	setWheelConfig,
 	upsertSlot,
 } from "../wheel";
 
@@ -69,14 +67,6 @@ export const wheelRouter = router({
 		}),
 
 	history: protectedProcedure.query(async ({ ctx }) => (await readWheel(ctx.db)).history),
-
-	/** Set the auto-spin cadence (subs between automatic spins; 0 = off). */
-	setConfig: protectedProcedure
-		.input(z.object({ spinEvery: z.number().int().min(0).max(MAX_SPIN_EVERY) }))
-		.mutation(async ({ ctx, input }) => {
-			const doc = await readWheel(ctx.db);
-			return writeWheel(ctx.db, setWheelConfig(doc, input));
-		}),
 
 	/**
 	 * Spin. With `slotId`, lands on that enabled slot; without, the server picks a
