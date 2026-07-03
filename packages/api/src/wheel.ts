@@ -35,20 +35,10 @@ export type WheelSpin = { id: string; label: string; at: number };
 /** The overlay's live spin channel. Cleared on any structural slot change. */
 export type PendingSpin = { spinId: string; targetIndex: number; at: number } | null;
 
-export type WheelConfig = {
-	/**
-	 * Auto-spin the wheel every N counted subs (subs + each gifted sub). 0 = off
-	 * (operator spins by hand only). The webhook fires one spin when the running
-	 * sub count crosses a multiple of N.
-	 */
-	spinEvery: number;
-};
-
 export type WheelDoc = {
 	slots: WheelSlot[];
 	history: WheelSpin[];
 	pendingSpin: PendingSpin;
-	config: WheelConfig;
 };
 
 /** One slot as sent to the overlay — render-only fields, no id, never the token. */
@@ -70,30 +60,6 @@ export const MAX_WEIGHT = 1000;
 export const MAX_HISTORY = 25;
 /** Forward spin always sweeps at least this many whole turns before landing. */
 export const DEFAULT_MIN_TURNS = 5;
-/** Default auto-spin cadence (subs). The operator can raise/lower or set 0 (off). */
-export const DEFAULT_SPIN_EVERY = 10;
-export const MAX_SPIN_EVERY = 1000;
-
-/** Clamp the auto-spin cadence to a non-negative int (0 = off, capped at {@link MAX_SPIN_EVERY}). */
-export function clampSpinEvery(v: unknown): number {
-	const n = typeof v === "number" && Number.isFinite(v) ? Math.round(v) : DEFAULT_SPIN_EVERY;
-	return Math.max(0, Math.min(MAX_SPIN_EVERY, n));
-}
-
-/**
- * Whether crossing from `before` to `after` total subs trips an auto-spin. True
- * when a multiple of `spinEvery` lies in `(before, after]` — so a single big
- * gift that vaults several boundaries still fires exactly one spin (the hype
- * moment), not a burst. `spinEvery <= 0` disables it.
- */
-export function shouldAutoSpin(spinEvery: number, before: number, after: number): boolean {
-	if (spinEvery <= 0 || after <= before) return false;
-	return Math.floor(after / spinEvery) > Math.floor(before / spinEvery);
-}
-
-export function defaultWheelConfig(): WheelConfig {
-	return { spinEvery: DEFAULT_SPIN_EVERY };
-}
 
 /**
  * Default slice colours, cycled by render index when a slot has no explicit hex.
@@ -153,7 +119,6 @@ export function defaultWheelDoc(): WheelDoc {
 		})),
 		history: [],
 		pendingSpin: null,
-		config: defaultWheelConfig(),
 	};
 }
 
@@ -168,7 +133,6 @@ export function withWheelDefaults(doc: WheelDoc): WheelDoc {
 		slots: Array.isArray(doc.slots) ? doc.slots.map(normalizeSlot) : [],
 		history: Array.isArray(doc.history) ? doc.history : [],
 		pendingSpin: doc.pendingSpin ?? null,
-		config: { spinEvery: clampSpinEvery(doc.config?.spinEvery) },
 	};
 }
 
@@ -359,14 +323,6 @@ export function upsertSlot(doc: WheelDoc, patch: SlotPatch): WheelDoc {
 
 export function removeSlot(doc: WheelDoc, id: string): WheelDoc {
 	return { ...doc, slots: doc.slots.filter((s) => s.id !== id), pendingSpin: null };
-}
-
-/** Merge a config patch (clamps the auto-spin cadence). Leaves slots/pendingSpin alone. */
-export function setWheelConfig(doc: WheelDoc, patch: Partial<WheelConfig>): WheelDoc {
-	return {
-		...doc,
-		config: { spinEvery: clampSpinEvery(patch.spinEvery ?? doc.config.spinEvery) },
-	};
 }
 
 /**

@@ -82,11 +82,23 @@ export function WheelView({
 	const [frozen, setFrozen] = useState<PublicWheelSlot[] | null>(null);
 
 	const lastSpinId = useRef<string | null>(null);
+	// A freshly mounted overlay must NOT replay the spin still parked in the doc:
+	// the server keeps `pendingSpin` around (it never clears on read), so every OBS
+	// scene switch / refresh / restart would otherwise re-whirl the last spin. On
+	// the first data we see, adopt whatever spinId is current as already-handled —
+	// only spins that ARRIVE after this mount animate.
+	const primed = useRef(false);
 	const reduced = usePrefersReducedMotion();
 
 	// Drive the animation off a new pendingSpin.spinId.
 	useEffect(() => {
-		if (!pending || !slots) return;
+		if (!slots) return; // wait for the first data
+		if (!primed.current) {
+			primed.current = true;
+			lastSpinId.current = pending?.spinId ?? null; // adopt the parked spin, don't replay it
+			return;
+		}
+		if (!pending) return;
 		if (pending.spinId === lastSpinId.current) return; // already handled
 		const target = slots[pending.targetIndex];
 		if (!target) return; // index out of range (slots changed) — ignore
