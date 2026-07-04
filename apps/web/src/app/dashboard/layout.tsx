@@ -47,7 +47,10 @@ export default function PanelLayout({ children }: { children: React.ReactNode })
 						<WolfMark className="size-8 transition-transform group-hover:scale-110" />
 						<span className="font-heading text-lg font-extrabold tracking-tight">Wolfathon</span>
 					</Link>
-					<nav aria-label="Control sections" className="flex items-center gap-1 text-sm">
+					<nav
+						aria-label="Control sections"
+						className="flex flex-wrap items-center gap-x-1 gap-y-1.5 text-sm"
+					>
 						{SECTIONS.map((s) => {
 							const active =
 								s.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(s.href);
