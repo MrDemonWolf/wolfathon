@@ -4,8 +4,11 @@ import { Inter, Montserrat, Poppins, Roboto } from "next/font/google";
 import "../index.css";
 import Providers from "@/components/providers";
 
-// Montserrat → headings, Roboto → body (MrDemonWolf brand). Poppins + Inter are
-// selectable overlay fonts (see the theme font picker).
+// Montserrat → headings, Roboto → body (MrDemonWolf brand): used on every panel
+// page, so preload them. Poppins + Inter are optional overlay fonts (theme font
+// picker only) — `preload: false` keeps them out of the render-blocking preload
+// list on every route; they still load on-demand when an overlay actually picks
+// one.
 const montserrat = Montserrat({
 	variable: "--font-montserrat",
 	subsets: ["latin"],
@@ -24,12 +27,14 @@ const poppins = Poppins({
 	subsets: ["latin"],
 	weight: ["500", "600", "800"],
 	display: "swap",
+	preload: false,
 });
 
 const inter = Inter({
 	variable: "--font-inter",
 	subsets: ["latin"],
 	display: "swap",
+	preload: false,
 });
 
 const TITLE = "The Wolf Pack Wolfathon — MrDemonWolf";
