@@ -21,8 +21,10 @@ export type OverlayTheme = {
 	corners: ThemeCorners;
 	/** Editable eyebrow text above the timer countdown (visibility = `showLabel`). */
 	label: string;
-	/** Show the eyebrow label ("WOLFATHON" / "NEXT REWARD"). */
+	/** Show the timer eyebrow (the editable `label`, e.g. "WOLFATHON"). */
 	showLabel: boolean;
+	/** Show the rewards-card eyebrow ("NEXT REWARD" / "ALL REWARDS UNLOCKED"). */
+	showRewardsLabel: boolean;
 	/** Show the timer status chip (play/pause). */
 	showStatus: boolean;
 	/** Show the pulsing live dot on the rewards card. */
@@ -49,6 +51,7 @@ export type OverlayTheme = {
  */
 export const OVERLAY_TOGGLE_KEYS = [
 	"showLabel",
+	"showRewardsLabel",
 	"showStatus",
 	"showLiveDot",
 	"showUnits",
@@ -123,6 +126,7 @@ export function defaultOverlayTheme(): OverlayTheme {
 		corners: "rounded",
 		label: DEFAULT_TIMER_LABEL,
 		showLabel: true,
+		showRewardsLabel: true,
 		showStatus: true,
 		showLiveDot: true,
 		showUnits: true,

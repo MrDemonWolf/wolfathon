@@ -62,7 +62,8 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 		measure();
 		window.addEventListener("resize", measure);
 		return () => window.removeEventListener("resize", measure);
-	}, [data]);
+		// `celebrate` re-fits: the unlock swaps the card's content (and height).
+	}, [data, celebrate]);
 
 	useEffect(() => {
 		if (!data) return;
@@ -145,111 +146,108 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 						/>
 
 						<div className="relative p-[4.4cqw] pl-[5.2cqw]">
-							{(data.showLabel || (current && data.showLiveDot)) && (
-								<div className="flex items-center gap-[2cqw]">
+							{celebrate ? (
+								/* Unlock celebration, in-card: fades in, holds, fades out (CSS),
+								   then the next reward rises in when `celebrate` clears. */
+								<div key={celebrate} className="animate-wolf-unlock">
 									<span
-										className="flex items-center gap-[1.4cqw] text-[3cqw] font-semibold tracking-[0.28em] uppercase"
+										className="block text-[3cqw] font-semibold tracking-[0.3em] uppercase"
 										style={{ color: accent }}
 									>
-										{current && data.showLiveDot && (
-											<span className="relative flex size-[2cqw]">
-												<span
-													className="absolute inline-flex size-full animate-ping rounded-full opacity-70"
-													style={{ backgroundColor: accentDeep }}
-												/>
-												<span
-													className="relative inline-flex size-full rounded-full"
-													style={{ backgroundColor: accent }}
-												/>
-											</span>
-										)}
-										{data.showLabel && (current ? "Next Reward" : "All Rewards Unlocked")}
+										Unlocked
 									</span>
-								</div>
-							)}
-
-							{current ? (
-								<>
-									<div
-										key={current.id}
-										className="animate-wolf-rise mt-[2.8cqw] text-[10cqw] leading-[1.04] font-extrabold line-clamp-2 [text-shadow:0_0_4.8cqw_rgba(0,0,0,0.45)]"
-										style={{ color: ink }}
-									>
-										{current.reward}
+									<div className="wolf-glow mt-[2cqw] text-[10cqw] leading-[1.04] font-extrabold text-white line-clamp-2">
+										{celebrate}
 									</div>
-									{showProgress && (
-										<div className="mt-[2.8cqw]">
-											<div className="h-[1.8cqw] w-full overflow-hidden rounded-full bg-white/10">
-												<div
-													className="h-full rounded-full transition-[width] duration-500"
-													style={{ width: `${progressPct}%`, backgroundImage: gradientCss(stops) }}
-												/>
-											</div>
-											<div
-												className="mt-[1.4cqw] text-[2.7cqw] font-bold tracking-wide tabular-nums"
-												style={{ color: `${accent}d9` }}
+								</div>
+							) : (
+								<>
+									{(data.showRewardsLabel || (current && data.showLiveDot)) && (
+										<div className="flex items-center gap-[2cqw]">
+											<span
+												className="flex items-center gap-[1.4cqw] text-[3cqw] font-semibold tracking-[0.28em] uppercase"
+												style={{ color: accent }}
 											>
-												{currentSubs} / {nextTarget} subs
-											</div>
+												{current && data.showLiveDot && (
+													<span className="relative flex size-[2cqw]">
+														<span
+															className="absolute inline-flex size-full animate-ping rounded-full opacity-70"
+															style={{ backgroundColor: accentDeep }}
+														/>
+														<span
+															className="relative inline-flex size-full rounded-full"
+															style={{ backgroundColor: accent }}
+														/>
+													</span>
+												)}
+												{data.showRewardsLabel &&
+													(current ? "Next Reward" : "All Rewards Unlocked")}
+											</span>
 										</div>
 									)}
-								</>
-							) : (
-								<div
-									className="mt-[2.8cqw] text-[6.8cqw] leading-tight font-bold"
-									style={{ color: accent }}
-								>
-									Thank you 🐺
-								</div>
-							)}
 
-							{data.showNext && next.length > 0 && (
-								<>
-									<div
-										className="mt-[3.6cqw] flex items-center gap-[1.4cqw] text-[2.4cqw] font-semibold tracking-[0.18em] uppercase"
-										style={{ color: `${accent}b3` }}
-									>
-										<span className="h-px flex-1 bg-gradient-to-r from-white/25 to-transparent" />
-										Coming up
-										<span className="h-px flex-1 bg-gradient-to-l from-white/25 to-transparent" />
-									</div>
-									<div className="mt-[2.2cqw] flex flex-wrap gap-[1.6cqw]">
-										{next.slice(0, 3).map((g) => (
-											<span
-												key={g.id}
-												className="inline-flex items-center rounded-full border border-white/15 bg-[#13244d]/90 px-[5.6cqw] py-[2cqw] text-[2.7cqw] text-white/85"
+									{current ? (
+										<>
+											<div
+												key={current.id}
+												className="animate-wolf-rise mt-[2.8cqw] text-[10cqw] leading-[1.04] font-extrabold line-clamp-2 [text-shadow:0_0_4.8cqw_rgba(0,0,0,0.45)]"
+												style={{ color: ink }}
 											>
-												{g.reward}
-											</span>
-										))}
-									</div>
+												{current.reward}
+											</div>
+											{showProgress && (
+												<div className="mt-[2.8cqw]">
+													<div className="h-[1.8cqw] w-full overflow-hidden rounded-full bg-white/10">
+														<div
+															className="h-full rounded-full transition-[width] duration-500"
+															style={{
+																width: `${progressPct}%`,
+																backgroundImage: gradientCss(stops),
+															}}
+														/>
+													</div>
+													<div
+														className="mt-[1.4cqw] text-[2.7cqw] font-bold tracking-wide tabular-nums"
+														style={{ color: `${accent}d9` }}
+													>
+														{currentSubs} / {nextTarget} subs
+													</div>
+												</div>
+											)}
+										</>
+									) : (
+										<div
+											className="mt-[2.8cqw] text-[6.8cqw] leading-tight font-bold"
+											style={{ color: accent }}
+										>
+											Thank you 🐺
+										</div>
+									)}
+
+									{data.showNext && next.length > 0 && (
+										<>
+											<div
+												className="mt-[3.6cqw] flex items-center gap-[1.4cqw] text-[2.4cqw] font-semibold tracking-[0.18em] uppercase"
+												style={{ color: `${accent}b3` }}
+											>
+												<span className="h-px flex-1 bg-gradient-to-r from-white/25 to-transparent" />
+												Coming up
+												<span className="h-px flex-1 bg-gradient-to-l from-white/25 to-transparent" />
+											</div>
+											<div className="mt-[2.2cqw] flex flex-wrap gap-[1.6cqw]">
+												{next.slice(0, 3).map((g) => (
+													<span
+														key={g.id}
+														className="inline-flex items-center rounded-full border border-white/15 bg-[#13244d]/90 px-[5.6cqw] py-[2cqw] text-[2.7cqw] text-white/85"
+													>
+														{g.reward}
+													</span>
+												))}
+											</div>
+										</>
+									)}
 								</>
 							)}
-						</div>
-					</div>
-				</div>
-			)}
-
-			{/* Unlock celebration — opaque backing keeps the peak moment legible.
-          Width-capped so a long reward name can't spill past a compact source. */}
-			{celebrate && (
-				<div className="absolute inset-0 flex items-center justify-center">
-					<div
-						className="animate-wolf-pop max-w-[90cqw] border bg-[#091533]/88 px-[10cqw] py-[6.8cqw] text-center backdrop-blur-xl"
-						style={{
-							borderColor: `${accent}4d`,
-							borderRadius: radius,
-							boxShadow: `0 2cqw 8cqw rgba(4,9,24,0.55), 0 0 8cqw ${accent}40`,
-						}}
-					>
-						<div
-							className="text-[4cqw] font-semibold tracking-[0.3em] uppercase"
-							style={{ color: accent }}
-						>
-							Unlocked
-						</div>
-						<div className="wolf-glow mt-[1.2cqw] text-[13cqw] leading-none font-extrabold text-white line-clamp-2">
-							{celebrate}
 						</div>
 					</div>
 				</div>

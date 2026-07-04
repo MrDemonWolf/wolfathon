@@ -180,6 +180,31 @@
 	animation: wolf-pop 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
+/* In-card unlock: self-contained fade+scale in, hold, then fade out — duration
+   matches the JS celebrate timeout so the next reward rises in right after. */
+@keyframes wolf-unlock {
+	0% {
+		transform: scale(0.7);
+		opacity: 0;
+	}
+	12% {
+		transform: scale(1);
+		opacity: 1;
+	}
+	84% {
+		transform: scale(1);
+		opacity: 1;
+	}
+	100% {
+		transform: scale(1.04);
+		opacity: 0;
+	}
+}
+
+.animate-wolf-unlock {
+	animation: wolf-unlock 3.2s ease-in-out both;
+}
+
 .animate-wolf-rise {
 	animation: wolf-rise 0.4s ease-out both;
 }
@@ -379,6 +404,7 @@
 	.animate-wolf-flood,
 	.animate-wolf-rise,
 	.animate-wolf-pop,
+	.animate-wolf-unlock,
 	.animate-ping,
 	.wolf-glow,
 	.wolf-sheen {

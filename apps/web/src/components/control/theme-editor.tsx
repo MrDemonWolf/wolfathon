@@ -60,7 +60,12 @@ const CORNER_TILE: Record<ThemeCorners, string> = {
 // 1:1 to OverlayTheme booleans (see OVERLAY_TOGGLE_KEYS in @wolfathon/api/theme).
 type ToggleKey = (typeof OVERLAY_TOGGLE_KEYS)[number];
 const ELEMENT_TOGGLES: { key: ToggleKey; label: string; hint: string }[] = [
-	{ key: "showLabel", label: "Eyebrow label", hint: '"WOLFATHON" / "NEXT REWARD"' },
+	{ key: "showLabel", label: "Timer eyebrow", hint: 'The "WOLFATHON" text above the countdown' },
+	{
+		key: "showRewardsLabel",
+		label: "Rewards eyebrow",
+		hint: 'The "NEXT REWARD" text on the rewards card',
+	},
 	{ key: "showStatus", label: "Timer status chip", hint: "Play / pause chip on the timer" },
 	{ key: "showLiveDot", label: "Live dot", hint: "Pulsing dot on the rewards card" },
 	{ key: "showUnits", label: "Unit labels", hint: "D / H / M / S under the timer" },
@@ -298,12 +303,12 @@ export function ThemeEditor({
 				</div>
 			</div>
 
-			{/* eyebrow text — visibility is the "Eyebrow label" toggle below */}
+			{/* eyebrow text — visibility is the "Timer eyebrow" toggle below */}
 			<label
 				htmlFor="overlay-label"
 				className="mt-4 flex max-w-xs flex-col gap-1 text-xs font-medium"
 			>
-				Eyebrow label text
+				Timer eyebrow text
 				<Input
 					id="overlay-label"
 					className="h-9 rounded-lg"
@@ -313,7 +318,7 @@ export function ThemeEditor({
 					placeholder={DEFAULT_TIMER_LABEL}
 				/>
 				<span className="font-normal text-muted-foreground">
-					The text above the timer countdown. Shows only when “Eyebrow label” is on.
+					The text above the timer countdown. Shows only when “Timer eyebrow” is on.
 				</span>
 			</label>
 
