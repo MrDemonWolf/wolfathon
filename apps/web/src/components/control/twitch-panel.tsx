@@ -57,10 +57,7 @@ export function TwitchPanel() {
 	const sendTest = useMutation(
 		controlTrpc.twitch.sendTestEvent.mutationOptions({
 			onSuccess: (r) => {
-				if (r.ok)
-					toast.success(
-						`Test worked — timer added ${Math.round(r.addedMs / 60000)} min. Reset the timer after.`,
-					);
+				if (r.ok) toast.success("Test passed — Twitch reaches Wolfathon. No time added.");
 				else toast.error(`Test failed (HTTP ${r.status})`);
 			},
 			onError: (e) => toast.error(e.message),
@@ -277,8 +274,8 @@ export function TwitchPanel() {
 					<div>
 						<div className="font-medium">Test it</div>
 						<div className="text-xs text-muted-foreground">
-							Sends a fake sub to make sure time is added. Adds a little time, so reset the timer
-							after.
+							Sends a signed test event to confirm Twitch can reach Wolfathon. Safe to run anytime —
+							it doesn&apos;t add time.
 						</div>
 					</div>
 					<Button

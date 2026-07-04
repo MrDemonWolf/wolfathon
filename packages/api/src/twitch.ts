@@ -658,11 +658,31 @@ export async function verifyEventsubSignature(
 }
 
 /**
+ * Sentinel identity carried by the operator "Send test" event. The webhook
+ * recognizes it ({@link isTestEvent}) and verifies the chain WITHOUT adding time
+ * — a test must never move the clock.
+ */
+export const TEST_EVENT_USER_ID = "00000000";
+export const TEST_EVENT_USER_LOGIN = "wolfathon_test";
+
+/**
+ * True for the synthetic `channel.subscribe` fired by "Send test". Verified end
+ * to end (reachable + signed + parsed) but never applied to the timer.
+ */
+export function isTestEvent(type: string, event: Record<string, unknown>): boolean {
+	return (
+		type === "channel.subscribe" &&
+		event.user_id === TEST_EVENT_USER_ID &&
+		event.user_login === TEST_EVENT_USER_LOGIN
+	);
+}
+
+/**
  * Send a correctly-signed `channel.subscribe` notification to our own public
  * webhook, byte-for-byte as Twitch would. Proves the whole live chain end to
- * end: HMAC verification, the public Worker being reachable, event parsing, and
- * the timer add. Returns the webhook's HTTP status (204 = accepted). Like a real
- * sub, it adds T1 sub-time — so run it before going live, then reset the timer.
+ * end: HMAC verification, the public Worker being reachable, and event parsing.
+ * Returns the webhook's HTTP status (204 = accepted). Carries the test sentinel
+ * so the webhook accepts it WITHOUT adding time — safe to run mid-subathon.
  */
 export async function sendTestNotification(args: {
 	callbackUrl: string;
@@ -686,9 +706,9 @@ export async function sendTestNotification(args: {
 			created_at: timestamp,
 		},
 		event: {
-			user_id: "00000000",
-			user_login: "wolfathon_test",
-			user_name: "wolfathon_test",
+			user_id: TEST_EVENT_USER_ID,
+			user_login: TEST_EVENT_USER_LOGIN,
+			user_name: TEST_EVENT_USER_LOGIN,
 			broadcaster_user_id: args.broadcasterId,
 			broadcaster_user_login: login,
 			broadcaster_user_name: login,

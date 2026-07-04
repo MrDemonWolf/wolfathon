@@ -34,6 +34,7 @@ import {
 	sendChatMessage,
 	type TwitchDoc,
 	TwitchAuthError,
+	isTestEvent,
 	parseEvent,
 	verifyEventsubSignature,
 } from "@wolfathon/api/twitch";
@@ -126,6 +127,11 @@ app.post("/twitch/eventsub", async (c) => {
 		const messageId = c.req.header("twitch-eventsub-message-id") ?? "";
 
 		const timerEvent = parseEvent(type, event);
+
+		// Operator "Send test": signature + reachability + parse are now all proven
+		// (we got past the 403/404 gates and parseEvent ran). Acknowledge without
+		// applying time — a test must never move the clock, even mid-subathon.
+		if (isTestEvent(type, event)) return c.body(null, 204);
 
 		// Cheap pre-filter so the chat firehose stays free: only gifts and
 		// "!"-prefixed chat messages can be giveaway events. Everything else (the

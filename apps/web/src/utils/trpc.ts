@@ -8,7 +8,10 @@ import { toast } from "sonner";
 export const queryClient = new QueryClient({
 	defaultOptions: {
 		// Avoid hammering protected endpoints when Access isn't configured yet.
-		queries: { retry: 1, refetchOnWindowFocus: false },
+		// staleTime: panel data is served from cache on a quick tab revisit (no
+		// loading flash / duplicate fetch). Overlay queries set their own
+		// refetchInterval and mutations invalidate explicitly, so edits stay fresh.
+		queries: { retry: 1, refetchOnWindowFocus: false, staleTime: 10_000 },
 	},
 	queryCache: new QueryCache({
 		onError: (error, query) => {
