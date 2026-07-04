@@ -2,17 +2,31 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import { protectedProcedure, router } from "../index";
+import { resetRound } from "../giveaway";
 import {
 	type Data,
 	type Goal,
 	MAX_GOALS,
 	MAX_REWARD_LENGTH,
 	MAX_TARGET,
+	recompute,
 	validateImport,
 } from "../state";
 import { newOverlayToken } from "../settings";
-import { readSettings, readState, writeSettings, writeState } from "../store";
+import {
+	readGiveaway,
+	readSettings,
+	readState,
+	readTimer,
+	readWheel,
+	writeGiveaway,
+	writeSettings,
+	writeState,
+	writeTimer,
+	writeWheel,
+} from "../store";
 import { type ThemeError, validateOverlayTheme } from "../theme";
+import { reset as resetTimerState } from "../timer";
 import { botRouter } from "./bot";
 import { giveawayRouter } from "./giveaway";
 import { timerRouter } from "./timer";
@@ -236,6 +250,32 @@ export const protectedRouter = router({
 		rotateOverlayToken: protectedProcedure.mutation(async ({ ctx }) =>
 			writeSettings(ctx.db, { overlayToken: newOverlayToken() }),
 		),
+	}),
+
+	/**
+	 * One-click "start fresh for the next subathon": wipe all live PROGRESS but
+	 * keep every bit of CONFIG. Timer → back to base, subs → 0, all goals re-locked,
+	 * wheel spin history cleared (dares kept), giveaway round reset (command/threshold
+	 * kept). Twitch/bot connections and the overlay token are untouched, so OBS keeps
+	 * working. ponytail: four separate D1 writes, not one transaction — a failure
+	 * mid-way leaves a partial reset; re-running finishes it. Fine for a manual op.
+	 */
+	resetForNextSubathon: protectedProcedure.mutation(async ({ ctx }) => {
+		const state = await readState(ctx.db);
+		await writeState(
+			ctx.db,
+			recompute({
+				...state,
+				goals: state.goals.map((g) => ({ ...g, unlocked: false })),
+				currentSubs: 0,
+			}),
+		);
+		const timer = await readTimer(ctx.db);
+		await writeTimer(ctx.db, { ...timer, state: resetTimerState(timer.config) });
+		const wheel = await readWheel(ctx.db);
+		await writeWheel(ctx.db, { ...wheel, history: [] });
+		await writeGiveaway(ctx.db, resetRound(await readGiveaway(ctx.db)));
+		return { ok: true as const };
 	}),
 
 	timer: timerRouter,

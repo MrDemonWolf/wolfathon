@@ -1,7 +1,23 @@
 "use client";
 
 import { buildBackupDoc, splitBackupDoc } from "@wolfathon/api/backup";
+import type { GiveawayDoc } from "@wolfathon/api/giveaway";
+import type { Data } from "@wolfathon/api/state";
+import type { TimerDoc } from "@wolfathon/api/timer";
+import { currentRemainingMs } from "@wolfathon/api/timer";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import {
+	AlertDialog,
+	AlertDialogClose,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogTitle,
+	AlertDialogTrigger,
+} from "@wolfathon/ui/components/alert-dialog";
+import { Button } from "@wolfathon/ui/components/button";
+import { FileText, RotateCcw } from "lucide-react";
+import { toast } from "sonner";
 
 import { controlTrpc, queryClient } from "@/utils/trpc";
 
@@ -13,6 +29,63 @@ import { guard } from "./use-draft";
 import { nowStamp } from "./util";
 
 const rewardsLabel = (index: number) => (index < 0 ? "Document" : `Goal #${index + 1}`);
+
+/** "3d 4h 12m" from a ms duration (drops leading zero units, always shows minutes). */
+function humanDuration(ms: number): string {
+	const totalMin = Math.floor(ms / 60000);
+	const d = Math.floor(totalMin / 1440);
+	const h = Math.floor((totalMin % 1440) / 60);
+	const m = totalMin % 60;
+	return [d && `${d}d`, (d || h) && `${h}h`, `${m}m`].filter(Boolean).join(" ");
+}
+
+/**
+ * A human-readable Markdown recap — paste straight into Notion. Unlike the JSON
+ * backup (for restoring), this is a snapshot to keep: final clock, subs, which
+ * rewards unlocked, and the giveaway winners to ship to.
+ */
+function buildRecapMarkdown(
+	rewards: Data,
+	timer: TimerDoc,
+	giveaway: GiveawayDoc | undefined,
+): string {
+	const now = Date.now();
+	const lines: string[] = [`# Wolfathon recap — ${new Date(now).toLocaleString()}`, ""];
+
+	lines.push("## Timer", `- Time on clock: ${humanDuration(currentRemainingMs(timer.state, now))}`);
+	lines.push(`- Status: ${timer.state.running ? "running" : "paused"}`, "");
+
+	lines.push("## Subs", `- Total subs counted: ${rewards.currentSubs ?? 0}`, "");
+
+	lines.push("## Rewards");
+	if (rewards.goals.length === 0) lines.push("- (none)");
+	for (const g of rewards.goals) lines.push(`- [${g.unlocked ? "x" : " "}] ${g.reward}`);
+	lines.push("");
+
+	const winners = giveaway?.winners ?? [];
+	const gift = winners.filter((w) => w.source === "gift");
+	const raffle = winners.filter((w) => w.source === "raffle");
+	const winLine = (w: (typeof winners)[number], i: number) =>
+		`${i + 1}. ${w.name} (@${w.login})${w.shipped ? " — shipped ✓" : ""}${w.note ? ` — ${w.note}` : ""}`;
+	lines.push("## Giveaway winners");
+	if (winners.length === 0) {
+		lines.push("- (none)");
+	} else {
+		if (gift.length) lines.push("### Gift sub winners", ...gift.map(winLine), "");
+		if (raffle.length) lines.push("### Raffle winners", ...raffle.map(winLine), "");
+	}
+	return `${lines.join("\n").trimEnd()}\n`;
+}
+
+/** Trigger a client-side file download of arbitrary text. */
+function downloadText(filename: string, text: string, mime: string) {
+	const url = URL.createObjectURL(new Blob([text], { type: mime }));
+	const a = document.createElement("a");
+	a.href = url;
+	a.download = filename;
+	a.click();
+	URL.revokeObjectURL(url);
+}
 
 /** One combined backup file: the rewards doc and the timer config in one document. */
 const BACKUP_EXAMPLE_JSON = JSON.stringify(buildBackupDoc(EXAMPLE_DOC, TIMER_EXAMPLE), null, 2);
@@ -39,6 +112,22 @@ export function BackupTab() {
 	const { data: timer } = useQuery(timerRaw);
 	const validateTimer = useMutation(controlTrpc.timer.validateConfig.mutationOptions());
 	const importTimer = useMutation(controlTrpc.timer.setConfig.mutationOptions());
+
+	// Giveaway winners feed the Markdown recap only (not the JSON restore doc).
+	const giveawayRaw = controlTrpc.giveaway.getRaw.queryOptions();
+	const { data: giveaway } = useQuery(giveawayRaw);
+
+	const resetSubathon = useMutation(
+		controlTrpc.resetForNextSubathon.mutationOptions({
+			onSuccess: () => {
+				toast.success("Reset for the next subathon — configuration kept.");
+				for (const q of [stateRaw, timerRaw, giveawayRaw]) {
+					queryClient.invalidateQueries({ queryKey: q.queryKey });
+				}
+			},
+			onError: (e) => toast.error(e.message),
+		}),
+	);
 
 	const ready = rewards != null && timer != null;
 	const currentJson = () =>
@@ -154,6 +243,71 @@ export function BackupTab() {
 						queryClient.invalidateQueries({ queryKey: timerRaw.queryKey });
 					}}
 				/>
+			</section>
+
+			{/* Notion-friendly recap — a readable snapshot to keep, not to restore. */}
+			<section className="flex flex-col gap-2 rounded-2xl panel-card p-5">
+				<h2 className="font-heading text-lg font-bold">Recap for your notes</h2>
+				<p className="text-sm text-muted-foreground">
+					A readable Markdown snapshot — final clock, subs, unlocked rewards, and giveaway winners
+					to ship to. Paste it straight into Notion or a doc.
+				</p>
+				<div>
+					<Button
+						variant="outline"
+						disabled={!ready}
+						onClick={() =>
+							ready &&
+							downloadText(
+								`wolfathon-recap-${nowStamp()}.md`,
+								buildRecapMarkdown(rewards, timer, giveaway),
+								"text/markdown",
+							)
+						}
+					>
+						<FileText className="size-4" />
+						Download recap (.md)
+					</Button>
+				</div>
+			</section>
+
+			{/* Fresh slate for the next subathon — wipes progress, keeps config. */}
+			<section className="flex flex-col gap-2 rounded-2xl border border-destructive/30 bg-destructive/[0.04] p-5">
+				<h2 className="font-heading text-lg font-bold">Start the next subathon</h2>
+				<p className="text-sm text-muted-foreground">
+					Resets the timer to base, sub count to 0, re-locks every reward, clears the wheel spin
+					history, and resets the giveaway round.{" "}
+					<span className="text-foreground">Your setup is kept</span> — goals, dares, overlay theme,
+					timer settings, giveaway config, and Twitch/bot connections all stay. Download a backup or
+					recap first if you want a record.
+				</p>
+				<div>
+					<AlertDialog>
+						<AlertDialogTrigger
+							render={
+								<Button variant="destructive" disabled={!ready || resetSubathon.isPending}>
+									<RotateCcw className="size-4" />
+									Reset for next subathon
+								</Button>
+							}
+						/>
+						<AlertDialogContent>
+							<AlertDialogTitle>Reset for the next subathon?</AlertDialogTitle>
+							<AlertDialogDescription>
+								Timer → base, subs → 0, all rewards re-locked, wheel history cleared, giveaway round
+								reset. Your goals, dares, theme, and connections are kept. This can&apos;t be undone
+								— export a backup first if you need the numbers.
+							</AlertDialogDescription>
+							<AlertDialogFooter>
+								<AlertDialogClose render={<Button variant="outline">Cancel</Button>} />
+								<AlertDialogClose
+									onClick={() => resetSubathon.mutate()}
+									render={<Button variant="destructive">Reset everything</Button>}
+								/>
+							</AlertDialogFooter>
+						</AlertDialogContent>
+					</AlertDialog>
+				</div>
 			</section>
 		</div>
 	);
