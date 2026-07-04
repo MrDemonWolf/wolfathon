@@ -59,8 +59,8 @@ export type PublicData = {
 	font: ThemeFont;
 	/** Corner style. */
 	corners: ThemeCorners;
-	/** Show the "NEXT REWARD" eyebrow. */
-	showLabel: boolean;
+	/** Show the "NEXT REWARD" eyebrow on the rewards card. */
+	showRewardsLabel: boolean;
 	/** Show the live status dot. */
 	showLiveDot: boolean;
 	/** Show the next-goal progress bar. */
@@ -85,10 +85,13 @@ function roundUpClean(n: number): number {
 }
 
 /**
- * Keep numeric goal targets ahead of the current sub count: any target at/below
+ * Keep upcoming goal targets ahead of the current sub count: any target at/below
  * the running floor is raised ~10% above it (and kept strictly ascending). The
  * floor starts at `currentSubs`, so a goal set below where we already are floats
  * back up instead of sitting permanently "already met". Returns how many moved.
+ *
+ * Unlocked goals are already awarded, so they're left exactly as typed — only
+ * upcoming (still-locked) goals get raised.
  */
 export function bumpPassedGoals(
 	goals: Goal[],
@@ -98,6 +101,12 @@ export function bumpPassedGoals(
 	let bumped = 0;
 	const next = goals.map((g) => {
 		if (g.target == null) return g;
+		// Already-awarded goals never move — keep their target, but let it hold the
+		// floor so upcoming targets still sort above a manually-high unlocked one.
+		if (g.unlocked) {
+			floor = Math.max(floor, g.target);
+			return g;
+		}
 		let target = g.target;
 		if (target <= floor) {
 			target = Math.min(MAX_TARGET, roundUpClean(Math.max(floor * 1.1, floor + 1)));
@@ -168,6 +177,13 @@ export function withThemeDefaults(stored: OverlayTheme | undefined): OverlayThem
 	if (raw.showLiveDot === undefined && raw.showStatus !== undefined) {
 		merged.showLiveDot = raw.showStatus;
 	}
+	// `showRewardsLabel` was split out of the old combined `showLabel` eyebrow
+	// toggle. A pre-split row has no `showRewardsLabel` key, so inherit `showLabel`
+	// — an operator who had hidden the eyebrow keeps it hidden on the rewards card
+	// too, instead of it snapping back to default-on.
+	if (raw.showRewardsLabel === undefined && raw.showLabel !== undefined) {
+		merged.showRewardsLabel = raw.showLabel;
+	}
 	return merged;
 }
 
@@ -207,7 +223,7 @@ export function stripNotes(data: Data): PublicData {
 		textColor: theme.textColor,
 		font: theme.font,
 		corners: theme.corners,
-		showLabel: theme.showLabel,
+		showRewardsLabel: theme.showRewardsLabel,
 		showLiveDot: theme.showLiveDot,
 		showProgressBar: theme.showProgressBar,
 		showNext: theme.showNext,

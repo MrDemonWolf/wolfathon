@@ -18,7 +18,8 @@ function Checkbox({ className, ...props }: CheckboxPrimitive.Root.Props) {
 				data-slot="checkbox-indicator"
 				className="grid place-content-center text-current transition-none [&>svg]:size-3.5"
 			>
-				<CheckIcon />
+				{/* Bold stroke: a thin default check reads poorly on the bright primary fill. */}
+				<CheckIcon strokeWidth={3.5} />
 			</CheckboxPrimitive.Indicator>
 		</CheckboxPrimitive.Root>
 	);

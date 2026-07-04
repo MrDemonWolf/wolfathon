@@ -3,6 +3,15 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { WheelSlot } from "@wolfathon/api/wheel";
 import { MAX_LABEL_LEN, MAX_SLOTS, MAX_WEIGHT, slotColor } from "@wolfathon/api/wheel";
+import {
+	AlertDialog,
+	AlertDialogClose,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogTitle,
+	AlertDialogTrigger,
+} from "@wolfathon/ui/components/alert-dialog";
 import { Button } from "@wolfathon/ui/components/button";
 import { Checkbox } from "@wolfathon/ui/components/checkbox";
 import { Input } from "@wolfathon/ui/components/input";
@@ -47,9 +56,20 @@ export function WheelTab() {
 			onError,
 		}),
 	);
+	const clearHistory = useMutation(
+		controlTrpc.wheel.clearHistory.mutationOptions({
+			onSuccess: () => {
+				toast.success("Spin history cleared");
+				invalidate();
+			},
+			onError,
+		}),
+	);
 	// New-dare draft + the index currently being dragged for native reorder.
 	const [draft, setDraft] = useState("");
 	const [dragIndex, setDragIndex] = useState<number | null>(null);
+	// Recent spins start collapsed to the last 5; "Load more" reveals another 5.
+	const [shown, setShown] = useState(5);
 
 	if (!data && isError) {
 		return (
@@ -194,23 +214,79 @@ export function WheelTab() {
 
 				{/* History */}
 				<div className="rounded-2xl panel-card p-5">
-					<h3 className="font-heading font-bold">Recent spins ({data.history.length})</h3>
+					<div className="flex items-center justify-between gap-3">
+						<h3 className="font-heading font-bold">Recent spins ({data.history.length})</h3>
+						{data.history.length > 0 && (
+							<AlertDialog>
+								<AlertDialogTrigger
+									render={
+										<Button
+											variant="ghost"
+											size="sm"
+											className="rounded-lg text-muted-foreground hover:text-destructive"
+											disabled={clearHistory.isPending}
+										>
+											<Trash2 className="size-3.5" />
+											Clear all
+										</Button>
+									}
+								/>
+								<AlertDialogContent>
+									<AlertDialogTitle>Clear spin history?</AlertDialogTitle>
+									<AlertDialogDescription>
+										Removes all {data.history.length} logged spins for a clean slate. Your dares
+										(wheel slots) are kept. This can&apos;t be undone.
+									</AlertDialogDescription>
+									<AlertDialogFooter>
+										<AlertDialogClose
+											render={
+												<Button variant="outline" className="rounded-lg">
+													Cancel
+												</Button>
+											}
+										/>
+										<AlertDialogClose
+											onClick={() => clearHistory.mutate()}
+											render={
+												<Button variant="destructive" className="rounded-lg">
+													Clear all
+												</Button>
+											}
+										/>
+									</AlertDialogFooter>
+								</AlertDialogContent>
+							</AlertDialog>
+						)}
+					</div>
 					{data.history.length === 0 ? (
 						<p className="mt-3 text-sm text-muted-foreground">No spins yet.</p>
 					) : (
-						<ul className="mt-3 flex flex-col gap-2">
-							{data.history.map((spin) => (
-								<li
-									key={spin.id}
-									className="flex items-center justify-between rounded-lg border border-border px-3 py-2"
+						<>
+							<ul className="mt-3 flex flex-col gap-2">
+								{data.history.slice(0, shown).map((spin) => (
+									<li
+										key={spin.id}
+										className="flex items-center justify-between rounded-lg border border-border px-3 py-2"
+									>
+										<span className="text-sm font-medium">{spin.label}</span>
+										<span className="text-xs text-muted-foreground">
+											{new Date(spin.at).toLocaleTimeString()}
+										</span>
+									</li>
+								))}
+							</ul>
+							{shown < data.history.length && (
+								<Button
+									variant="outline"
+									size="sm"
+									className="mt-3 w-full rounded-lg"
+									onClick={() => setShown((n) => n + 5)}
 								>
-									<span className="text-sm font-medium">{spin.label}</span>
-									<span className="text-xs text-muted-foreground">
-										{new Date(spin.at).toLocaleTimeString()}
-									</span>
-								</li>
-							))}
-						</ul>
+									<ChevronDown className="size-3.5" />
+									Load more ({data.history.length - shown} older)
+								</Button>
+							)}
+						</>
 					)}
 				</div>
 			</div>

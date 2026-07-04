@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 
 import { protectedProcedure, router } from "../index";
-import { readTimer, readTwitch, writeTwitch } from "../store";
+import { readTwitch, writeTwitch } from "../store";
 import {
 	buildAuthorizeUrl,
 	deleteSubscriptions,
@@ -61,8 +61,8 @@ export const twitchRouter = router({
 
 	/**
 	 * Fire a real, signed EventSub notification at our own public webhook to prove
-	 * the live chain works (signature + reachability + parse + timer). `addedMs`
-	 * confirms the timer actually moved.
+	 * the live chain works (signature + reachability + parse). Carries the test
+	 * sentinel, so the webhook accepts it WITHOUT adding time — safe mid-subathon.
 	 */
 	sendTestEvent: protectedProcedure.mutation(async ({ ctx }) => {
 		const doc = await readTwitch(ctx.db);
@@ -75,15 +75,13 @@ export const twitchRouter = router({
 				message: "Webhook URL not configured.",
 			});
 		}
-		const before = (await readTimer(ctx.db)).state.totalAddedMs;
 		const status = await sendTestNotification({
 			callbackUrl: ctx.callbackUrl,
 			secret: doc.webhookSecret,
 			broadcasterId: doc.broadcasterId,
 			broadcasterLogin: doc.broadcasterLogin,
 		});
-		const after = (await readTimer(ctx.db)).state.totalAddedMs;
-		return { status, ok: status >= 200 && status < 300, addedMs: Math.max(0, after - before) };
+		return { status, ok: status >= 200 && status < 300 };
 	}),
 
 	disconnect: protectedProcedure.mutation(async ({ ctx }) => {

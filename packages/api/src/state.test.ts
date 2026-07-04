@@ -141,6 +141,19 @@ test("bumpPassedGoals raises passed targets above current, keeps ascending order
 	expect(out[3]!.target).toBeUndefined();
 });
 
+test("bumpPassedGoals leaves unlocked (past) goals untouched", () => {
+	const goals: Goal[] = [
+		{ id: "a", reward: "A", unlocked: true, target: 5 }, // done, below count — stays
+		{ id: "b", reward: "B", unlocked: true, target: 10 }, // done, below count — stays
+		{ id: "c", reward: "C", unlocked: false, target: 8 }, // upcoming, below count — raised
+	];
+	const { goals: out, bumped } = bumpPassedGoals(goals, 12);
+	expect(bumped).toBe(1); // only the upcoming goal moves
+	expect(out[0]!.target).toBe(5);
+	expect(out[1]!.target).toBe(10);
+	expect(out[2]!.target!).toBeGreaterThan(12);
+});
+
 test("validateImport round-trips an embedded theme and rejects a bad one", () => {
 	const ok = validateImport({
 		goals: [{ reward: "Q&A" }],
