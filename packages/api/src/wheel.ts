@@ -60,6 +60,21 @@ export const MAX_WEIGHT = 1000;
 export const MAX_HISTORY = 25;
 /** Forward spin always sweeps at least this many whole turns before landing. */
 export const DEFAULT_MIN_TURNS = 5;
+/**
+ * How long a spin stays live on the public channel. `pendingSpin` is kept in the
+ * doc indefinitely (it only clears on a structural slot edit), so without a bound
+ * a freshly loaded / cached OBS source would replay the last spin on every mount.
+ * Past this window the parked spin is treated as stale and hidden from the public
+ * read. Comfortably exceeds the ~12s spin + result reveal, so a source that opens
+ * mid-spin still catches it.
+ */
+export const WHEEL_SPIN_TTL_MS = 30_000;
+
+/** The `pendingSpin` only while it's still fresh (see {@link WHEEL_SPIN_TTL_MS}); else null. */
+export function freshPendingSpin(doc: WheelDoc, now: number): PendingSpin {
+	const p = doc.pendingSpin;
+	return p && now - p.at < WHEEL_SPIN_TTL_MS ? p : null;
+}
 
 /**
  * Default slice colours, cycled by render index when a slot has no explicit hex.
