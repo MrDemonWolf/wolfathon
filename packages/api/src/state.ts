@@ -85,10 +85,13 @@ function roundUpClean(n: number): number {
 }
 
 /**
- * Keep numeric goal targets ahead of the current sub count: any target at/below
+ * Keep upcoming goal targets ahead of the current sub count: any target at/below
  * the running floor is raised ~10% above it (and kept strictly ascending). The
  * floor starts at `currentSubs`, so a goal set below where we already are floats
  * back up instead of sitting permanently "already met". Returns how many moved.
+ *
+ * Unlocked goals are already awarded, so they're left exactly as typed — only
+ * upcoming (still-locked) goals get raised.
  */
 export function bumpPassedGoals(
 	goals: Goal[],
@@ -98,6 +101,12 @@ export function bumpPassedGoals(
 	let bumped = 0;
 	const next = goals.map((g) => {
 		if (g.target == null) return g;
+		// Already-awarded goals never move — keep their target, but let it hold the
+		// floor so upcoming targets still sort above a manually-high unlocked one.
+		if (g.unlocked) {
+			floor = Math.max(floor, g.target);
+			return g;
+		}
 		let target = g.target;
 		if (target <= floor) {
 			target = Math.min(MAX_TARGET, roundUpClean(Math.max(floor * 1.1, floor + 1)));
