@@ -224,6 +224,8 @@ function OverlayCard({
 				{/* Open the live overlay in a new tab — handy to preview without OBS. */}
 				<Button
 					variant="outline"
+					// Renders an <a>, not a native <button>, so drop the native-button semantics.
+					nativeButton={false}
 					// `disabled:` doesn't style anchors, so gate the click manually.
 					className={`rounded-lg ${url ? "" : "pointer-events-none opacity-50"}`}
 					aria-disabled={!url}
