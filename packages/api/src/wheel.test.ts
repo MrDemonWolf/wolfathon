@@ -5,6 +5,7 @@ import {
 	defaultWheelDoc,
 	enabledSlots,
 	finalRotation,
+	freshPendingSpin,
 	MAX_SLOTS,
 	type PendingSpin,
 	pickWeighted,
@@ -17,6 +18,7 @@ import {
 	upsertSlot,
 	type WheelDoc,
 	type WheelSlot,
+	WHEEL_SPIN_TTL_MS,
 	withWheelDefaults,
 } from "./wheel";
 
@@ -150,6 +152,18 @@ test("any structural slot change clears a stale pendingSpin", () => {
 		[...armed.slots].reverse().map((s) => s.id),
 	);
 	expect(reordered.pendingSpin).toBeNull();
+});
+
+test("freshPendingSpin hides a parked spin past the TTL (no replay on a fresh overlay load)", () => {
+	const armed = resolveSpin(defaultWheelDoc(), { spinId: "s", now: 1000, rand: () => 0 }).doc;
+	// Within the window: the overlay still catches a spin it opened mid-reveal on.
+	expect(freshPendingSpin(armed, 1000)?.spinId).toBe("s");
+	expect(freshPendingSpin(armed, 1000 + WHEEL_SPIN_TTL_MS - 1)?.spinId).toBe("s");
+	// At/after the TTL: stale → hidden, so a reloaded/cached source never re-whirls it.
+	expect(freshPendingSpin(armed, 1000 + WHEEL_SPIN_TTL_MS)).toBeNull();
+	expect(freshPendingSpin(armed, 1000 + 60_000)).toBeNull();
+	// No parked spin at all → null.
+	expect(freshPendingSpin(defaultWheelDoc(), 1000)).toBeNull();
 });
 
 test("reorderSlots rejects a duplicate-id list (no slot dropped or cloned)", () => {
