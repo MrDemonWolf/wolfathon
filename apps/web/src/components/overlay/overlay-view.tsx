@@ -35,7 +35,10 @@ const CARD_RADII: Record<ThemeCorners, string> = {
  */
 export function OverlayView({ data }: { data: PublicData | undefined }) {
 	const seen = useRef<Set<string> | null>(null);
-	const [celebrate, setCelebrate] = useState<string | null>(null);
+	// Keyed by goal id (not reward text): two goals sharing a name unlocking within
+	// the celebrate window must each remount the animation — a primitive-equal
+	// setState would be a no-op and silently drop the second unlock.
+	const [celebrate, setCelebrate] = useState<{ id: string; reward: string } | null>(null);
 
 	// Auto-fit: the card's height is content-driven (reward name wraps to 1–2
 	// lines, progress/coming-up toggle), so a fixed-aspect source can't hold every
@@ -79,7 +82,7 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 		unlockedIds.forEach((id) => seen.current!.add(id));
 		if (!fresh) return;
 
-		setCelebrate(fresh.reward);
+		setCelebrate({ id: fresh.id, reward: fresh.reward });
 		const timer = setTimeout(() => setCelebrate(null), 3200);
 		return () => clearTimeout(timer);
 	}, [data]);
@@ -149,7 +152,7 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 							{celebrate ? (
 								/* Unlock celebration, in-card: fades in, holds, fades out (CSS),
 								   then the next reward rises in when `celebrate` clears. */
-								<div key={celebrate} className="animate-wolf-unlock">
+								<div key={celebrate.id} className="animate-wolf-unlock">
 									<span
 										className="block text-[3cqw] font-semibold tracking-[0.3em] uppercase"
 										style={{ color: accent }}
@@ -157,7 +160,7 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 										Unlocked
 									</span>
 									<div className="wolf-glow mt-[2cqw] text-[10cqw] leading-[1.04] font-extrabold text-white line-clamp-2">
-										{celebrate}
+										{celebrate.reward}
 									</div>
 								</div>
 							) : (

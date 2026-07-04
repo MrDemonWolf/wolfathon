@@ -116,12 +116,15 @@ export function BackupTab() {
 	// Giveaway winners feed the Markdown recap only (not the JSON restore doc).
 	const giveawayRaw = controlTrpc.giveaway.getRaw.queryOptions();
 	const { data: giveaway } = useQuery(giveawayRaw);
+	// The reset also clears wheel history — invalidate it so an open wheel tab
+	// doesn't keep stale spins in cache.
+	const wheelRaw = controlTrpc.wheel.getRaw.queryOptions();
 
 	const resetSubathon = useMutation(
 		controlTrpc.resetForNextSubathon.mutationOptions({
 			onSuccess: () => {
 				toast.success("Reset for the next subathon — configuration kept.");
-				for (const q of [stateRaw, timerRaw, giveawayRaw]) {
+				for (const q of [stateRaw, timerRaw, giveawayRaw, wheelRaw]) {
 					queryClient.invalidateQueries({ queryKey: q.queryKey });
 				}
 			},
