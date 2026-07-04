@@ -5,7 +5,7 @@ import { publicProcedure, router } from "../index";
 import { stripNotes } from "../state";
 import { readSettings, readState, readTimer, readWheel } from "../store";
 import { toPublicTimer } from "../timer";
-import { toPublicWheel } from "../wheel";
+import { freshPendingSpin, toPublicWheel } from "../wheel";
 
 /**
  * The only API surface exposed to the public overlays. Every response is
@@ -67,7 +67,13 @@ export const publicRouter = router({
 			assertToken((await readSettings(ctx.db)).overlayToken, input.token);
 			const [wheel, state] = await Promise.all([readWheel(ctx.db), readState(ctx.db)]);
 			// Theme is shared with the timer + rewards card and lives in the state doc.
-			return { ...toPublicWheel(wheel), theme: state.theme, pending: wheel.pendingSpin };
+			// `pending` is bounded by a TTL so a stale parked spin never re-whirls a
+			// freshly loaded overlay (the doc keeps pendingSpin indefinitely).
+			return {
+				...toPublicWheel(wheel),
+				theme: state.theme,
+				pending: freshPendingSpin(wheel, Date.now()),
+			};
 		}),
 	}),
 });
