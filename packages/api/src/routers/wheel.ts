@@ -68,6 +68,12 @@ export const wheelRouter = router({
 
 	history: protectedProcedure.query(async ({ ctx }) => (await readWheel(ctx.db)).history),
 
+	/** Wipe the spin log — a fresh slate for the next subathon. Slots untouched. */
+	clearHistory: protectedProcedure.mutation(async ({ ctx }) => {
+		const doc = await readWheel(ctx.db);
+		return writeWheel(ctx.db, { ...doc, history: [] });
+	}),
+
 	/**
 	 * Spin. With `slotId`, lands on that enabled slot; without, the server picks a
 	 * weighted-random enabled slot. Appends a history entry and arms `pendingSpin`
