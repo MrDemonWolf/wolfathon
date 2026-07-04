@@ -2,14 +2,29 @@ import { expect, test } from "bun:test";
 
 import {
 	buildAuthorizeUrl,
+	isTestEvent,
 	parseEvent,
 	sendTestNotification,
+	TEST_EVENT_USER_ID,
+	TEST_EVENT_USER_LOGIN,
 	TWITCH_SCOPES,
 	verifyEventsubSignature,
 } from "./twitch";
 
 test("a gifted recipient's subscribe is ignored (counted via the gift event)", () => {
 	expect(parseEvent("channel.subscribe", { is_gift: true, tier: "1000" })).toBeNull();
+});
+
+test("the Send-test sentinel is recognized (so the webhook skips adding time)", () => {
+	// A real sub with a different identity must NOT be treated as a test.
+	expect(isTestEvent("channel.subscribe", { user_id: "12345", user_login: "someone" })).toBe(false);
+	// The exact sentinel our own sendTestNotification emits IS a test.
+	expect(
+		isTestEvent("channel.subscribe", {
+			user_id: TEST_EVENT_USER_ID,
+			user_login: TEST_EVENT_USER_LOGIN,
+		}),
+	).toBe(true);
 });
 
 test("a new sub maps the tier", () => {
