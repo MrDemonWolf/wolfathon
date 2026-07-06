@@ -45,7 +45,7 @@ const SOURCES = [
 		path: "/overlay/rewards",
 		size: "760×540",
 		blurb:
-			"Compact reward card that fills its source — current reward name with unlock celebration. Names only, no numbers.",
+			"Compact reward card that fills its source — current reward name with unlock celebration. Names only, no numbers. Add &side=right to the URL to mirror the card to the right edge.",
 	},
 	{
 		icon: Disc3,

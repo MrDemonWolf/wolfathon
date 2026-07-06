@@ -33,7 +33,15 @@ const CARD_RADII: Record<ThemeCorners, string> = {
  * anywhere in their scene. All sizing uses container-query units (`cqw`) — % of
  * the source width — so the card scales to whatever size the source is set to.
  */
-export function OverlayView({ data }: { data: PublicData | undefined }) {
+export function OverlayView({
+	data,
+	align = "left",
+}: {
+	data: PublicData | undefined;
+	/** Which edge the card's rail + text hug. URL `?side=right` mirrors it. */
+	align?: "left" | "right";
+}) {
+	const end = align === "right";
 	const seen = useRef<Set<string> | null>(null);
 	// Keyed by goal id (not reward text): two goals sharing a name unlocking within
 	// the celebrate window must each remount the animation — a primitive-equal
@@ -142,13 +150,15 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 					>
 						{/* one thin top hairline for depth (matches the timer bar) */}
 						<div className="pointer-events-none absolute inset-x-[8%] top-0 h-px bg-white/30" />
-						{/* Glowing accent rail down the left edge. */}
+						{/* Glowing accent rail down the leading edge (mirrors on ?side=right). */}
 						<div
-							className="absolute inset-y-0 left-0 w-[1.1cqw]"
+							className={`absolute inset-y-0 w-[1.1cqw] ${end ? "right-0" : "left-0"}`}
 							style={{ backgroundImage: gradientCss([accent, accentDeep], 180) }}
 						/>
 
-						<div className="relative p-[4.4cqw] pl-[5.2cqw]">
+						<div
+							className={`relative p-[4.4cqw] ${end ? "pr-[5.2cqw] text-right" : "pl-[5.2cqw]"}`}
+						>
 							{celebrate ? (
 								/* Unlock celebration, in-card: fades in, holds, fades out (CSS),
 								   then the next reward rises in when `celebrate` clears. */
@@ -166,7 +176,7 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 							) : (
 								<>
 									{(data.showRewardsLabel || (current && data.showLiveDot)) && (
-										<div className="flex items-center gap-[2cqw]">
+										<div className={`flex items-center gap-[2cqw] ${end ? "justify-end" : ""}`}>
 											<span
 												className="flex items-center gap-[1.4cqw] text-[3cqw] font-semibold tracking-[0.28em] uppercase"
 												style={{ color: accent }}
@@ -237,7 +247,9 @@ export function OverlayView({ data }: { data: PublicData | undefined }) {
 												Coming up
 												<span className="h-px flex-1 bg-gradient-to-l from-white/25 to-transparent" />
 											</div>
-											<div className="mt-[2.2cqw] flex flex-wrap gap-[1.6cqw]">
+											<div
+												className={`mt-[2.2cqw] flex flex-wrap gap-[1.6cqw] ${end ? "justify-end" : ""}`}
+											>
 												{next.slice(0, 3).map((g) => (
 													<span
 														key={g.id}
