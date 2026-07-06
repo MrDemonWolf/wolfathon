@@ -94,10 +94,8 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
 											<Link
 												href={s.href}
 												aria-current={active ? "page" : undefined}
-												className={`group flex items-start gap-3 rounded-[0.7rem] border-l-2 px-3 py-2 transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
-													active
-														? "border-primary bg-primary/10"
-														: "border-transparent hover:border-border hover:bg-white/5"
+												className={`group flex items-start gap-3 rounded-[0.7rem] px-3 py-2 transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
+													active ? "bg-primary/10" : "hover:bg-white/5"
 												}`}
 											>
 												<Icon
