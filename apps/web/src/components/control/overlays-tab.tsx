@@ -19,6 +19,7 @@ import {
 	ExternalLink,
 	Eye,
 	EyeOff,
+	FlipHorizontal2,
 	Gauge,
 	Loader2,
 	RotateCcw,
@@ -45,7 +46,8 @@ const SOURCES = [
 		path: "/overlay/rewards",
 		size: "760×540",
 		blurb:
-			"Compact reward card that fills its source — current reward name with unlock celebration. Names only, no numbers. Add &side=right to the URL to mirror the card to the right edge.",
+			"Compact reward card that fills its source — current reward name with unlock celebration. Names only, no numbers.",
+		mirrorable: true,
 	},
 	{
 		icon: Disc3,
@@ -96,8 +98,16 @@ export function OverlaysTab() {
 			</div>
 
 			{SOURCES.map((s) => {
-				const url = origin && token ? `${origin}${s.path}?t=${token}` : "";
-				return <OverlayCard key={s.path} {...s} url={url} loading={isLoading} />;
+				const baseUrl = origin && token ? `${origin}${s.path}?t=${token}` : "";
+				return (
+					<OverlayCard
+						key={s.path}
+						{...s}
+						baseUrl={baseUrl}
+						mirrorable={"mirrorable" in s && s.mirrorable}
+						loading={isLoading}
+					/>
+				);
 			})}
 
 			{/* Danger footer — destructive reset sits directly under the source list. */}
@@ -163,21 +173,26 @@ function OverlayCard({
 	title,
 	size,
 	blurb,
-	url,
+	baseUrl,
+	mirrorable,
 	loading,
 }: {
 	icon: typeof Gauge;
 	title: string;
 	size: string;
 	blurb: string;
-	url: string;
+	baseUrl: string;
+	mirrorable?: boolean;
 	loading: boolean;
 }) {
 	const { copied, copy } = useCopyToClipboard();
 	// Mask the token by default — the operator may be screen-sharing this gated
 	// panel on stream, and a visible `?t=` would leak the secret to chat.
 	const [revealed, setRevealed] = useState(false);
-	const display = url ? (revealed ? url : url.replace(/\?t=.*/, "?t=••••••••••••")) : "";
+	// Mirror the card to the right edge of its source via ?side=right.
+	const [mirrored, setMirrored] = useState(false);
+	const url = mirrorable && mirrored ? `${baseUrl}&side=right` : baseUrl;
+	const display = url ? (revealed ? url : url.replace(/\?t=[^&]*/, "?t=••••••••••••")) : "";
 	// Stable id so the Reveal control is programmatically tied to the value it toggles.
 	const fieldId = `overlay-url-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
 
@@ -200,6 +215,19 @@ function OverlayCard({
 				>
 					{display || (loading ? "Loading…" : "…")}
 				</code>
+				{mirrorable && (
+					<Button
+						variant={mirrored ? "default" : "ghost"}
+						size="sm"
+						className="rounded-lg"
+						onClick={() => setMirrored((m) => !m)}
+						disabled={!baseUrl}
+						aria-label="Mirror overlay to the right edge"
+						aria-pressed={mirrored}
+					>
+						<FlipHorizontal2 className="size-4" />
+					</Button>
+				)}
 				<Button
 					variant="ghost"
 					size="sm"
