@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 
 import { OverlayTokenError } from "@/components/overlay/overlay-token-error";
 import { OverlayView } from "@/components/overlay/overlay-view";
@@ -14,6 +15,11 @@ import { publicTrpc } from "@/utils/trpc";
  */
 export default function RewardsOverlayPage() {
 	const token = useOverlayToken();
+	// `?side=right` mirrors the card to hug the right edge (default left).
+	const [align, setAlign] = useState<"left" | "right">("left");
+	useEffect(() => {
+		if (new URLSearchParams(window.location.search).get("side") === "right") setAlign("right");
+	}, []);
 	const { data, error } = useQuery({
 		...publicTrpc.state.getPublic.queryOptions({ token: token ?? "" }),
 		enabled: token !== null,
@@ -23,7 +29,7 @@ export default function RewardsOverlayPage() {
 
 	return (
 		<div className="@container fixed inset-0 overflow-hidden bg-transparent">
-			<OverlayView data={data} />
+			<OverlayView data={data} align={align} />
 			<OverlayTokenError error={error} token={token} />
 		</div>
 	);
