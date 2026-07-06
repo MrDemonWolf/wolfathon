@@ -149,9 +149,11 @@ export function WheelView({
 	// result), then fades back out. `showWheelIdle` parks it on screen permanently.
 	const visible = t.showWheelIdle || phase !== "idle";
 	// Size of the wheel within its (square) OBS source, tuned for 1080p.
-	const wheelSize = "84cqmin";
+	// Kept smaller than the old 84cqmin so the result banner below the rim
+	// still fits inside a strictly square (1080x1080) source without clipping.
+	const wheelSize = "74cqmin";
 	// Result banner sits just below the wheel rim.
-	const bannerTop = "calc(50% + 42cqmin + 2cqmin)";
+	const bannerTop = "calc(50% + 37cqmin + 1cqmin)";
 
 	return (
 		<div
@@ -415,7 +417,7 @@ export function WheelView({
 						style={{ top: bannerTop }}
 					>
 						<div
-							className={`${reduced ? "" : "animate-wolf-rise"} max-w-[80cqmin] rounded-2xl border px-[4cqmin] py-[2.4cqmin] text-center`}
+							className={`${reduced ? "" : "animate-wolf-rise"} max-w-[80cqmin] rounded-2xl border px-[3cqmin] py-[1.6cqmin] text-center`}
 							style={{
 								background: NAVY,
 								borderColor: "rgba(0,172,237,0.55)",
@@ -423,17 +425,17 @@ export function WheelView({
 							}}
 						>
 							<div
-								className="flex items-center justify-center gap-[1.4cqmin] text-[2.4cqmin] font-bold tracking-[0.3em] uppercase"
+								className="flex items-center justify-center gap-[1cqmin] text-[1.8cqmin] font-bold tracking-[0.3em] uppercase"
 								style={{ color: CYAN }}
 							>
 								{/* tiny crescent to echo the hub */}
-								<svg width="2.6cqmin" height="2.6cqmin" viewBox="0 0 10 10" aria-hidden>
+								<svg width="2cqmin" height="2cqmin" viewBox="0 0 10 10" aria-hidden>
 									<circle cx="5" cy="5" r="4.4" fill={CYAN} />
 									<circle cx="6.6" cy="4" r="3.9" fill={NAVY} />
 								</svg>
 								The pack lands on
 							</div>
-							<div className="mt-[0.6cqmin] text-[5cqmin] leading-tight font-extrabold text-white">
+							<div className="mt-[0.4cqmin] text-[4cqmin] leading-tight font-extrabold text-white">
 								{resultLabel}
 							</div>
 						</div>
