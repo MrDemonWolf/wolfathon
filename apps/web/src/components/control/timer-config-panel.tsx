@@ -579,16 +579,25 @@ function EmojiEditor({ emojis, onChange }: { emojis: string[]; onChange: (e: str
 		gcTime: Infinity,
 		refetchOnReconnect: false,
 	});
+	// Reload must show freshly-uploaded emotes, so it bypasses the server-side
+	// emote cache via `refresh: true` and writes the result into the base query.
+	const [reloading, setReloading] = useState(false);
+	const busy = emotes.isFetching || reloading;
+	async function reloadEmotes() {
+		setReloading(true);
+		try {
+			const fresh = await queryClient.fetchQuery(
+				controlTrpc.twitch.listEmotes.queryOptions({ refresh: true }),
+			);
+			queryClient.setQueryData(emotesOpts.queryKey, fresh);
+		} finally {
+			setReloading(false);
+		}
+	}
 	const reloadButton = (
-		<Button
-			variant="ghost"
-			size="sm"
-			className="rounded-lg"
-			onClick={() => emotes.refetch()}
-			disabled={emotes.isFetching}
-		>
-			<RotateCcw className={`size-3.5 ${emotes.isFetching ? "animate-spin" : ""}`} />
-			{emotes.isFetching ? "Reloading…" : "Reload"}
+		<Button variant="ghost" size="sm" className="rounded-lg" onClick={reloadEmotes} disabled={busy}>
+			<RotateCcw className={`size-3.5 ${busy ? "animate-spin" : ""}`} />
+			{busy ? "Reloading…" : "Reload"}
 		</Button>
 	);
 
