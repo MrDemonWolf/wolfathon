@@ -65,9 +65,10 @@ export const twitchRouter = router({
 			// bypasses the read to force a fresh fetch. `caches` is absent under `next
 			// dev`, so guard it and just fetch directly there.
 			const key = new Request(`https://cache.wolfathon/emotes/${doc.broadcasterId}`);
-			// `caches.default` is a Workers extension not in the standard CacheStorage
-			// type; read it defensively so `next dev` (where it may be absent) no-ops.
-			const cache = (globalThis.caches as unknown as { default?: Cache } | undefined)?.default;
+			// `caches.default` is a Workers extension. Cast globalThis via unknown so
+			// this compiles under both the web (DOM lib) and server (workers-types)
+			// tsconfigs, and read defensively so `next dev` (no `caches`) just no-ops.
+			const cache = (globalThis as unknown as { caches?: { default?: Cache } }).caches?.default;
 			if (cache && !input?.refresh) {
 				const hit = await cache.match(key);
 				if (hit) return (await hit.json()) as ChannelEmote[];
