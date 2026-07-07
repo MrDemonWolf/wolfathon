@@ -1,9 +1,11 @@
 import { TRPCError } from "@trpc/server";
+import { z } from "zod";
 
 import { protectedProcedure, router } from "../index";
 import { readTwitch, writeTwitch } from "../store";
 import {
 	buildAuthorizeUrl,
+	type ChannelEmote,
 	deleteSubscriptions,
 	getAppToken,
 	getChannelEmotes,
@@ -49,15 +51,34 @@ export const twitchRouter = router({
 	}),
 
 	/** Channel emotes for the overlay emoji picker. Needs a connected broadcaster. */
-	listEmotes: protectedProcedure.query(async ({ ctx }) => {
-		const { clientId, clientSecret } = requireCreds(ctx);
-		const doc = await readTwitch(ctx.db);
-		if (!doc.broadcasterId) {
-			throw new TRPCError({ code: "BAD_REQUEST", message: "Connect Twitch first." });
-		}
-		const appToken = await getAppToken(clientId, clientSecret);
-		return getChannelEmotes(clientId, appToken, doc.broadcasterId);
-	}),
+	listEmotes: protectedProcedure
+		.input(z.object({ refresh: z.boolean().optional() }).optional())
+		.query(async ({ ctx, input }) => {
+			const { clientId, clientSecret } = requireCreds(ctx);
+			const doc = await readTwitch(ctx.db);
+			if (!doc.broadcasterId) {
+				throw new TRPCError({ code: "BAD_REQUEST", message: "Connect Twitch first." });
+			}
+			// Cache the emote list per broadcaster (Workers Cache API, per-colo + TTL'd)
+			// so opening the picker / reloading / a second operator doesn't re-hit the
+			// Twitch API each time. The list changes rarely; `refresh` (Reload button)
+			// bypasses the read to force a fresh fetch. `caches` is absent under `next
+			// dev`, so guard it and just fetch directly there.
+			const key = new Request(`https://cache.wolfathon/emotes/${doc.broadcasterId}`);
+			// `caches.default` is a Workers extension not in the standard CacheStorage
+			// type; read it defensively so `next dev` (where it may be absent) no-ops.
+			const cache = (globalThis.caches as unknown as { default?: Cache } | undefined)?.default;
+			if (cache && !input?.refresh) {
+				const hit = await cache.match(key);
+				if (hit) return (await hit.json()) as ChannelEmote[];
+			}
+			const appToken = await getAppToken(clientId, clientSecret);
+			const emotes = await getChannelEmotes(clientId, appToken, doc.broadcasterId);
+			await cache
+				?.put(key, Response.json(emotes, { headers: { "cache-control": "max-age=3600" } }))
+				.catch(() => {});
+			return emotes;
+		}),
 
 	/**
 	 * Fire a real, signed EventSub notification at our own public webhook to prove
