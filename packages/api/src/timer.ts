@@ -219,20 +219,6 @@ export function sanitizeEmoji(raw: string): string | null {
 	return v;
 }
 
-/**
- * True if `u` is an https image URL on an allowed emote CDN. The `/emote` proxy
- * (apps/server) only fetches URLs that pass this, so it can't be turned into an
- * open SSRF proxy for arbitrary hosts.
- */
-export function isAllowedEmoteUrl(u: string): boolean {
-	if (!u.startsWith("https://") || u.length > MAX_EMOJI_LEN) return false;
-	try {
-		return EMOTE_CDN_HOSTS.has(new URL(u).hostname.toLowerCase());
-	} catch {
-		return false;
-	}
-}
-
 /** Wolf-themed drift set, used when a config has none (incl. old saved rows). */
 export const DEFAULT_TIMER_EMOJIS = ["🐺", "🌙", "⚡", "💙", "🔥", "✨", "🎮", "🏆"];
 

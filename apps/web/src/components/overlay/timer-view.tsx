@@ -2,19 +2,8 @@
 
 import { expandHex, FONT_STACKS, gradientCss, type ThemeCorners } from "@wolfathon/api/theme";
 import { type EmoteDirection, pad2, type PublicTimer, splitDuration } from "@wolfathon/api/timer";
-import { env } from "@wolfathon/env/web";
 import { Flag, Pause, Play } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-
-// In production the overlay loads emote images from our own R2-backed API (`/emote`)
-// instead of the Twitch CDN, so a stream never breaks if a third-party CDN hiccups.
-// Dev hits the CDN directly (the public API runs on a separate port).
-const EMOTE_PROXY = process.env.NODE_ENV === "development" ? "" : env.NEXT_PUBLIC_SERVER_URL;
-function selfHostEmote(e: string): string {
-	return EMOTE_PROXY && e.startsWith("https://")
-		? `${EMOTE_PROXY}/emote?u=${encodeURIComponent(e)}`
-		: e;
-}
 
 /**
  * Capsule corner radius per style. cqw = % of the OUTER source width (a capsule
@@ -89,7 +78,7 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 		return () => clearTimeout(t);
 	}, [flash]);
 
-	const emojis = (data?.emojis?.length ? data.emojis : ["🐺"]).map(selfHostEmote);
+	const emojis = data?.emojis?.length ? data.emojis : ["🐺"];
 
 	if (!data) return null;
 
