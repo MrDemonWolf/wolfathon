@@ -2,7 +2,7 @@ import alchemy from "alchemy";
 import { Nextjs } from "alchemy/cloudflare";
 import { Worker } from "alchemy/cloudflare";
 import { D1Database } from "alchemy/cloudflare";
-import { D1StateStore } from "alchemy/state";
+import { CloudflareStateStore } from "alchemy/state";
 import { config } from "dotenv";
 
 config({ path: "./.env" });
@@ -14,10 +14,15 @@ config({ path: "../../apps/server/.env" });
 // selects the teardown phase, otherwise Alchemy auto-detects (deploy / dev).
 const app = await alchemy("wolfathon", {
 	phase: process.argv.includes("--destroy") ? "destroy" : undefined,
-	// Shared account-wide state store: the `alchemy-state` D1 database (default
-	// name). Alchemy namespaces state by app, so this app's state lives under
-	// the "wolfathon" scope alongside the other MrDemonWolf Alchemy apps.
-	stateStore: (scope) => new D1StateStore(scope),
+	// Shared account-wide state store: one Durable-Object-backed worker named
+	// `alchemy-state`, shared by every MrDemonWolf Alchemy app. Alchemy
+	// namespaces state by app, so this app lives under the "wolfathon" scope.
+	// Requires the same ALCHEMY_STATE_TOKEN as every other app on the account.
+	stateStore: (scope) =>
+		new CloudflareStateStore(scope, {
+			scriptName: "alchemy-state",
+			stateToken: alchemy.secret(process.env.ALCHEMY_STATE_TOKEN),
+		}),
 });
 
 // Access bypass is allowed ONLY for local `alchemy dev` (app.local === true).
