@@ -28,7 +28,6 @@ import {
 } from "@wolfathon/api/giveaway";
 import { publicRouter } from "@wolfathon/api/routers/index";
 import { autoPause, autoResume } from "@wolfathon/api/timer";
-import { isAllowedEmoteUrl } from "@wolfathon/api/timer";
 import {
 	refreshUserToken,
 	sendChatMessage,
@@ -211,77 +210,6 @@ app.post("/twitch/eventsub", async (c) => {
 		return c.body(null, 204);
 	}
 	return c.body(null, 204);
-});
-
-/**
- * Self-hosted emote proxy. The overlays rewrite each Twitch/3rd-party emote image
- * to `/emote?u=<cdn url>`; we serve it from R2, lazily mirroring on the first miss
- * (cache-on-read) so a stream never depends on a third-party CDN staying up. `u`
- * is gated to the emote-CDN allowlist (`isAllowedEmoteUrl`) so this can't proxy
- * arbitrary hosts. Images are immutable per URL, so cache hard.
- */
-const EMOTE_CACHE = "public, max-age=31536000, immutable";
-// Emote images are tiny (a few KB). Cap stored/served bytes so the unauthenticated
-// proxy can't be coerced into mirroring large bodies into R2.
-const EMOTE_MAX_BYTES = 2_000_000;
-// Only ever serve real raster/animated image types from the emote CDNs (7TV/BTTV
-// serve webp/gif/avif). Crucially this excludes image/svg+xml and text/html: the
-// proxy is unauthenticated and lives on the API origin, so reflecting a sniffable
-// or active content-type would be a stored-XSS vector. Paired with `nosniff` below.
-const EMOTE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"]);
-// Strip any `; charset=…` parameter and normalize before matching the allowlist.
-function safeEmoteType(raw: string | null): string | null {
-	const type = (raw ?? "").split(";")[0]?.trim().toLowerCase() ?? "";
-	return EMOTE_TYPES.has(type) ? type : null;
-}
-// Headers that pin the response as a non-executable inline image regardless of
-// what the byte stream looks like to a sniffing browser.
-const EMOTE_SAFE_HEADERS = {
-	"x-content-type-options": "nosniff",
-	"content-disposition": "inline",
-} as const;
-app.get("/emote", async (c) => {
-	const u = c.req.query("u");
-	if (!u || !isAllowedEmoteUrl(u)) return c.text("bad emote url", 400);
-	// Canonicalize to origin+path (host already allowlisted): dropping query +
-	// fragment stops `?u=…?x=1`, `…?x=2`, … from minting unbounded distinct R2 keys
-	// for one image (open-cache write/cost amplification).
-	const parsed = new URL(u);
-	const src = parsed.origin + parsed.pathname;
-	const key = src.slice("https://".length);
-
-	const hit = await env.EMOTES.get(key);
-	if (hit) {
-		// The stored type was allowlist-validated at write time below, so a hit is
-		// already safe; still send nosniff in case an old object predates this check.
-		return new Response(hit.body, {
-			headers: {
-				"content-type": hit.httpMetadata?.contentType ?? "image/png",
-				"cache-control": EMOTE_CACHE,
-				...EMOTE_SAFE_HEADERS,
-			},
-		});
-	}
-
-	// redirect:"manual" so an allowlisted CDN can't 3xx us onto an off-allowlist
-	// host (isAllowedEmoteUrl only checks the initial URL). Any non-2xx — including
-	// a redirect — is treated as a miss/failure.
-	const res = await fetch(src, { redirect: "manual" });
-	if (!res.ok) return c.text("emote fetch failed", 502);
-	if (Number(res.headers.get("content-length") ?? "0") > EMOTE_MAX_BYTES) {
-		return c.text("emote too large", 502);
-	}
-	const body = await res.arrayBuffer();
-	if (body.byteLength > EMOTE_MAX_BYTES) return c.text("emote too large", 502);
-	// Reject anything that isn't a known raster/animated image type. Validating
-	// before the R2 put also keeps a hostile upstream from poisoning the cache.
-	const contentType = safeEmoteType(res.headers.get("content-type"));
-	if (!contentType) return c.text("unsupported emote type", 415);
-	// Store for next time; serving doesn't block on a put failure.
-	await env.EMOTES.put(key, body, { httpMetadata: { contentType } }).catch(() => {});
-	return new Response(body, {
-		headers: { "content-type": contentType, "cache-control": EMOTE_CACHE, ...EMOTE_SAFE_HEADERS },
-	});
 });
 
 app.get("/", (c) => c.text("Wolfathon public API — OK"));
