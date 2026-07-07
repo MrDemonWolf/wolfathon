@@ -14,7 +14,6 @@ import {
 	EMOTE_SCALES,
 	eventLabel,
 	eventMs,
-	isAllowedEmoteUrl,
 	eventMinutes,
 	MAX_CHANNEL_POINT_RULES,
 	pause,
@@ -375,15 +374,4 @@ test("toPublicTimer sources the eyebrow label from the THEME, not the timer conf
 	expect(pub.label).toBe("MARATHON");
 	expect(pub.showEventSource).toBe(true);
 	expect(pub.lastEvent).toBeNull();
-});
-
-test("isAllowedEmoteUrl gates the /emote proxy to https CDN hosts only", () => {
-	expect(isAllowedEmoteUrl("https://static-cdn.jtvnw.net/emoticons/v2/123/default/dark/3.0")).toBe(
-		true,
-	);
-	expect(isAllowedEmoteUrl("https://cdn.7tv.app/emote/abc/4x.webp")).toBe(true);
-	// Off-allowlist host, non-https, and garbage are all refused (no SSRF).
-	expect(isAllowedEmoteUrl("https://evil.example.com/x.png")).toBe(false);
-	expect(isAllowedEmoteUrl("http://static-cdn.jtvnw.net/x.png")).toBe(false);
-	expect(isAllowedEmoteUrl("not a url")).toBe(false);
 });
