@@ -28,6 +28,7 @@ import {
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { OVERLAY_SIZES } from "@/utils/constants";
 import { controlTrpc, queryClient } from "@/utils/trpc";
 
 const SOURCES = [
@@ -36,7 +37,7 @@ const SOURCES = [
 		title: "Wolfathon timer",
 		path: "/overlay/timer",
 		// Matches the capsule's locked 131:20 aspect so the bar nearly fills the source.
-		size: "1310×200",
+		size: OVERLAY_SIZES.timer.size,
 		blurb:
 			"Compact countdown bar that fills its source — auto-adds time from subs, gifts, bits, and channel points; emotes flood the bar on each add.",
 	},
@@ -44,7 +45,7 @@ const SOURCES = [
 		icon: Trophy,
 		title: "Rewards",
 		path: "/overlay/rewards",
-		size: "760×540",
+		size: OVERLAY_SIZES.rewards.size,
 		blurb:
 			"Compact reward card that fills its source — current reward name with unlock celebration. Names only, no numbers.",
 		mirrorable: true,
@@ -54,7 +55,7 @@ const SOURCES = [
 		title: "Wheel of dares",
 		path: "/overlay/wheel",
 		// Square source — the wheel fills a min-dimension box, so keep it 1:1.
-		size: "1080×1080",
+		size: OVERLAY_SIZES.wheel.size,
 		blurb:
 			"Spinner of dares — spin it from the Wheel tab and this source whirls to the result on cue. Weighted slices, fixed top pointer.",
 	},

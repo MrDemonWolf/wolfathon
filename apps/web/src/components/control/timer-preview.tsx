@@ -4,6 +4,7 @@ import { defaultOverlayTheme, type OverlayTheme } from "@wolfathon/api/theme";
 import { type TimerDoc, toPublicTimer } from "@wolfathon/api/timer";
 
 import { TimerView } from "@/components/overlay/timer-view";
+import { OVERLAY_SIZES } from "@/utils/constants";
 
 import { PreviewFrame } from "./preview-frame";
 
@@ -15,7 +16,7 @@ import { PreviewFrame } from "./preview-frame";
  */
 export function TimerPreview({ doc, theme }: { doc: TimerDoc | undefined; theme?: OverlayTheme }) {
 	return (
-		<PreviewFrame label="Timer source" aspectClass="aspect-[131/20]">
+		<PreviewFrame label="Timer source" aspectClass={OVERLAY_SIZES.timer.aspect}>
 			<TimerView
 				data={doc ? toPublicTimer(doc, Date.now(), theme ?? defaultOverlayTheme()) : undefined}
 			/>

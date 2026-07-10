@@ -3,13 +3,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
-import { OverlayTokenError } from "@/components/overlay/overlay-token-error";
+import { OverlayShell } from "@/components/overlay/overlay-shell";
 import { OverlayView } from "@/components/overlay/overlay-view";
 import { useOverlayToken } from "@/components/overlay/use-overlay-token";
 import { publicTrpc } from "@/utils/trpc";
 
 /**
- * Rewards OBS browser source (760×380, transparent). Rewards change rarely
+ * Rewards OBS browser source (760×540, transparent). Rewards change rarely
  * (only on a sub/unlock), so a 10s poll is plenty and keeps daily request volume
  * well under the Cloudflare Workers free tier.
  */
@@ -28,9 +28,8 @@ export default function RewardsOverlayPage() {
 	});
 
 	return (
-		<div className="@container fixed inset-0 overflow-hidden bg-transparent">
+		<OverlayShell token={token} error={error}>
 			<OverlayView data={data} align={align} />
-			<OverlayTokenError error={error} token={token} />
-		</div>
+		</OverlayShell>
 	);
 }

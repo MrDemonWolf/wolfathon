@@ -3,6 +3,7 @@
 import { type Data, stripNotes } from "@wolfathon/api/state";
 
 import { OverlayView } from "@/components/overlay/overlay-view";
+import { OVERLAY_SIZES } from "@/utils/constants";
 
 import { PreviewFrame } from "./preview-frame";
 
@@ -17,7 +18,7 @@ export function OverlayPreview({ data }: { data: Data | undefined }) {
 	// top of the live card or the centered unlock celebration.
 	const empty = !data || data.goals.length === 0;
 	return (
-		<PreviewFrame label="Rewards source" aspectClass="aspect-[38/27]">
+		<PreviewFrame label="Rewards source" aspectClass={OVERLAY_SIZES.rewards.aspect}>
 			{/* Explains the empty canvas — only while nothing is rendered. */}
 			{empty && (
 				<div className="pointer-events-none absolute inset-0 flex items-center justify-center">
