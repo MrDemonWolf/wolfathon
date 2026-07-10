@@ -22,7 +22,8 @@ import {
 import {
 	createCustomReward,
 	deleteCustomReward,
-	refreshUserToken,
+	refreshAndPersistUserToken,
+	tokenFresh,
 	TwitchAuthError,
 	type TwitchDoc,
 } from "../twitch";
@@ -76,17 +77,14 @@ async function ensureBroadcasterToken(
 	if (!doc.broadcasterId || !doc.accessToken || !doc.refreshToken) {
 		throw new TRPCError({ code: "BAD_REQUEST", message: "Connect Twitch first." });
 	}
-	if (doc.expiresAt && Date.now() < doc.expiresAt - 60_000) return doc.accessToken;
+	if (tokenFresh(doc.expiresAt)) return doc.accessToken;
 	try {
-		const t = await refreshUserToken({ clientId, clientSecret, refreshToken: doc.refreshToken });
-		const expiresAt = Date.now() + t.expiresIn * 1000;
-		await mutateTwitch(db, (d) => ({
-			...d,
-			accessToken: t.accessToken,
-			refreshToken: t.refreshToken,
-			expiresAt,
-		}));
-		return t.accessToken;
+		return await refreshAndPersistUserToken({
+			clientId,
+			clientSecret,
+			refreshToken: doc.refreshToken,
+			persist: (t) => mutateTwitch(db, (d) => ({ ...d, ...t })),
+		});
 	} catch (err) {
 		// A 4xx refresh means the grant is dead (revoked / scope changed) — tell the
 		// operator to reconnect. A 5xx/network blip is transient.
