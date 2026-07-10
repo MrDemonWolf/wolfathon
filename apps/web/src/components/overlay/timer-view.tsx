@@ -1,6 +1,12 @@
 "use client";
 
-import { expandHex, FONT_STACKS, gradientCss, type ThemeCorners } from "@wolfathon/api/theme";
+import {
+	BRAND_LIGHT,
+	expandHex,
+	FONT_STACKS,
+	gradientCss,
+	type ThemeCorners,
+} from "@wolfathon/api/theme";
 import { type EmoteDirection, pad2, type PublicTimer, splitDuration } from "@wolfathon/api/timer";
 import { Flag, Pause, Play } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -104,7 +110,7 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 	const radius = CORNER_RADII[data.corners] ?? CORNER_RADII.rounded;
 	// Soft coloured glow from the brightest stop — replaces the old halo element
 	// (a second rounded rect that read as a clumsy double border).
-	const accent = data.gradient.at(-1) ?? "#5bc8f0";
+	const accent = data.gradient.at(-1) ?? BRAND_LIGHT;
 	const glow = live
 		? withAlpha(accent, "5c")
 		: ended

@@ -2,6 +2,9 @@
 
 import type { PublicData } from "@wolfathon/api/state";
 import {
+	BRAND_ACCENT,
+	BRAND_LIGHT,
+	BRAND_STOPS,
 	expandHex,
 	FONT_STACKS,
 	gradientCss,
@@ -28,7 +31,7 @@ const CARD_RADII: Record<ThemeCorners, string> = {
  *  - On a new unlock, celebrates "Unlocked: <reward>" (glow + scale, no audio),
  *    then settles onto the next reward.
  *
- * The card FILLS its OBS source (recommended 760×380) instead of floating in a
+ * The card FILLS its OBS source (recommended 760×540) instead of floating in a
  * corner of a full-screen canvas, so the operator drops a compact browser source
  * anywhere in their scene. All sizing uses container-query units (`cqw`) — % of
  * the source width — so the card scales to whatever size the source is set to.
@@ -115,10 +118,10 @@ export function OverlayView({
 
 	// Theme. The card sits on a dark panel (not the gradient), so the gradient is
 	// an ACCENT (rail / eyebrow / chips); `auto` text → white on the dark card.
-	const stops = data.gradient?.length ? data.gradient : ["#00aced", "#5bc8f0"];
+	const stops = data.gradient?.length ? data.gradient : BRAND_STOPS;
 	// Expand 3-digit shorthand so `${accent}AA` alpha suffixes stay valid CSS.
-	const accent = expandHex(stops.at(-1) ?? "#5bc8f0");
-	const accentDeep = expandHex(stops[0] ?? "#00aced");
+	const accent = expandHex(stops.at(-1) ?? BRAND_LIGHT);
+	const accentDeep = expandHex(stops[0] ?? BRAND_ACCENT);
 	const isHex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(data.textColor);
 	const ink = data.textColor === "auto" || !isHex ? "#ffffff" : data.textColor;
 	const fontFamily = FONT_STACKS[data.font] ?? FONT_STACKS.montserrat;

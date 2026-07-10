@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@wolfathon/ui/components/button";
+import { useCopyToClipboard } from "@wolfathon/ui/hooks/use-copy-to-clipboard";
 import {
 	AlertTriangle,
 	CheckCircle2,
@@ -59,6 +60,7 @@ export function ImportExportPanel({
 	const [confirming, setConfirming] = useState(false);
 	const [showSchema, setShowSchema] = useState(false);
 	const fileRef = useRef<HTMLInputElement>(null);
+	const { copy } = useCopyToClipboard();
 
 	function updateText(next: string) {
 		setText(next);
@@ -116,18 +118,12 @@ export function ImportExportPanel({
 		downloadJson(config.exportFilename(), json);
 	}
 
-	async function copyCurrent() {
-		const json = config.currentJson();
-		if (!json) return;
-		await navigator.clipboard.writeText(json);
-		toast.success("Current config copied");
+	function copyCurrent() {
+		return copy(config.currentJson() ?? "", "Current config copied");
 	}
 
-	async function copyClaudePrompt() {
-		const prompt = config.claudePrompt();
-		if (!prompt) return;
-		await navigator.clipboard.writeText(prompt);
-		toast.success("Claude prompt copied — paste it into claude.ai");
+	function copyClaudePrompt() {
+		return copy(config.claudePrompt() ?? "", "Claude prompt copied — paste it into claude.ai");
 	}
 
 	async function onFile(e: React.ChangeEvent<HTMLInputElement>) {

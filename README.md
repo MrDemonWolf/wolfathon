@@ -91,9 +91,9 @@ Keep the rewards flowing. Keep the clock ticking.
   panel. Twitch secrets never reach a public response.
 - **Installable PWA** - The control panel installs as a standalone app.
 - **Customizer** - Tune the overlay look from Settings: colours, font, corner
-  radius, and the eyebrow label, plus per-overlay show/hide toggles and
-  **per-overlay size sliders** (timer / rewards / wheel) so each fits a 1080p
-  scene, with a live preview of both the timer and rewards surfaces side by side.
+  radius, the eyebrow label, and per-overlay show/hide toggles, with a live
+  preview of both the timer and rewards surfaces side by side. Each overlay
+  renders at a fixed native size (scale the OBS source to fit your scene).
 - **Brand-ready** - MrDemonWolf navy and cyan, Montserrat and Roboto, with
   macOS-style rounded panels.
 
@@ -148,18 +148,19 @@ without it, so an OBS source works while a guessed bare path does not. The
 the old URLs (re-paste the new ones into OBS). If a source ever shows a small
 "Overlay token invalid" hint in the corner, its URL is stale — re-copy it.
 Each source also has an **Open in new tab** button to preview the live overlay
-in a browser without wiring up OBS first.
+in a browser without wiring up OBS first. The rewards source additionally has a
+**Mirror** toggle that flips the card to hug the right edge of its scene
+(`&side=right` in the URL) for right-anchored layouts.
 
 | Source  | URL                    | Size (W×H)  | Shows                                                        |
 | ------- | ---------------------- | ----------- | ------------------------------------------------------------ |
 | Timer   | `/overlay/timer?t=…`   | `1310×200`  | Compact countdown bar (D/H/M/S); emotes flood it on each add |
-| Rewards | `/overlay/rewards?t=…` | `1920×1080` | Current reward name + unlock celebration                     |
+| Rewards | `/overlay/rewards?t=…` | `760×540`   | Current reward name + unlock celebration                     |
 | Wheel   | `/overlay/wheel?t=…`   | `1080×1080` | Wheel of dares; hidden until you spin, then reveals the dare |
 
-Each overlay is its own source — drag them where you want in OBS, and use the
-per-overlay **size sliders** in Settings → Customizer to fit them to a 1080p
-scene. The timer is a self-contained widget that fills its source, so you can
-also resize the source itself.
+Each overlay is its own source — drag them where you want in OBS. Each renders
+at the fixed native size above and fills its source, so to fit a different scene
+just scale the **Browser** source in OBS (or size the source to match).
 
 Both poll every 2 seconds, so control-panel edits and Twitch events appear on
 stream within about 2 seconds (the timer keeps counting smoothly between
@@ -366,10 +367,10 @@ it is operator-only behind Cloudflare Access.
 
 **Settings → Customizer** tunes how the overlays paint: accent colours, font,
 corner radius, the eyebrow label, and per-overlay show/hide toggles (units,
-progress bar, unlocked row, status, and the rest). It also has per-overlay
-**size sliders** (timer / rewards / wheel) so each fits your 1080p scene, and a
-**Keep wheel on screen** toggle (off by default — the wheel only appears when it
-spins). A live preview renders the timer and rewards surfaces with sample data
+progress bar, unlocked row, status, and the rest), plus a **Keep wheel on
+screen** toggle (off by default — the wheel only appears when it spins). Each
+overlay renders at a fixed native size — scale the OBS source to fit your scene.
+A live preview renders the timer and rewards surfaces with sample data
 so you can compare before saving; the wheel overlay inherits the same theme.
 
 ### Adding your logo
@@ -472,7 +473,12 @@ you.
    CLOUDFLARE_API_TOKEN=your-token
    CLOUDFLARE_ACCOUNT_ID=your-account-id
    ALCHEMY_PASSWORD=a-strong-secret
+   ALCHEMY_STATE_TOKEN=shared-state-store-token
    ```
+
+   `ALCHEMY_PASSWORD` encrypts local Alchemy state; `ALCHEMY_STATE_TOKEN`
+   authenticates to the shared `alchemy-state` state-store Worker (see the
+   architecture note below). Both are required for a deploy.
 
 2. Deploy:
 
@@ -498,11 +504,14 @@ Two workflows in `.github/workflows` deploy on every push to `main`:
 
 Set these as repository secrets (Settings → Secrets and variables → Actions):
 `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `ALCHEMY_PASSWORD`,
-(optionally) `CF_ACCESS_TEAM_DOMAIN` / `CF_ACCESS_AUD`, and — for Twitch —
-`TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET`. All Cloudflare resources use
-`adopt: true` so the runner reconciles the live resources without sharing
-local Alchemy state. (Turbo strict env mode requires these to be declared as
-`passThroughEnv` in `turbo.json` — already configured.)
+`ALCHEMY_STATE_TOKEN`, (optionally) `CF_ACCESS_TEAM_DOMAIN` / `CF_ACCESS_AUD`,
+and — for Twitch — `TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET`. Deploy state
+lives in a shared, account-wide `alchemy-state` Worker (a Durable-Object-backed
+`CloudflareStateStore`, keyed by `ALCHEMY_STATE_TOKEN` and namespaced per app),
+so any runner reconciles the same state without a local state file; all
+Cloudflare resources also use `adopt: true` to reconcile the live resources.
+(Turbo strict env mode requires these to be declared as `passThroughEnv` in
+`turbo.json` — already configured.)
 
 ### Cloudflare Access (Zero Trust)
 

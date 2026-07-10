@@ -4,6 +4,7 @@ import type { OverlayTheme } from "@wolfathon/api/theme";
 import { type WheelDoc, toPublicWheel } from "@wolfathon/api/wheel";
 
 import { WheelView } from "@/components/overlay/wheel-view";
+import { OVERLAY_SIZES } from "@/utils/constants";
 
 import { PreviewFrame } from "./preview-frame";
 
@@ -16,7 +17,7 @@ import { PreviewFrame } from "./preview-frame";
  */
 export function WheelPreview({ doc, theme }: { doc: WheelDoc | undefined; theme?: OverlayTheme }) {
 	return (
-		<PreviewFrame label="Wheel source" aspectClass="aspect-square">
+		<PreviewFrame label="Wheel source" aspectClass={OVERLAY_SIZES.wheel.aspect}>
 			<WheelView slots={doc ? toPublicWheel(doc).slots : undefined} theme={theme} pending={null} />
 		</PreviewFrame>
 	);
