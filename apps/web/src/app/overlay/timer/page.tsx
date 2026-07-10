@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-import { OverlayTokenError } from "@/components/overlay/overlay-token-error";
+import { OverlayShell } from "@/components/overlay/overlay-shell";
 import { TimerView } from "@/components/overlay/timer-view";
 import { useOverlayToken } from "@/components/overlay/use-overlay-token";
 import { publicTrpc } from "@/utils/trpc";
@@ -22,9 +22,8 @@ export default function TimerOverlayPage() {
 	});
 
 	return (
-		<div className="@container fixed inset-0 overflow-hidden bg-transparent">
+		<OverlayShell token={token} error={error}>
 			<TimerView data={data} />
-			<OverlayTokenError error={error} token={token} />
-		</div>
+		</OverlayShell>
 	);
 }

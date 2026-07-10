@@ -3,6 +3,7 @@
 import { bumpPassedGoals, type Goal, MAX_TARGET } from "@wolfathon/api/state";
 import { Button } from "@wolfathon/ui/components/button";
 import { Input } from "@wolfathon/ui/components/input";
+import { NumberStepper } from "@wolfathon/ui/components/number-stepper";
 import {
 	ArrowDown,
 	ArrowUp,
@@ -11,7 +12,6 @@ import {
 	EyeOff,
 	Lock,
 	LockOpen,
-	Minus,
 	Plus,
 	TrendingUp,
 	Trophy,
@@ -88,12 +88,6 @@ export function GoalEditor({
 	const reached = !!target && currentSubs >= target;
 	const remaining = target ? Math.max(0, target - currentSubs) : 0;
 
-	function bumpTarget(delta: number) {
-		if (nextIndex === -1) return;
-		const base = target ?? currentSubs;
-		patch(nextIndex, { target: clampTarget(base + delta) });
-	}
-
 	return (
 		<div className="rounded-2xl panel-card p-5">
 			<div className="flex items-center justify-between gap-3">
@@ -163,42 +157,20 @@ export function GoalEditor({
 									subs
 								</span>
 							</div>
-							{/* Target stepper — nudge it before unlocking */}
+							{/* Target stepper — nudge it before unlocking. An empty field steps
+							    from the live sub count. */}
 							<div className="flex items-center gap-1.5">
 								<span className="mr-1 text-xs text-muted-foreground">Target</span>
-								<Button
-									variant="outline"
-									size="icon-sm"
-									className="rounded-lg"
-									aria-label="Lower target by one"
-									onClick={() => bumpTarget(-1)}
-								>
-									<Minus className="size-4" />
-								</Button>
-								<Input
-									className="h-9 w-20 rounded-lg text-center text-sm font-semibold tabular-nums"
-									type="number"
+								<NumberStepper
+									size="sm"
+									value={target}
+									onChange={(v) => patch(nextIndex, { target: v })}
 									min={0}
 									max={MAX_TARGET}
-									aria-label="Next goal sub target"
+									emptyValue={currentSubs}
+									label="Next goal sub target"
 									placeholder="—"
-									value={target ?? ""}
-									onChange={(e) => {
-										const v = e.target.value;
-										patch(nextIndex, {
-											target: v === "" ? undefined : clampTarget(Number(v) || 0),
-										});
-									}}
 								/>
-								<Button
-									variant="outline"
-									size="icon-sm"
-									className="rounded-lg"
-									aria-label="Raise target by one"
-									onClick={() => bumpTarget(1)}
-								>
-									<Plus className="size-4" />
-								</Button>
 							</div>
 						</div>
 

@@ -39,6 +39,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { LIVE_POLL_MS } from "@/utils/constants";
 import { controlTrpc, queryClient } from "@/utils/trpc";
 
 // ponytail: render at most this many entrant rows. A raffle pool can reach
@@ -124,7 +125,7 @@ function Stat({ label, value, accent }: { label: string; value: number; accent?:
 export function GiveawayTab() {
 	const rawOptions = controlTrpc.giveaway.getRaw.queryOptions(undefined, {
 		// Poll so live gifters / entrants appear without a manual refresh.
-		refetchInterval: 3000,
+		refetchInterval: LIVE_POLL_MS,
 	});
 	const { data, isError, refetch } = useQuery(rawOptions);
 	const invalidate = () => queryClient.invalidateQueries({ queryKey: rawOptions.queryKey });

@@ -2,9 +2,10 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-import { OverlayTokenError } from "@/components/overlay/overlay-token-error";
+import { OverlayShell } from "@/components/overlay/overlay-shell";
 import { useOverlayToken } from "@/components/overlay/use-overlay-token";
 import { WheelView } from "@/components/overlay/wheel-view";
+import { LIVE_POLL_MS } from "@/utils/constants";
 import { publicTrpc } from "@/utils/trpc";
 
 /**
@@ -15,20 +16,16 @@ import { publicTrpc } from "@/utils/trpc";
  */
 export default function WheelOverlayPage() {
 	const token = useOverlayToken();
-	const tokenInput = { token: token ?? "" };
-	const enabled = token !== null;
-
 	const { data: wheel, error } = useQuery({
-		...publicTrpc.wheel.getPublic.queryOptions(tokenInput),
-		enabled,
-		refetchInterval: 3000,
+		...publicTrpc.wheel.getPublic.queryOptions({ token: token ?? "" }),
+		enabled: token !== null,
+		refetchInterval: LIVE_POLL_MS,
 		refetchIntervalInBackground: true,
 	});
 
 	return (
-		<div className="@container fixed inset-0 overflow-hidden bg-transparent">
+		<OverlayShell token={token} error={error}>
 			<WheelView slots={wheel?.slots} theme={wheel?.theme} pending={wheel?.pending ?? null} />
-			<OverlayTokenError error={error} token={token} />
-		</div>
+		</OverlayShell>
 	);
 }

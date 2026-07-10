@@ -20,6 +20,7 @@ import { ChevronDown, ChevronUp, Dices, GripVertical, Loader2, Plus, Trash2 } fr
 import { type DragEvent, useState } from "react";
 import { toast } from "sonner";
 
+import { LIVE_POLL_MS } from "@/utils/constants";
 import { controlTrpc, queryClient } from "@/utils/trpc";
 
 import { WheelPreview } from "./wheel-preview";
@@ -27,7 +28,7 @@ import { WheelPreview } from "./wheel-preview";
 export function WheelTab() {
 	const rawOptions = controlTrpc.wheel.getRaw.queryOptions(undefined, {
 		// Poll so a spin triggered elsewhere (or the live history) shows up here.
-		refetchInterval: 3000,
+		refetchInterval: LIVE_POLL_MS,
 	});
 	const { data, isError, refetch } = useQuery(rawOptions);
 	// Overlay theme is global (Settings → Theme) — pull it in so the preview

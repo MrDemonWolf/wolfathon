@@ -71,12 +71,23 @@ export const DEFAULT_TIMER_LABEL = "WOLFATHON";
 export const MAX_LABEL_LEN = 40;
 
 /**
+ * MrDemonWolf brand blue — the single source for the fallback accent and the
+ * default `brand` gradient preset, so the hex isn't re-typed across the theme
+ * helpers (and can be reused by the overlays via `@wolfathon/api/theme`).
+ */
+export const BRAND_DARK = "#0077c8";
+export const BRAND_ACCENT = "#00aced";
+export const BRAND_LIGHT = "#5bc8f0";
+/** Default two-stop fallback gradient (accent → light). */
+export const BRAND_STOPS: [string, string] = [BRAND_ACCENT, BRAND_LIGHT];
+
+/**
  * Normalize a hex colour to `#rrggbb`: expand `#rgb` shorthand, pass a 6-digit
  * value through unchanged, and fall back to brand blue for anything else.
  * `<input type="color">` and `${hex}aa` alpha suffixes both require 6 digits,
  * so every overlay/control surface expands through this single helper.
  */
-export function expandHex(hex: string, fallback = "#00aced"): string {
+export function expandHex(hex: string, fallback = BRAND_ACCENT): string {
 	const v = hex.trim();
 	const short = /^#([0-9a-fA-F]{3})$/.exec(v);
 	if (short) {
@@ -88,7 +99,7 @@ export function expandHex(hex: string, fallback = "#00aced"): string {
 
 /** Built-in capsule gradients. `brand` is the default (MrDemonWolf blue). */
 export const THEME_PRESETS: Record<Exclude<ThemePreset, "custom">, string[]> = {
-	brand: ["#0077c8", "#00aced", "#5bc8f0"],
+	brand: [BRAND_DARK, BRAND_ACCENT, BRAND_LIGHT],
 	sunset: ["#ff4d97", "#b14df6", "#4d8bff", "#27d7f5"],
 	aurora: ["#00e0a4", "#19b3c9", "#4d8bff"],
 	mono: ["#8aa0bf", "#b9c8de", "#e2e8f0"],
@@ -138,7 +149,7 @@ export function defaultOverlayTheme(): OverlayTheme {
 
 /** Even-spread hex stops into a CSS linear-gradient (falls back to brand blue). */
 export function gradientCss(stops: string[], angle = 100): string {
-	const s = stops.length >= 2 ? stops : ["#00aced", "#5bc8f0"];
+	const s = stops.length >= 2 ? stops : BRAND_STOPS;
 	const last = s.length - 1;
 	return `linear-gradient(${angle}deg,${s.map((c, i) => `${c} ${Math.round((i / last) * 100)}%`).join(",")})`;
 }
@@ -192,10 +203,10 @@ export function wheelPalette(theme: OverlayTheme): WheelPalette {
 	const stops = resolveThemeGradient(theme)
 		.map((c) => expandHex(c))
 		.sort((a, b) => luma(a) - luma(b));
-	const darkest = stops[0] ?? "#0077c8";
+	const darkest = stops[0] ?? BRAND_DARK;
 	return {
-		accent: stops[Math.floor((stops.length - 1) / 2)] ?? "#00aced",
-		light: stops[stops.length - 1] ?? "#5bc8f0",
+		accent: stops[Math.floor((stops.length - 1) / 2)] ?? BRAND_ACCENT,
+		light: stops[stops.length - 1] ?? BRAND_LIGHT,
 		dark: shade(darkest, 0.32),
 		darkDeep: shade(darkest, 0.18),
 	};

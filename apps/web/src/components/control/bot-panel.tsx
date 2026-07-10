@@ -1,24 +1,22 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-import {
-	AlertDialog,
-	AlertDialogClose,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogTitle,
-	AlertDialogTrigger,
-} from "@wolfathon/ui/components/alert-dialog";
 import { Button } from "@wolfathon/ui/components/button";
 import { Checkbox } from "@wolfathon/ui/components/checkbox";
 import { Input } from "@wolfathon/ui/components/input";
 import { DYNAMIC_FORMATS, WOLFATHON_PARTS, type BotCommand } from "@wolfathon/api/bot";
-import { AlertTriangle, Bot, CheckCircle2, Loader2, Plug, Unplug } from "lucide-react";
+import { AlertTriangle, Bot, CheckCircle2, Loader2, Plug } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { controlTrpc, queryClient } from "@/utils/trpc";
+
+import {
+	CheckingConnection,
+	ConnectionCard,
+	DisconnectDialog,
+	useOAuthCallback,
+} from "./connection";
 
 // What the live `{value}` resolves to per command, so the operator knows what a
 // preset will actually say in chat.
@@ -49,16 +47,13 @@ export function BotPanel() {
 	);
 
 	// Surface the OAuth redirect result (set by /api/twitch/callback?bot=...).
-	useEffect(() => {
-		const params = new URLSearchParams(window.location.search);
-		const result = params.get("bot");
-		if (!result) return;
-		if (result === "connected") toast.success("Bot account connected");
-		else if (result === "state_error") toast.error("Sign-in expired — try Connect again");
-		else toast.error("Bot sign-in failed");
-		invalidate();
-		window.history.replaceState(null, "", window.location.pathname);
-	}, []);
+	useOAuthCallback({
+		param: "bot",
+		success: "Bot account connected",
+		errors: { state_error: "Sign-in expired — try Connect again" },
+		fallbackError: "Bot sign-in failed",
+		onResult: invalidate,
+	});
 
 	const connected = data?.connection.connected ?? false;
 	const login = data?.connection.login;
@@ -85,138 +80,92 @@ export function BotPanel() {
 			</p>
 
 			{/* Connection row */}
-			<div
-				className={`mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-4 ${
-					connected && needsReconnect
-						? "border-amber-400/30 bg-amber-400/[0.06]"
-						: connected
-							? "border-primary/30 bg-primary/[0.06]"
-							: "border-border bg-background/40"
-				}`}
-			>
-				<div role="status" aria-live="polite" className="flex min-w-0 items-center gap-2">
-					{data === undefined && isLoading ? (
-						<>
-							<Loader2
-								className="size-5 shrink-0 animate-spin text-muted-foreground"
-								aria-label="Checking connection"
+			<ConnectionCard
+				accent={connected && needsReconnect ? "warn" : connected ? "ok" : "idle"}
+				action={
+					connected ? (
+						<div className="flex shrink-0 items-center gap-2">
+							{needsReconnect ? (
+								<Button onClick={connect} disabled={startAuth.isPending}>
+									{startAuth.isPending ? (
+										<Loader2 className="size-4 animate-spin" />
+									) : (
+										<Plug className="size-4" />
+									)}
+									Reconnect
+								</Button>
+							) : null}
+							<DisconnectDialog
+								title="Disconnect the bot account?"
+								description="The bot will stop replying to chat until you reconnect. Your command setup is kept."
+								onConfirm={() => disconnect.mutate()}
+								pending={disconnect.isPending}
+								triggerVariant={needsReconnect ? "ghost" : "destructive"}
 							/>
-							<div className="text-sm text-muted-foreground">Checking connection…</div>
-						</>
-					) : connected && needsReconnect ? (
-						<>
-							<AlertTriangle className="size-5 shrink-0 text-amber-400" />
-							<div className="min-w-0">
-								<div className="truncate font-medium">Bot token expired — reconnect</div>
-								<div className="text-xs text-amber-200/90">
-									{login}&apos;s sign-in was revoked (password change or de-auth). The bot
-									can&apos;t reply until you reconnect it.
-								</div>
-							</div>
-						</>
-					) : connected ? (
-						<>
-							<CheckCircle2 className="size-5 shrink-0 text-primary" />
-							<div className="min-w-0">
-								<div className="truncate font-medium">Bot connected as {login}</div>
-								<div className="text-xs text-muted-foreground">
-									Replies will be sent from this account.
-								</div>
-							</div>
-						</>
-					) : hasCredentials ? (
-						<>
-							<Bot className="size-5 shrink-0 text-muted-foreground" />
-							<div className="min-w-0">
-								<div className="font-medium">No bot connected</div>
-								<div className="text-xs text-muted-foreground">
-									Log into Twitch as your <strong>bot account</strong> first, then click Connect.
-								</div>
-							</div>
-						</>
+						</div>
 					) : (
-						<>
-							<AlertTriangle className="size-5 shrink-0 text-destructive" />
-							<div className="min-w-0">
-								<div className="font-medium">Twitch isn&apos;t configured yet</div>
-								<div className="text-xs text-muted-foreground">
-									The Twitch app keys haven&apos;t been added on the server. Set them up, then
-									refresh.
-								</div>
+						<Button
+							size="lg"
+							className="shrink-0"
+							disabled={!hasCredentials || startAuth.isPending}
+							onClick={connect}
+						>
+							{startAuth.isPending ? (
+								<Loader2 className="size-4 animate-spin" />
+							) : (
+								<Plug className="size-4" />
+							)}
+							{startAuth.isPending ? "Connecting…" : "Connect bot"}
+						</Button>
+					)
+				}
+			>
+				{data === undefined && isLoading ? (
+					<CheckingConnection />
+				) : connected && needsReconnect ? (
+					<>
+						<AlertTriangle className="size-5 shrink-0 text-amber-400" />
+						<div className="min-w-0">
+							<div className="truncate font-medium">Bot token expired — reconnect</div>
+							<div className="text-xs text-amber-200/90">
+								{login}&apos;s sign-in was revoked (password change or de-auth). The bot can&apos;t
+								reply until you reconnect it.
 							</div>
-						</>
-					)}
-				</div>
-				{connected ? (
-					<div className="flex shrink-0 items-center gap-2">
-						{needsReconnect ? (
-							<Button onClick={connect} disabled={startAuth.isPending}>
-								{startAuth.isPending ? (
-									<Loader2 className="size-4 animate-spin" />
-								) : (
-									<Plug className="size-4" />
-								)}
-								Reconnect
-							</Button>
-						) : null}
-						<AlertDialog>
-							<AlertDialogTrigger
-								render={
-									<Button
-										variant={needsReconnect ? "ghost" : "destructive"}
-										disabled={disconnect.isPending}
-									>
-										{disconnect.isPending ? (
-											<Loader2 className="size-4 animate-spin" />
-										) : (
-											<Unplug className="size-4" />
-										)}
-										Disconnect
-									</Button>
-								}
-							/>
-							<AlertDialogContent>
-								<AlertDialogTitle>Disconnect the bot account?</AlertDialogTitle>
-								<AlertDialogDescription>
-									The bot will stop replying to chat until you reconnect. Your command setup is
-									kept.
-								</AlertDialogDescription>
-								<AlertDialogFooter>
-									<AlertDialogClose
-										render={
-											<Button variant="outline" className="rounded-lg">
-												Cancel
-											</Button>
-										}
-									/>
-									<AlertDialogClose
-										onClick={() => disconnect.mutate()}
-										render={
-											<Button variant="destructive" className="rounded-lg">
-												Disconnect
-											</Button>
-										}
-									/>
-								</AlertDialogFooter>
-							</AlertDialogContent>
-						</AlertDialog>
-					</div>
+						</div>
+					</>
+				) : connected ? (
+					<>
+						<CheckCircle2 className="size-5 shrink-0 text-primary" />
+						<div className="min-w-0">
+							<div className="truncate font-medium">Bot connected as {login}</div>
+							<div className="text-xs text-muted-foreground">
+								Replies will be sent from this account.
+							</div>
+						</div>
+					</>
+				) : hasCredentials ? (
+					<>
+						<Bot className="size-5 shrink-0 text-muted-foreground" />
+						<div className="min-w-0">
+							<div className="font-medium">No bot connected</div>
+							<div className="text-xs text-muted-foreground">
+								Log into Twitch as your <strong>bot account</strong> first, then click Connect.
+							</div>
+						</div>
+					</>
 				) : (
-					<Button
-						size="lg"
-						className="shrink-0"
-						disabled={!hasCredentials || startAuth.isPending}
-						onClick={connect}
-					>
-						{startAuth.isPending ? (
-							<Loader2 className="size-4 animate-spin" />
-						) : (
-							<Plug className="size-4" />
-						)}
-						{startAuth.isPending ? "Connecting…" : "Connect bot"}
-					</Button>
+					<>
+						<AlertTriangle className="size-5 shrink-0 text-destructive" />
+						<div className="min-w-0">
+							<div className="font-medium">Twitch isn&apos;t configured yet</div>
+							<div className="text-xs text-muted-foreground">
+								The Twitch app keys haven&apos;t been added on the server. Set them up, then
+								refresh.
+							</div>
+						</div>
+					</>
 				)}
-			</div>
+			</ConnectionCard>
 
 			{config ? (
 				<>

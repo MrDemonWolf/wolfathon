@@ -293,6 +293,46 @@ export async function refreshUserToken(args: {
 	};
 }
 
+/** How far ahead of a user token's expiry we proactively refresh it. */
+export const TOKEN_REFRESH_SKEW_MS = 60_000;
+
+/** A user token is still usable if it expires beyond the refresh-skew window. */
+export function tokenFresh(expiresAt: number | undefined): boolean {
+	return expiresAt != null && Date.now() < expiresAt - TOKEN_REFRESH_SKEW_MS;
+}
+
+/** The rotated token triplet handed to a caller's persist step. */
+export type RotatedToken = { accessToken: string; refreshToken: string; expiresAt: number };
+
+/**
+ * Refresh a user token, compute its absolute expiry, and hand the rotated triplet
+ * to `persist` (Twitch rotates the refresh token each use, so it MUST be stored).
+ * Returns the new access token. Throws {@link TwitchAuthError} on refresh failure
+ * so the caller can map a 4xx (dead grant) vs a transient 5xx to its own outcome.
+ * Shared by the broadcaster (api router) and bot (server worker) token paths.
+ */
+export async function refreshAndPersistUserToken(args: {
+	clientId: string;
+	clientSecret: string;
+	refreshToken: string;
+	// Returns the persisted doc (mutateTwitch) — typed as unknown since the token
+	// is the only thing this helper hands back to the caller.
+	persist: (rotated: RotatedToken) => Promise<unknown>;
+}): Promise<string> {
+	const t = await refreshUserToken({
+		clientId: args.clientId,
+		clientSecret: args.clientSecret,
+		refreshToken: args.refreshToken,
+	});
+	const rotated: RotatedToken = {
+		accessToken: t.accessToken,
+		refreshToken: t.refreshToken,
+		expiresAt: Date.now() + t.expiresIn * 1000,
+	};
+	await args.persist(rotated);
+	return rotated.accessToken;
+}
+
 /**
  * Send a chat message as the bot account via Helix. `senderId` is the bot's user
  * id, `broadcasterId` the channel; `botToken` must carry `user:write:chat`.

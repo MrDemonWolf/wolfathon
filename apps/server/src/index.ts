@@ -29,8 +29,9 @@ import {
 import { publicRouter } from "@wolfathon/api/routers/index";
 import { autoPause, autoResume } from "@wolfathon/api/timer";
 import {
-	refreshUserToken,
+	refreshAndPersistUserToken,
 	sendChatMessage,
+	tokenFresh,
 	type TwitchDoc,
 	TwitchAuthError,
 	isTestEvent,
@@ -437,30 +438,18 @@ async function flushGiftBatch(db: Db, twitch: TwitchDoc): Promise<void> {
  * command volume, and the next command reads the persisted fresh token.
  */
 async function ensureBotToken(db: Db, bot: NonNullable<TwitchDoc["bot"]>): Promise<string | null> {
-	if (Date.now() < bot.expiresAt - 60_000) return bot.accessToken;
+	if (tokenFresh(bot.expiresAt)) return bot.accessToken;
 	if (!env.TWITCH_CLIENT_ID || !env.TWITCH_CLIENT_SECRET) return null;
 	try {
-		const t = await refreshUserToken({
+		return await refreshAndPersistUserToken({
 			clientId: env.TWITCH_CLIENT_ID,
 			clientSecret: env.TWITCH_CLIENT_SECRET,
 			refreshToken: bot.refreshToken,
+			persist: (t) =>
+				mutateTwitch(db, (d) =>
+					d.bot ? { ...d, bot: { ...d.bot, ...t, tokenInvalid: false } } : d,
+				),
 		});
-		const expiresAt = Date.now() + t.expiresIn * 1000;
-		await mutateTwitch(db, (d) =>
-			d.bot
-				? {
-						...d,
-						bot: {
-							...d.bot,
-							accessToken: t.accessToken,
-							refreshToken: t.refreshToken,
-							expiresAt,
-							tokenInvalid: false,
-						},
-					}
-				: d,
-		);
-		return t.accessToken;
 	} catch (err) {
 		// A 4xx means the refresh token is permanently dead (revoked grant / changed
 		// password) — flag it so the dashboard prompts a reconnect instead of the bot

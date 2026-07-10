@@ -7,7 +7,7 @@ Each step = one action. Bold = the thing to click.
 
 ## Part 1 — Lock the control panel (Cloudflare Access)
 
-**Why:** right now anyone with the URL can open `/control`, where your Twitch
+**Why:** right now anyone with the URL can open `/dashboard`, where your Twitch
 secret lives. This puts a login in front of it.
 
 **You need:** your Cloudflare account (the one Wolfathon deploys to).
@@ -25,8 +25,8 @@ secret lives. This puts a login in front of it.
 5. **Application name:** `Wolfathon Control`. ☐
 6. **Add public hostname / destination** — add three (same hostname
    `wolfathon.mrdemonwolf.workers.dev`, different path each):
-   - hostname `wolfathon.mrdemonwolf.workers.dev`, path `/control`
-   - hostname `wolfathon.mrdemonwolf.workers.dev`, path `/control/*`
+   - hostname `wolfathon.mrdemonwolf.workers.dev`, path `/dashboard`
+   - hostname `wolfathon.mrdemonwolf.workers.dev`, path `/dashboard/*`
    - hostname `wolfathon.mrdemonwolf.workers.dev`, path `/api/trpc/*`
      ☐
 7. **Next** / **Add a policy**:
@@ -50,7 +50,7 @@ printf '%s' 'YOUR-AUD-TAG' | gh secret set CF_ACCESS_AUD --repo MrDemonWolf/wolf
 
 Then push anything (or re-run the **Deploy** workflow) to apply.
 
-**You'll know it worked when:** opening `wolfathon.mrdemonwolf.workers.dev/control`
+**You'll know it worked when:** opening `wolfathon.mrdemonwolf.workers.dev/dashboard`
 shows a Cloudflare login first, and after you log in the panel loads with no
 "Cloudflare Access required" error.
 
@@ -92,7 +92,7 @@ The Client ID + Secret live in the **environment**, not the control panel.
    Deploy workflow). ☐
 
 > Heads-up: keep the `/api/twitch/callback` path **out** of the Cloudflare
-> Access app. Access should only cover `/control` and `/api/trpc` — Twitch needs
+> Access app. Access should only cover `/dashboard` and `/api/trpc` — Twitch needs
 > to reach the callback without an Access login.
 
 ### C. Connect it in Wolfathon
@@ -115,5 +115,5 @@ clock jumps up by your configured minutes.
 | Cloudflare Zero Trust | https://one.dash.cloudflare.com                                      |
 | Twitch apps           | https://dev.twitch.tv/console/apps                                   |
 | OAuth Redirect URL    | https://wolfathon.mrdemonwolf.workers.dev/api/twitch/callback        |
-| Your panel            | https://wolfathon.mrdemonwolf.workers.dev/control                    |
+| Your panel            | https://wolfathon.mrdemonwolf.workers.dev/dashboard                  |
 | Overlay URLs (OBS)    | Control panel → **Settings → Overlays** (tokenized; copy from there) |

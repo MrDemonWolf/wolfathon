@@ -3,6 +3,7 @@
 import {
 	defaultOverlayTheme,
 	DEFAULT_TIMER_LABEL,
+	BRAND_ACCENT,
 	expandHex,
 	FONT_LABELS,
 	FONT_STACKS,
@@ -183,7 +184,7 @@ export function ThemeEditor({
 							onClick={() =>
 								onChange({
 									...theme,
-									gradient: [...theme.gradient, theme.gradient.at(-1) ?? "#00aced"],
+									gradient: [...theme.gradient, theme.gradient.at(-1) ?? BRAND_ACCENT],
 								})
 							}
 						>
