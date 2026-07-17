@@ -16,6 +16,7 @@
  */
 
 import type { TimerEvent } from "./timer";
+import { randomToken } from "./util";
 
 export const TWITCH_SCOPES = [
 	"channel:read:subscriptions",
@@ -141,6 +142,15 @@ export function toStatus(doc: TwitchDoc, hasCredentials: boolean): TwitchStatus 
 const ID = "https://id.twitch.tv/oauth2";
 const HELIX = "https://api.twitch.tv/helix";
 
+/**
+ * The auth headers every Helix call carries: the app's `client-id` plus a bearer
+ * token (an app token or a user token, depending on the endpoint). One place so
+ * the header shape can't drift across the ~dozen call sites.
+ */
+function helixHeaders(clientId: string, token: string): Record<string, string> {
+	return { "client-id": clientId, authorization: `Bearer ${token}` };
+}
+
 // ---- OAuth (Authorization Code / redirect flow) ---------------------------
 
 /**
@@ -231,9 +241,7 @@ export async function getBroadcaster(
 	clientId: string,
 	userToken: string,
 ): Promise<{ id: string; login: string }> {
-	const res = await fetch(`${HELIX}/users`, {
-		headers: { "client-id": clientId, authorization: `Bearer ${userToken}` },
-	});
+	const res = await fetch(`${HELIX}/users`, { headers: helixHeaders(clientId, userToken) });
 	if (!res.ok) throw new Error(`users lookup failed: ${res.status} ${await res.text()}`);
 	const data = (await res.json()) as { data: { id: string; login: string }[] };
 	const user = data.data[0];
@@ -350,8 +358,7 @@ export async function sendChatMessage(args: {
 		const res = await fetch(`${HELIX}/chat/messages`, {
 			method: "POST",
 			headers: {
-				"client-id": args.clientId,
-				authorization: `Bearer ${args.botToken}`,
+				...helixHeaders(args.clientId, args.botToken),
 				"content-type": "application/json",
 			},
 			body: JSON.stringify({
@@ -406,7 +413,7 @@ export async function finalizeConnection(args: {
 }): Promise<{ doc: TwitchDoc; errors: string[] }> {
 	const { clientId, clientSecret, prev, tokens } = args;
 	const broadcaster = await getBroadcaster(clientId, tokens.accessToken);
-	const webhookSecret = prev.webhookSecret ?? crypto.randomUUID().replace(/-/g, "");
+	const webhookSecret = prev.webhookSecret ?? randomToken();
 
 	const base: TwitchDoc = {
 		...prev,
@@ -425,8 +432,8 @@ export async function finalizeConnection(args: {
 	// earlier partial failure so re-create can't 409, without ever deleting another
 	// broadcaster's subs (the app token can see every sub it created). The list API
 	// has no broadcaster filter, so we filter the page client-side by condition.
-	// ponytail: one page (~9 subs); add cursor paging only if this app ever holds
-	// >100 subscriptions.
+	// ponytail: one page (8 subs — see SUBSCRIPTIONS); add cursor paging only if this
+	// app ever holds >100 subscriptions.
 	const existing = await listSubscriptions(clientId, appToken);
 	const mine = existing.filter((s) => s.broadcasterId === broadcaster.id).map((s) => s.id);
 	if (mine.length) await deleteSubscriptions(clientId, appToken, mine);
@@ -473,7 +480,7 @@ export async function getChannelEmotes(
 ): Promise<ChannelEmote[]> {
 	const res = await fetch(
 		`${HELIX}/chat/emotes?broadcaster_id=${encodeURIComponent(broadcasterId)}`,
-		{ headers: { "client-id": clientId, authorization: `Bearer ${appToken}` } },
+		{ headers: helixHeaders(clientId, appToken) },
 	);
 	if (!res.ok) throw new Error(`emotes lookup failed: ${res.status} ${await res.text()}`);
 	const json = (await res.json()) as {
@@ -516,8 +523,7 @@ export async function createCustomReward(args: {
 		{
 			method: "POST",
 			headers: {
-				"client-id": args.clientId,
-				authorization: `Bearer ${args.userToken}`,
+				...helixHeaders(args.clientId, args.userToken),
 				"content-type": "application/json",
 			},
 			body: JSON.stringify({ title: args.title, cost: args.cost }),
@@ -555,7 +561,7 @@ export async function deleteCustomReward(args: {
 		)}&id=${encodeURIComponent(args.rewardId)}`,
 		{
 			method: "DELETE",
-			headers: { "client-id": args.clientId, authorization: `Bearer ${args.userToken}` },
+			headers: helixHeaders(args.clientId, args.userToken),
 		},
 	);
 	// 204 = deleted; 404 = already gone (treat as success — the rule should drop too).
@@ -582,7 +588,7 @@ export async function listSubscriptions(
 	appToken: string,
 ): Promise<EventsubSubscription[]> {
 	const res = await fetch(`${HELIX}/eventsub/subscriptions`, {
-		headers: { "client-id": clientId, authorization: `Bearer ${appToken}` },
+		headers: helixHeaders(clientId, appToken),
 	});
 	if (!res.ok) return [];
 	const data = (await res.json()) as {
@@ -604,7 +610,7 @@ export async function deleteSubscriptions(
 		ids.map((id) =>
 			fetch(`${HELIX}/eventsub/subscriptions?id=${encodeURIComponent(id)}`, {
 				method: "DELETE",
-				headers: { "client-id": clientId, authorization: `Bearer ${appToken}` },
+				headers: helixHeaders(clientId, appToken),
 			}),
 		),
 	);
@@ -626,8 +632,7 @@ export async function createSubscriptions(args: {
 		const res = await fetch(`${HELIX}/eventsub/subscriptions`, {
 			method: "POST",
 			headers: {
-				"client-id": args.clientId,
-				authorization: `Bearer ${args.appToken}`,
+				...helixHeaders(args.clientId, args.appToken),
 				"content-type": "application/json",
 			},
 			body: JSON.stringify({

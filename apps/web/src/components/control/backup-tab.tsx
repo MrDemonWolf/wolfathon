@@ -1,10 +1,6 @@
 "use client";
 
-import { buildBackupDoc, splitBackupDoc } from "@wolfathon/api/backup";
-import type { GiveawayDoc } from "@wolfathon/api/giveaway";
-import type { Data } from "@wolfathon/api/state";
-import type { TimerDoc } from "@wolfathon/api/timer";
-import { currentRemainingMs } from "@wolfathon/api/timer";
+import { buildBackupDoc, buildRecapMarkdown, splitBackupDoc } from "@wolfathon/api/backup";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
 	AlertDialog,
@@ -29,53 +25,6 @@ import { guard } from "./use-draft";
 import { nowStamp } from "./util";
 
 const rewardsLabel = (index: number) => (index < 0 ? "Document" : `Goal #${index + 1}`);
-
-/** "3d 4h 12m" from a ms duration (drops leading zero units, always shows minutes). */
-function humanDuration(ms: number): string {
-	const totalMin = Math.floor(ms / 60000);
-	const d = Math.floor(totalMin / 1440);
-	const h = Math.floor((totalMin % 1440) / 60);
-	const m = totalMin % 60;
-	return [d && `${d}d`, (d || h) && `${h}h`, `${m}m`].filter(Boolean).join(" ");
-}
-
-/**
- * A human-readable Markdown recap — paste straight into Notion. Unlike the JSON
- * backup (for restoring), this is a snapshot to keep: final clock, subs, which
- * rewards unlocked, and the giveaway winners to ship to.
- */
-function buildRecapMarkdown(
-	rewards: Data,
-	timer: TimerDoc,
-	giveaway: GiveawayDoc | undefined,
-): string {
-	const now = Date.now();
-	const lines: string[] = [`# Wolfathon recap — ${new Date(now).toLocaleString()}`, ""];
-
-	lines.push("## Timer", `- Time on clock: ${humanDuration(currentRemainingMs(timer.state, now))}`);
-	lines.push(`- Status: ${timer.state.running ? "running" : "paused"}`, "");
-
-	lines.push("## Subs", `- Total subs counted: ${rewards.currentSubs ?? 0}`, "");
-
-	lines.push("## Rewards");
-	if (rewards.goals.length === 0) lines.push("- (none)");
-	for (const g of rewards.goals) lines.push(`- [${g.unlocked ? "x" : " "}] ${g.reward}`);
-	lines.push("");
-
-	const winners = giveaway?.winners ?? [];
-	const gift = winners.filter((w) => w.source === "gift");
-	const raffle = winners.filter((w) => w.source === "raffle");
-	const winLine = (w: (typeof winners)[number], i: number) =>
-		`${i + 1}. ${w.name} (@${w.login})${w.shipped ? " — shipped ✓" : ""}${w.note ? ` — ${w.note}` : ""}`;
-	lines.push("## Giveaway winners");
-	if (winners.length === 0) {
-		lines.push("- (none)");
-	} else {
-		if (gift.length) lines.push("### Gift sub winners", ...gift.map(winLine), "");
-		if (raffle.length) lines.push("### Raffle winners", ...raffle.map(winLine), "");
-	}
-	return `${lines.join("\n").trimEnd()}\n`;
-}
 
 /** Trigger a client-side file download of arbitrary text. */
 function downloadText(filename: string, text: string, mime: string) {

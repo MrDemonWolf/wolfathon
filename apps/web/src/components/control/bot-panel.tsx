@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { Button } from "@wolfathon/ui/components/button";
 import { Checkbox } from "@wolfathon/ui/components/checkbox";
 import { Input } from "@wolfathon/ui/components/input";
@@ -17,6 +17,7 @@ import {
 	DisconnectDialog,
 	useOAuthCallback,
 } from "./connection";
+import { useControlDoc } from "./use-control-doc";
 
 // What the live `{value}` resolves to per command, so the operator knows what a
 // preset will actually say in chat.
@@ -28,9 +29,7 @@ const VALUE_HINTS: Record<string, string> = {
 };
 
 export function BotPanel() {
-	const getOptions = controlTrpc.bot.get.queryOptions();
-	const { data, isLoading } = useQuery(getOptions);
-	const invalidate = () => queryClient.invalidateQueries({ queryKey: getOptions.queryKey });
+	const { data, isLoading, invalidate } = useControlDoc(controlTrpc.bot.get.queryOptions());
 
 	const startAuth = useMutation(controlTrpc.bot.startAuth.mutationOptions());
 	const disconnect = useMutation(

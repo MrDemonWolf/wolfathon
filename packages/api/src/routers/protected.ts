@@ -3,29 +3,18 @@ import { z } from "zod";
 
 import { protectedProcedure, router } from "../index";
 import { resetRound } from "../giveaway";
-import {
-	type Data,
-	type Goal,
-	MAX_GOALS,
-	MAX_REWARD_LENGTH,
-	MAX_TARGET,
-	recompute,
-	validateImport,
-} from "../state";
+import { type Goal, MAX_GOALS, MAX_REWARD_LENGTH, MAX_TARGET, validateImport } from "../state";
 import { newOverlayToken } from "../settings";
 import {
-	readGiveaway,
+	mutateGiveaway,
+	mutateState,
+	mutateTimer,
+	mutateWheel,
 	readSettings,
 	readState,
-	readTimer,
-	readWheel,
-	writeGiveaway,
 	writeSettings,
-	writeState,
-	writeTimer,
-	writeWheel,
 } from "../store";
-import { type ThemeError, validateOverlayTheme } from "../theme";
+import { type OverlayTheme, type ThemeError, validateOverlayTheme } from "../theme";
 import { reset as resetTimerState } from "../timer";
 import { botRouter } from "./bot";
 import { giveawayRouter } from "./giveaway";
@@ -77,7 +66,6 @@ export const protectedRouter = router({
 		 * Theme is preserved (goal edits never touch it).
 		 */
 		replace: protectedProcedure.input(dataSchema).mutation(async ({ ctx, input }) => {
-			const existing = await readState(ctx.db);
 			const goals: Goal[] = input.goals.map((g) => ({
 				id: g.id ?? crypto.randomUUID(),
 				reward: g.reward.trim(),
@@ -86,12 +74,12 @@ export const protectedRouter = router({
 				...(g.target != null ? { target: g.target } : {}),
 				...(g.hidden ? { hidden: true } : {}),
 			}));
-			const currentSubs = input.currentSubs ?? existing.currentSubs ?? 0;
-			// Theme rides along when present; otherwise the existing one is preserved.
-			let theme = existing.theme;
+			// Validate an incoming theme up front (it doesn't depend on the current doc)
+			// so a bad theme returns errors without any write.
+			let nextTheme: OverlayTheme | undefined;
 			if (input.theme !== undefined) {
 				const themeErrors: ThemeError[] = [];
-				theme = validateOverlayTheme(input.theme, themeErrors);
+				nextTheme = validateOverlayTheme(input.theme, themeErrors);
 				if (themeErrors.length > 0) {
 					return {
 						ok: false as const,
@@ -99,31 +87,32 @@ export const protectedRouter = router({
 					};
 				}
 			}
-			const state = await writeState(ctx.db, {
+			const state = await mutateState(ctx.db, (existing) => ({
 				goals,
 				currentIndex: input.currentIndex ?? 0,
-				currentSubs,
-				theme,
-			});
+				currentSubs: input.currentSubs ?? existing.currentSubs ?? 0,
+				// Theme rides along when present; otherwise the existing one is preserved.
+				theme: nextTheme ?? existing.theme,
+			}));
 			return { ok: true as const, state };
 		}),
 
 		/** Adjust the running sub count (positive or negative); clamps at zero. */
 		adjustSubs: protectedProcedure
 			.input(z.object({ delta: z.number().int() }))
-			.mutation(async ({ ctx, input }) => {
-				const data = await readState(ctx.db);
-				const currentSubs = Math.max(0, (data.currentSubs ?? 0) + input.delta);
-				return writeState(ctx.db, { ...data, currentSubs });
-			}),
+			.mutation(async ({ ctx, input }) =>
+				mutateState(ctx.db, (data) => ({
+					...data,
+					currentSubs: Math.max(0, (data.currentSubs ?? 0) + input.delta),
+				})),
+			),
 
 		/** Set the running sub count to an exact value. */
 		setSubs: protectedProcedure
 			.input(z.object({ value: z.number().int().nonnegative() }))
-			.mutation(async ({ ctx, input }) => {
-				const data = await readState(ctx.db);
-				return writeState(ctx.db, { ...data, currentSubs: input.value });
-			}),
+			.mutation(async ({ ctx, input }) =>
+				mutateState(ctx.db, (data) => ({ ...data, currentSubs: input.value })),
+			),
 
 		/** Update only the overlay theme, preserving goals. */
 		setTheme: protectedProcedure.input(z.unknown()).mutation(async ({ ctx, input }) => {
@@ -135,8 +124,7 @@ export const protectedRouter = router({
 					errors: errors.map((e) => ({ path: e.path, message: e.message })),
 				};
 			}
-			const data = await readState(ctx.db);
-			const state = await writeState(ctx.db, { ...data, theme });
+			const state = await mutateState(ctx.db, (data) => ({ ...data, theme }));
 			return { ok: true as const, state };
 		}),
 
@@ -160,24 +148,27 @@ export const protectedRouter = router({
 			// Importing goals shouldn't reset colours or the sub count: keep the
 			// existing values unless the imported document explicitly carries them.
 			const obj = typeof input === "object" && input !== null ? (input as object) : {};
-			const existing = await readState(ctx.db);
-			const theme = "theme" in obj ? result.data.theme : existing.theme;
-			const currentSubs = "currentSubs" in obj ? result.data.currentSubs : existing.currentSubs;
-			const state = await writeState(ctx.db, { ...result.data, theme, currentSubs });
+			const state = await mutateState(ctx.db, (existing) => ({
+				...result.data,
+				theme: "theme" in obj ? result.data.theme : existing.theme,
+				currentSubs: "currentSubs" in obj ? result.data.currentSubs : existing.currentSubs,
+			}));
 			return { ok: true as const, state, rewards: result.rewards };
 		}),
 	}),
 
 	goals: router({
 		/** Unlock the current (first locked) goal and advance to the next one. */
-		unlockNext: protectedProcedure.mutation(async ({ ctx }) => {
-			const data = await readState(ctx.db);
-			const target = data.goals.findIndex((g) => !g.unlocked);
-			if (target !== -1) {
-				data.goals[target]!.unlocked = true;
-			}
-			return writeState(ctx.db, data);
-		}),
+		unlockNext: protectedProcedure.mutation(async ({ ctx }) =>
+			mutateState(ctx.db, (data) => {
+				const target = data.goals.findIndex((g) => !g.unlocked);
+				if (target === -1) return data;
+				return {
+					...data,
+					goals: data.goals.map((g, i) => (i === target ? { ...g, unlocked: true } : g)),
+				};
+			}),
+		),
 
 		/** Add a goal, optionally at a specific position (defaults to the end). */
 		add: protectedProcedure
@@ -188,59 +179,52 @@ export const protectedRouter = router({
 					index: z.number().int().optional(),
 				}),
 			)
-			.mutation(async ({ ctx, input }) => {
-				const data = await readState(ctx.db);
-				if (data.goals.length >= MAX_GOALS) {
-					throw new TRPCError({ code: "BAD_REQUEST", message: `Max ${MAX_GOALS} goals.` });
-				}
-				const goal: Goal = {
-					id: crypto.randomUUID(),
-					reward: input.reward.trim(),
-					note: normalizeNote(input.note),
-					unlocked: false,
-				};
-				const at =
-					input.index === undefined
-						? data.goals.length
-						: Math.max(0, Math.min(input.index, data.goals.length));
-				data.goals.splice(at, 0, goal);
-				return writeState(ctx.db, data);
-			}),
+			.mutation(async ({ ctx, input }) =>
+				mutateState(ctx.db, (data) => {
+					if (data.goals.length >= MAX_GOALS) {
+						throw new TRPCError({ code: "BAD_REQUEST", message: `Max ${MAX_GOALS} goals.` });
+					}
+					const goal: Goal = {
+						id: crypto.randomUUID(),
+						reward: input.reward.trim(),
+						note: normalizeNote(input.note),
+						unlocked: false,
+					};
+					const at =
+						input.index === undefined
+							? data.goals.length
+							: Math.max(0, Math.min(input.index, data.goals.length));
+					const goals = [...data.goals];
+					goals.splice(at, 0, goal);
+					return { ...data, goals };
+				}),
+			),
 
 		/** Remove a goal by id. */
 		remove: protectedProcedure
 			.input(z.object({ id: z.string() }))
-			.mutation(async ({ ctx, input }) => {
-				const data = await readState(ctx.db);
-				const next: Data = {
+			.mutation(async ({ ctx, input }) =>
+				mutateState(ctx.db, (data) => ({
+					...data,
 					goals: data.goals.filter((g) => g.id !== input.id),
-					currentIndex: 0,
-					currentSubs: data.currentSubs,
-					theme: data.theme,
-				};
-				return writeState(ctx.db, next);
-			}),
+				})),
+			),
 
 		/** Reorder goals to match the provided id list (must reference every goal). */
 		reorder: protectedProcedure
 			.input(z.object({ ids: z.array(z.string()) }))
-			.mutation(async ({ ctx, input }) => {
-				const data = await readState(ctx.db);
-				const byId = new Map(data.goals.map((g) => [g.id, g]));
-				if (input.ids.length !== data.goals.length || input.ids.some((id) => !byId.has(id))) {
-					throw new TRPCError({
-						code: "BAD_REQUEST",
-						message: "Reorder must reference every goal exactly once.",
-					});
-				}
-				const goals = input.ids.map((id) => byId.get(id)!);
-				return writeState(ctx.db, {
-					goals,
-					currentIndex: 0,
-					currentSubs: data.currentSubs,
-					theme: data.theme,
-				});
-			}),
+			.mutation(async ({ ctx, input }) =>
+				mutateState(ctx.db, (data) => {
+					const byId = new Map(data.goals.map((g) => [g.id, g]));
+					if (input.ids.length !== data.goals.length || input.ids.some((id) => !byId.has(id))) {
+						throw new TRPCError({
+							code: "BAD_REQUEST",
+							message: "Reorder must reference every goal exactly once.",
+						});
+					}
+					return { ...data, goals: input.ids.map((id) => byId.get(id)!) };
+				}),
+			),
 	}),
 
 	/** Overlay token: the shared secret in the OBS source URLs. */
@@ -257,24 +241,18 @@ export const protectedRouter = router({
 	 * keep every bit of CONFIG. Timer → back to base, subs → 0, all goals re-locked,
 	 * wheel spin history cleared (dares kept), giveaway round reset (command/threshold
 	 * kept). Twitch/bot connections and the overlay token are untouched, so OBS keeps
-	 * working. ponytail: four separate D1 writes, not one transaction — a failure
+	 * working. ponytail: four separate CAS writes, not one transaction — a failure
 	 * mid-way leaves a partial reset; re-running finishes it. Fine for a manual op.
 	 */
 	resetForNextSubathon: protectedProcedure.mutation(async ({ ctx }) => {
-		const state = await readState(ctx.db);
-		await writeState(
-			ctx.db,
-			recompute({
-				...state,
-				goals: state.goals.map((g) => ({ ...g, unlocked: false })),
-				currentSubs: 0,
-			}),
-		);
-		const timer = await readTimer(ctx.db);
-		await writeTimer(ctx.db, { ...timer, state: resetTimerState(timer.config) });
-		const wheel = await readWheel(ctx.db);
-		await writeWheel(ctx.db, { ...wheel, history: [] });
-		await writeGiveaway(ctx.db, resetRound(await readGiveaway(ctx.db)));
+		await mutateState(ctx.db, (state) => ({
+			...state,
+			goals: state.goals.map((g) => ({ ...g, unlocked: false })),
+			currentSubs: 0,
+		}));
+		await mutateTimer(ctx.db, (timer) => ({ ...timer, state: resetTimerState(timer.config) }));
+		await mutateWheel(ctx.db, (wheel) => ({ ...wheel, history: [] }));
+		await mutateGiveaway(ctx.db, (giveaway) => resetRound(giveaway));
 		return { ok: true as const };
 	}),
 

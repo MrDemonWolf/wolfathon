@@ -16,7 +16,8 @@
  */
 
 import { secureRandom } from "./random";
-import { expandHex, HEX_COLOR } from "./theme";
+import { normalizeHex } from "./theme";
+import { clampInt } from "./util";
 
 export type WheelSlot = {
 	id: string;
@@ -153,14 +154,12 @@ export function withWheelDefaults(doc: WheelDoc): WheelDoc {
 
 /** Clamp a weight to a positive integer in [1, MAX_WEIGHT]. */
 export function clampWeight(weight: unknown): number {
-	const n = typeof weight === "number" && Number.isFinite(weight) ? Math.round(weight) : 1;
-	return Math.max(1, Math.min(MAX_WEIGHT, n));
+	return clampInt(weight, { min: 1, max: MAX_WEIGHT, fallback: 1 });
 }
 
 /** Normalize one stored/legacy slot to a well-formed WheelSlot. */
 function normalizeSlot(raw: WheelSlot): WheelSlot {
-	const color =
-		typeof raw.color === "string" && HEX_COLOR.test(raw.color) ? expandHex(raw.color) : undefined;
+	const color = normalizeHex(raw.color);
 	return {
 		id: typeof raw.id === "string" && raw.id ? raw.id : newId(),
 		label: typeof raw.label === "string" ? raw.label.trim().slice(0, MAX_LABEL_LEN) : "",
@@ -177,9 +176,7 @@ export function enabledSlots(doc: WheelDoc): WheelSlot[] {
 
 /** Resolve a slot's display colour (explicit hex or the palette fallback). */
 export function slotColor(slot: { color?: string }, index: number): string {
-	return slot.color && HEX_COLOR.test(slot.color)
-		? expandHex(slot.color)
-		: WHEEL_PALETTE[index % WHEEL_PALETTE.length]!;
+	return normalizeHex(slot.color) ?? WHEEL_PALETTE[index % WHEEL_PALETTE.length]!;
 }
 
 /** Project the doc into the overlay payload — enabled slots, render-only fields. */
@@ -302,8 +299,7 @@ export type SlotPatch = {
  * survive. An absent/blank id with a non-empty label appends a new slot.
  */
 export function upsertSlot(doc: WheelDoc, patch: SlotPatch): WheelDoc {
-	const cleanColor =
-		patch.color !== undefined && HEX_COLOR.test(patch.color) ? expandHex(patch.color) : undefined;
+	const cleanColor = normalizeHex(patch.color);
 	const existing = patch.id ? doc.slots.find((s) => s.id === patch.id) : undefined;
 	if (existing) {
 		const slots = doc.slots.map((s) => {

@@ -10,6 +10,7 @@ import {
 	readTimer,
 	readTwitch,
 } from "../store";
+import { requireCreds } from "./creds";
 import {
 	applyEvent,
 	MAX_CHANNEL_POINT_RULES,
@@ -48,19 +49,6 @@ const eventSchema: z.ZodType<TimerEvent> = z.discriminatedUnion("kind", [
 	}),
 	z.object({ kind: z.literal("manualMinutes"), minutes: z.number() }),
 ]);
-
-/** App credentials come from the web Worker env, surfaced via ctx.twitch. */
-function requireCreds(ctx: { twitch?: { clientId?: string; clientSecret?: string } }) {
-	const clientId = ctx.twitch?.clientId;
-	const clientSecret = ctx.twitch?.clientSecret;
-	if (!clientId || !clientSecret) {
-		throw new TRPCError({
-			code: "BAD_REQUEST",
-			message: "Set TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET in the environment, then redeploy.",
-		});
-	}
-	return { clientId, clientSecret };
-}
 
 /**
  * A valid broadcaster USER token, refreshing (and persisting the rotated tokens)

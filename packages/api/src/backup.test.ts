@@ -1,6 +1,15 @@
 import { expect, test } from "bun:test";
 
-import { BACKUP_VERSION, buildBackupDoc, splitBackupDoc } from "./backup";
+import {
+	BACKUP_VERSION,
+	buildBackupDoc,
+	buildRecapMarkdown,
+	humanDuration,
+	splitBackupDoc,
+} from "./backup";
+import { addWinner, defaultGiveawayDoc } from "./giveaway";
+import { sampleData } from "./state";
+import { defaultTimerDoc } from "./timer";
 
 test("buildBackupDoc wraps both halves under the current version", () => {
 	const doc = buildBackupDoc({ goals: [] }, { startMinutes: 60 });
@@ -59,4 +68,33 @@ test("splitBackupDoc hints when handed an old rewards-only file", () => {
 	const r = splitBackupDoc({ currentSubs: 0, goals: [{ reward: "Q&A" }] });
 	expect(r.ok).toBe(false);
 	if (!r.ok) expect(r.message).toContain("rewards-only");
+});
+
+test("humanDuration drops leading zero units but keeps minutes (and hours with days)", () => {
+	expect(humanDuration(0)).toBe("0m");
+	expect(humanDuration(12 * 60_000)).toBe("12m");
+	expect(humanDuration(3 * 60 * 60_000 + 12 * 60_000)).toBe("3h 12m");
+	// Days present → hours shown even at zero.
+	expect(humanDuration(2 * 24 * 60 * 60_000 + 12 * 60_000)).toBe("2d 0h 12m");
+});
+
+test("buildRecapMarkdown snapshots timer, subs, rewards, and grouped winners", () => {
+	const rewards = sampleData();
+	const timer = defaultTimerDoc();
+	let giveaway = addWinner(defaultGiveawayDoc(), { login: "ann", name: "Ann", source: "gift" }, 1);
+	giveaway = addWinner(giveaway, { login: "bob", name: "Bob", source: "raffle" }, 2);
+	const md = buildRecapMarkdown(rewards, timer, giveaway, 1_700_000_000_000);
+	expect(md).toContain("# Wolfathon recap");
+	expect(md).toContain("## Timer");
+	expect(md).toContain("## Subs");
+	expect(md).toContain("### Gift sub winners");
+	expect(md).toContain("1. Ann (@ann)");
+	expect(md).toContain("### Raffle winners");
+	expect(md).toContain("1. Bob (@bob)");
+	expect(md.endsWith("\n")).toBe(true);
+});
+
+test("buildRecapMarkdown shows (none) when there are no winners", () => {
+	const md = buildRecapMarkdown(sampleData(), defaultTimerDoc(), undefined, 1_700_000_000_000);
+	expect(md).toContain("## Giveaway winners\n- (none)");
 });

@@ -1,3 +1,5 @@
+import { randomToken } from "./util";
+
 /**
  * Operator settings doc (singleton row `"settings"` in `tracker_state`).
  *
@@ -9,9 +11,9 @@
  */
 export type SettingsDoc = { overlayToken: string };
 
-/** A fresh 122-bit URL-safe token (hex, hyphen-stripped UUIDv4). */
+/** A fresh overlay token (a 32-char hex {@link randomToken}). */
 export function newOverlayToken(): string {
-	return crypto.randomUUID().replace(/-/g, "");
+	return randomToken();
 }
 
 export function defaultSettingsDoc(): SettingsDoc {

@@ -2,9 +2,23 @@
  * Live-refresh cadence (ms) for the wheel + giveaway surfaces — the overlay spin
  * channel and the operator's entrant/spin views all poll at this rate so a
  * triggered spin or a new entry shows within one tick. The timer/rewards overlays
- * poll slower (they change rarely or count locally), so they keep their own.
+ * poll slower (they change rarely or count locally) — see {@link TIMER_POLL_MS} /
+ * {@link REWARDS_POLL_MS}.
  */
 export const LIVE_POLL_MS = 3000;
+
+/**
+ * The timer overlay counts down locally to the frame, so it only polls to resync —
+ * a 5s cadence stays smooth while keeping request volume well under the Cloudflare
+ * Workers free tier.
+ */
+export const TIMER_POLL_MS = 5000;
+
+/**
+ * Rewards change rarely (only on a sub/unlock), so the rewards overlay polls
+ * slowest of all — a 10s cadence is plenty.
+ */
+export const REWARDS_POLL_MS = 10_000;
 
 /**
  * Overlay OBS source dimensions — the operator-facing size string on each
