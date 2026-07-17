@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { OverlayShell } from "@/components/overlay/overlay-shell";
 import { TimerView } from "@/components/overlay/timer-view";
 import { useOverlayToken } from "@/components/overlay/use-overlay-token";
+import { TIMER_POLL_MS } from "@/utils/constants";
 import { publicTrpc } from "@/utils/trpc";
 
 /**
@@ -17,7 +18,7 @@ export default function TimerOverlayPage() {
 	const { data, error } = useQuery({
 		...publicTrpc.timer.getPublic.queryOptions({ token: token ?? "" }),
 		enabled: token !== null,
-		refetchInterval: 5000,
+		refetchInterval: TIMER_POLL_MS,
 		refetchIntervalInBackground: true,
 	});
 

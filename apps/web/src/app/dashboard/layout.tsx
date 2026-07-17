@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "@wolfathon/ui/lib/utils";
 import { Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -100,11 +101,12 @@ function NavLink({
 		<Link
 			href={href}
 			aria-current={active ? "page" : undefined}
-			className={`inline-flex items-center gap-1.5 rounded-[0.7rem] px-3 py-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
+			className={cn(
+				"inline-flex items-center gap-1.5 rounded-[0.7rem] px-3 py-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
 				active
 					? "bg-primary/20 font-semibold text-primary"
-					: "text-muted-foreground hover:bg-accent hover:text-foreground"
-			}`}
+					: "text-muted-foreground hover:bg-accent hover:text-foreground",
+			)}
 		>
 			{children}
 		</Link>

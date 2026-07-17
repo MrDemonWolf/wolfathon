@@ -1,17 +1,18 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { type Data, recompute } from "@wolfathon/api/state";
 import { Button } from "@wolfathon/ui/components/button";
 import Link from "next/link";
 import { toast } from "sonner";
 
-import { controlTrpc, queryClient } from "@/utils/trpc";
+import { controlTrpc } from "@/utils/trpc";
 
 import { DirtyBar } from "./dirty-bar";
 import { GoalEditor } from "./goal-editor";
 import { OverlayPreview } from "./overlay-preview";
 import { SubsControl } from "./subs-control";
+import { useControlDoc } from "./use-control-doc";
 import { useDraft } from "./use-draft";
 
 /** The bits we diff for dirty-state (currentIndex is server-derived; theme is global → Settings). */
@@ -20,9 +21,9 @@ function persisted(d: Data) {
 }
 
 export function RewardsTab() {
-	const rawOptions = controlTrpc.state.getRaw.queryOptions();
-	const { data, isLoading, isError, refetch } = useQuery(rawOptions);
-	const invalidate = () => queryClient.invalidateQueries({ queryKey: rawOptions.queryKey });
+	const { data, isLoading, isError, refetch, invalidate } = useControlDoc(
+		controlTrpc.state.getRaw.queryOptions(),
+	);
 
 	const replace = useMutation(controlTrpc.state.replace.mutationOptions());
 	const { draft, setDraft, dirty, discard, seed } = useDraft(data, (d) => d, persisted);

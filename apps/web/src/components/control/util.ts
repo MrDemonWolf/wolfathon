@@ -1,6 +1,7 @@
+import { pad2 } from "@wolfathon/api/timer";
+
 /** `YYYYMMDD-HHMM` stamp for export filenames. */
 export function nowStamp(): string {
 	const d = new Date();
-	const p = (n: number) => String(n).padStart(2, "0");
-	return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+	return `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}-${pad2(d.getHours())}${pad2(d.getMinutes())}`;
 }
