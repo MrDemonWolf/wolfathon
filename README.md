@@ -213,7 +213,10 @@ behavior with **Auto-pause when the stream goes offline** on the Timer tab
 (default on).
 
 Scopes requested: `channel:read:subscriptions`, `bits:read`,
-`channel:read:redemptions`. The EventSub callback is your API Worker at
+`channel:read:redemptions`, `channel:manage:redemptions` (create/remove the
+timer's channel-point rewards), and `user:read:chat` / `user:bot` /
+`channel:bot` (read chat for the giveaway `!enter` raffle over EventSub). The
+EventSub callback is your API Worker at
 `/twitch/eventsub`; every event is HMAC-verified, deduplicated, and rejected
 if the signature is wrong or older than 10 minutes. The app credentials come
 from the Worker env (`TWITCH_CLIENT_ID` / `TWITCH_CLIENT_SECRET`); only the
@@ -435,11 +438,17 @@ renders broken.
    bun run dev
    ```
 
+   If `bun run dev` segfaults (Bun executing the Alchemy program), run the web
+   app on its own instead — Next on port 3001, with a local miniflare D1:
+
+   ```bash
+   cd apps/web && bun run dev:bare
+   ```
+
 ### Development Scripts
 
-- `bun run dev` - Start the web app and server together (via Alchemy).
-- `bun run dev:web` - Start only the web app.
-- `bun run dev:server` - Start only the server.
+- `bun run dev` - Start the web app and server together (via Alchemy). If it
+  segfaults, use `cd apps/web && bun run dev:bare` (web only, port 3001).
 - `bun run build` - Build all applications.
 - `bun run check-types` - Type-check across the monorepo.
 - `bun run test` - Run the domain test suite (`packages/api/src`).
@@ -455,8 +464,8 @@ renders broken.
 - Shared design tokens and components in `packages/ui`.
 - Domain logic and validation centralized in `packages/api` and reused by the
   overlays, the control panel, and the Twitch webhook.
-- Pure-function domain modules (timer, wheel, giveaway, theme, backup) covered
-  by `bun test`, kept separate from persistence so they stay easy to test.
+- Pure-function domain modules (timer, wheel, giveaway, theme, bot, backup)
+  covered by `bun test`, kept separate from persistence so they stay easy to test.
 
 ## Deploying to Cloudflare
 
@@ -498,7 +507,8 @@ you.
 
 Two workflows in `.github/workflows` deploy on every push to `main`:
 
-- **CI** (`ci.yml`) - type-checks and builds on pull requests and pushes.
+- **CI** (`ci.yml`) - lints, checks formatting, type-checks, runs the domain
+  tests, and builds on pull requests and pushes.
 - **Deploy** (`deploy.yml`) - after CI succeeds on `main`, runs
   `bun run deploy` and smoke-tests the API.
 
@@ -569,7 +579,7 @@ wolfathon/
 │   ├── web/         # Next.js: /overlay/{timer,rewards,wheel} (OBS), /dashboard, /api/trpc
 │   └── server/      # Hono on Cloudflare Workers: public API + Twitch EventSub webhook
 ├── packages/
-│   ├── api/         # tRPC routers, timer/Twitch/wheel/giveaway domain, Access verification
+│   ├── api/         # tRPC routers, timer/Twitch/wheel/giveaway/bot domain, Access verification
 │   ├── db/          # Drizzle schema, D1 client, migrations
 │   ├── env/         # Typed environment access
 │   ├── ui/          # Shared design system (brand tokens, components)
@@ -582,7 +592,7 @@ wolfathon/
 
 ## License
 
-![GitHub license](https://img.shields.io/github/license/mrdemonwolf/wolfathon.svg?style=for-the-badge&logo=github)
+[![GitHub license](https://img.shields.io/github/license/mrdemonwolf/wolfathon.svg?style=for-the-badge&logo=github)](https://github.com/mrdemonwolf/wolfathon/blob/main/LICENSE)
 
 ## Contact
 
