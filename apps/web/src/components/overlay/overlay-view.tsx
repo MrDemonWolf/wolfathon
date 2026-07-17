@@ -222,12 +222,8 @@ export function OverlayView({
 															}}
 														/>
 													</div>
-													<div
-														className="mt-[1.4cqw] text-[2.7cqw] font-bold tracking-wide tabular-nums"
-														style={{ color: `${accent}d9` }}
-													>
-														{currentSubs} / {nextTarget} subs
-													</div>
+													{/* Visual bar only — the fill ratio, never the count/target.
+													    The tracker shows NAMES, never numbers (contract above). */}
 												</div>
 											)}
 										</>

@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { setAnnounceGifts, setCooldown, setEnabled, updateCommand } from "../bot";
 import { protectedProcedure, router } from "../index";
-import { mutateBot, readBot, readTwitch, writeTwitch } from "../store";
+import { mutateBot, mutateTwitch, readBot, readTwitch } from "../store";
 import { BOT_SCOPES, buildAuthorizeUrl } from "../twitch";
 import { randomToken } from "../util";
 import { requireCreds, requireRedirectUri } from "./creds";
@@ -39,8 +39,8 @@ export const botRouter = router({
 		const redirectUri = requireRedirectUri(ctx);
 		// `bot.`-prefixed state routes the shared callback to the bot-account path.
 		const state = `bot.${randomToken()}`;
-		const doc = await readTwitch(ctx.db);
-		await writeTwitch(ctx.db, { ...doc, botOauthState: state });
+		// CAS merge — don't clobber a concurrent broadcaster connect / webhook write.
+		await mutateTwitch(ctx.db, (cur) => ({ ...cur, botOauthState: state }));
 		return {
 			url: buildAuthorizeUrl({
 				clientId,
@@ -54,8 +54,7 @@ export const botRouter = router({
 
 	/** Forget the connected bot account (leaves command config intact). */
 	disconnect: protectedProcedure.mutation(async ({ ctx }) => {
-		const doc = await readTwitch(ctx.db);
-		await writeTwitch(ctx.db, { ...doc, bot: undefined, botOauthState: undefined });
+		await mutateTwitch(ctx.db, (cur) => ({ ...cur, bot: undefined, botOauthState: undefined }));
 		return { connected: false };
 	}),
 

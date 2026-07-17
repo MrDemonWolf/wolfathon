@@ -2,7 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import { protectedProcedure, router } from "../index";
-import { readTwitch, writeTwitch } from "../store";
+import { mutateTwitch, readTwitch, writeTwitch } from "../store";
 import {
 	buildAuthorizeUrl,
 	type ChannelEmote,
@@ -28,9 +28,9 @@ export const twitchRouter = router({
 	startAuth: protectedProcedure.mutation(async ({ ctx }) => {
 		const { clientId } = requireCreds(ctx);
 		const redirectUri = requireRedirectUri(ctx);
-		const doc = await readTwitch(ctx.db);
 		const state = randomToken();
-		await writeTwitch(ctx.db, { ...doc, oauthState: state });
+		// CAS merge — don't clobber a concurrent webhook (recentEventIds) / bot write.
+		await mutateTwitch(ctx.db, (cur) => ({ ...cur, oauthState: state }));
 		return { url: buildAuthorizeUrl({ clientId, redirectUri, state }) };
 	}),
 

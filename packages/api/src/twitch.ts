@@ -403,20 +403,23 @@ export async function finalizeConnection(args: {
 	tokens: TokenSet;
 	eventsubCallback: string;
 	/**
-	 * Persist the partial doc (tokens + broadcaster + webhook secret) to D1 BEFORE
-	 * the EventSub subscriptions are created. Twitch verifies the webhook with a
-	 * synchronous challenge during creation, and the server Worker reads the
-	 * secret from D1 to answer it — so on a first connect the secret must already
-	 * be stored, or verification 404s and the subscription is dropped forever.
+	 * Merge the pre-EventSub connection fields (tokens + broadcaster + webhook
+	 * secret) onto the LIVE doc BEFORE the subscriptions are created. Twitch
+	 * verifies the webhook with a synchronous challenge during creation, and the
+	 * server Worker reads the secret from D1 to answer it — so on a first connect
+	 * the secret must already be stored, or verification 404s and the
+	 * subscription is dropped forever. The caller applies this via a CAS merge so
+	 * a concurrent webhook / bot-token write is not clobbered.
 	 */
-	persist: (doc: TwitchDoc) => Promise<void>;
-}): Promise<{ doc: TwitchDoc; errors: string[] }> {
+	persist: (patch: Partial<TwitchDoc>) => Promise<void>;
+}): Promise<{ patch: Partial<TwitchDoc>; errors: string[] }> {
 	const { clientId, clientSecret, prev, tokens } = args;
 	const broadcaster = await getBroadcaster(clientId, tokens.accessToken);
 	const webhookSecret = prev.webhookSecret ?? randomToken();
 
-	const base: TwitchDoc = {
-		...prev,
+	// Only the connection-owned fields — merged onto the live doc so unrelated
+	// fields (recentEventIds, bot) survive.
+	const prePatch: Partial<TwitchDoc> = {
 		oauthState: undefined,
 		accessToken: tokens.accessToken,
 		refreshToken: tokens.refreshToken,
@@ -425,7 +428,7 @@ export async function finalizeConnection(args: {
 		broadcasterLogin: broadcaster.login,
 		webhookSecret,
 	};
-	await args.persist(base);
+	await args.persist(prePatch);
 
 	const appToken = await getAppToken(clientId, clientSecret);
 	// Reconcile only THIS broadcaster's subscriptions — clears orphans left by an
@@ -453,8 +456,8 @@ export async function finalizeConnection(args: {
 		.filter((t) => t.length > 0);
 
 	return {
-		doc: {
-			...base,
+		patch: {
+			...prePatch,
 			subscriptionIds: ids,
 			failedSubscriptionTypes,
 			failedSubscriptionReasons: errors,
@@ -607,12 +610,21 @@ export async function deleteSubscriptions(
 	ids: string[],
 ): Promise<void> {
 	await Promise.all(
-		ids.map((id) =>
-			fetch(`${HELIX}/eventsub/subscriptions?id=${encodeURIComponent(id)}`, {
+		ids.map(async (id) => {
+			const res = await fetch(`${HELIX}/eventsub/subscriptions?id=${encodeURIComponent(id)}`, {
 				method: "DELETE",
 				headers: helixHeaders(clientId, appToken),
-			}),
-		),
+			});
+			// 204 = deleted; 404 = already gone (treat as success). Anything else
+			// (401/429/5xx) MUST throw — a silent failure would let a caller wipe the
+			// stored webhook secret / subscription IDs while the sub is still live.
+			if (!res.ok && res.status !== 404) {
+				throw new TwitchAuthError(
+					res.status,
+					`delete subscription ${id} failed: ${res.status} ${await res.text()}`,
+				);
+			}
+		}),
 	);
 }
 
