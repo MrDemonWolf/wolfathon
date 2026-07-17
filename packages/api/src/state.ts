@@ -16,6 +16,7 @@ import {
 	validateOverlayTheme,
 } from "./theme";
 import type { TimerEvent } from "./timer";
+import { isPlainObject } from "./util";
 
 /** A goal as stored internally (includes the private `note`). */
 export type Goal = {
@@ -252,7 +253,7 @@ function cleanNote(note: unknown): string | undefined {
 export function validateImport(input: unknown): ImportResult {
 	const errors: ImportError[] = [];
 
-	if (typeof input !== "object" || input === null || Array.isArray(input)) {
+	if (!isPlainObject(input)) {
 		return { ok: false, errors: [{ index: -1, message: "Document must be a JSON object." }] };
 	}
 
@@ -275,7 +276,7 @@ export function validateImport(input: unknown): ImportResult {
 
 	const normalized: Goal[] = [];
 	goals.forEach((raw, index) => {
-		if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+		if (!isPlainObject(raw)) {
 			errors.push({ index, message: "Goal must be an object." });
 			return;
 		}
