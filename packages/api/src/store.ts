@@ -24,6 +24,7 @@ import { type WheelDoc, defaultWheelDoc, withWheelDefaults } from "./wheel";
  *   "giveaway" → giveaway gifters / entrants / winners (operator-only)
  *   "wheel"    → wheel-of-dares slots / history / live pending spin
  *   "bot"      → chat-bot commands + cooldown (bot OAuth creds live in "twitch")
+ *   "settings" → operator settings (the overlay token in the OBS source URLs)
  */
 const STATE_ID = "default";
 const TIMER_ID = "timer";
@@ -238,6 +239,11 @@ export async function readWheel(db: Db): Promise<WheelDoc> {
 
 export async function writeWheel(db: Db, doc: WheelDoc): Promise<WheelDoc> {
 	return writeDoc(db, WHEEL_ID, doc);
+}
+
+/** Concurrency-safe wheel mutation (missing keys backfilled on read, like readWheel). */
+export function mutateWheel(db: Db, fn: (doc: WheelDoc) => WheelDoc): Promise<WheelDoc> {
+	return mutateDoc(db, WHEEL_ID, defaultWheelDoc, (raw) => fn(withWheelDefaults(raw)));
 }
 
 // ---- chat bot -------------------------------------------------------------
