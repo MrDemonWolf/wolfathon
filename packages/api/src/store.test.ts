@@ -72,6 +72,41 @@ test("retries on a lost update so concurrent deliveries both survive", async () 
 	expect(JSON.parse(s.get() ?? "{}")).toEqual({ ms: 15, subs: 2 });
 });
 
+test("a connection-field merge preserves a concurrently-written field (OAuth callback vs webhook)", async () => {
+	// finding-2 regression: the OAuth callback merges only the connection-owned
+	// fields via CAS. A webhook writing recentEventIds between the callback's read
+	// and its CAS must survive — the callback must not clobber it with a stale doc.
+	type Twitch = { connected?: boolean; accessToken?: string; recentEventIds?: string[] };
+	const s = makeStore(JSON.stringify({ recentEventIds: ["evt-1"] } satisfies Twitch));
+	let injected = false;
+	const ops = {
+		...s.ops,
+		read: async () => {
+			const r = await s.ops.read();
+			if (!injected) {
+				injected = true; // a webhook appends an event id after our read, before our CAS
+				s.set(JSON.stringify({ recentEventIds: ["evt-1", "evt-2"] } satisfies Twitch));
+			}
+			return r;
+		},
+	};
+	const result = await mutateWithCas<Twitch>(
+		ops,
+		() => ({}),
+		(cur) => ({
+			...cur,
+			connected: true,
+			accessToken: "tok",
+		}),
+	);
+	// Both the webhook's recentEventIds AND our connection fields land.
+	expect(result).toEqual({
+		recentEventIds: ["evt-1", "evt-2"],
+		connected: true,
+		accessToken: "tok",
+	});
+});
+
 test("seeds an absent row then applies", async () => {
 	const s = makeStore(null);
 	const result = await mutateWithCas<Doc>(

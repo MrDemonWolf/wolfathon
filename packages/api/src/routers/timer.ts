@@ -200,7 +200,7 @@ export const timerRouter = router({
 			}
 			// CAS the rule in, re-checking the cap inside the apply (a concurrent create
 			// could have raced us between the read above and here).
-			return mutateTimer(ctx.db, (doc) => {
+			const saved = await mutateTimer(ctx.db, (doc) => {
 				if (doc.config.channelPoints.length >= MAX_CHANNEL_POINT_RULES) return doc;
 				return {
 					...doc,
@@ -213,6 +213,28 @@ export const timerRouter = router({
 					},
 				};
 			});
+			// If the CAS hit the cap (a concurrent create won the last slot), our reward
+			// was never stored — it would linger on Twitch adding no time and be
+			// unremovable from the panel. Compensate by deleting it (best-effort, like
+			// removeChannelReward) and report the conflict.
+			if (!saved.config.channelPoints.some((r) => r.rewardId === reward.id)) {
+				try {
+					await deleteCustomReward({
+						clientId,
+						userToken,
+						broadcasterId: twitch.broadcasterId!,
+						rewardId: reward.id,
+					});
+				} catch {
+					// swallow — the reward may linger on Twitch; the operator can delete it
+					// in Twitch's editor. Still surface the conflict below.
+				}
+				throw new TRPCError({
+					code: "CONFLICT",
+					message: `At the ${MAX_CHANNEL_POINT_RULES}-reward limit — another reward was just added.`,
+				});
+			}
+			return saved;
 		}),
 
 	/**
