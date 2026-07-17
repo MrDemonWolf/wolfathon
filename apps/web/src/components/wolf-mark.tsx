@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { cn } from "@wolfathon/ui/lib/utils";
+
 /**
  * The Wolfathon mark.
  *
@@ -15,7 +17,10 @@ export function WolfMark({ className }: { className?: string }) {
 	const [useLogo, setUseLogo] = useState(true);
 
 	return (
-		<span className={className} role="img" aria-label="Wolfathon">
+		// `inline-block` so width/height classes (`size-*`) always constrain the
+		// mark, even when it isn't a flex item. A caller's own display class wins
+		// via tailwind-merge.
+		<span className={cn("inline-block", className)} role="img" aria-label="Wolfathon">
 			{useLogo ? (
 				// Plain <img> (not next/image) so a missing file degrades gracefully.
 				// eslint-disable-next-line @next/next/no-img-element
