@@ -5,18 +5,19 @@ import { Button } from "@wolfathon/ui/components/button";
 import Link from "next/link";
 import { toast } from "sonner";
 
-import { controlTrpc, queryClient } from "@/utils/trpc";
+import { controlTrpc } from "@/utils/trpc";
 
 import { DirtyBar } from "./dirty-bar";
 import { TimerConfigPanel } from "./timer-config-panel";
 import { TimerPanel } from "./timer-panel";
 import { TimerPreview } from "./timer-preview";
+import { useControlDoc } from "./use-control-doc";
 import { useDraft } from "./use-draft";
 
 export function TimerTab() {
-	const rawOptions = controlTrpc.timer.getRaw.queryOptions();
-	const { data, isLoading, isError, refetch } = useQuery(rawOptions);
-	const invalidate = () => queryClient.invalidateQueries({ queryKey: rawOptions.queryKey });
+	const { data, isLoading, isError, refetch, invalidate } = useControlDoc(
+		controlTrpc.timer.getRaw.queryOptions(),
+	);
 
 	// Overlay theme is global (Settings → Theme) — pull it in just so the preview
 	// renders with the operator's real colours.

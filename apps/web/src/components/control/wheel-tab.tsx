@@ -21,20 +21,21 @@ import { type DragEvent, useState } from "react";
 import { toast } from "sonner";
 
 import { LIVE_POLL_MS } from "@/utils/constants";
-import { controlTrpc, queryClient } from "@/utils/trpc";
+import { controlTrpc } from "@/utils/trpc";
 
+import { useControlDoc } from "./use-control-doc";
 import { WheelPreview } from "./wheel-preview";
 
 export function WheelTab() {
-	const rawOptions = controlTrpc.wheel.getRaw.queryOptions(undefined, {
-		// Poll so a spin triggered elsewhere (or the live history) shows up here.
-		refetchInterval: LIVE_POLL_MS,
-	});
-	const { data, isError, refetch } = useQuery(rawOptions);
+	const { data, isError, refetch, invalidate } = useControlDoc(
+		controlTrpc.wheel.getRaw.queryOptions(undefined, {
+			// Poll so a spin triggered elsewhere (or the live history) shows up here.
+			refetchInterval: LIVE_POLL_MS,
+		}),
+	);
 	// Overlay theme is global (Settings → Theme) — pull it in so the preview
 	// matches what OBS renders.
 	const { data: stateDoc } = useQuery(controlTrpc.state.getRaw.queryOptions());
-	const invalidate = () => queryClient.invalidateQueries({ queryKey: rawOptions.queryKey });
 	// Every mutation surfaces failures — the panel polls every 3s, so a silently
 	// rejected save/spin would otherwise just look like nothing happened.
 	const onError = (e: { message: string }) => toast.error(e.message);
