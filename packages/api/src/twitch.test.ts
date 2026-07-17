@@ -2,14 +2,54 @@ import { expect, test } from "bun:test";
 
 import {
 	buildAuthorizeUrl,
+	deleteSubscriptions,
 	isTestEvent,
 	parseEvent,
 	sendTestNotification,
 	TEST_EVENT_USER_ID,
 	TEST_EVENT_USER_LOGIN,
+	TwitchAuthError,
 	TWITCH_SCOPES,
 	verifyEventsubSignature,
 } from "./twitch";
+
+/** Swap globalThis.fetch for `impl` for the duration of `run`, then restore. */
+async function withFetch(impl: (url: string) => Response, run: () => Promise<void>): Promise<void> {
+	const real = globalThis.fetch;
+	globalThis.fetch = (async (input: RequestInfo | URL) => impl(String(input))) as typeof fetch;
+	try {
+		await run();
+	} finally {
+		globalThis.fetch = real;
+	}
+}
+
+test("deleteSubscriptions resolves when Twitch returns 204 (deleted) or 404 (already gone)", async () => {
+	await withFetch(
+		(url) => new Response(null, { status: url.includes("id=b") ? 404 : 204 }),
+		async () => {
+			await expect(deleteSubscriptions("cid", "app", ["a", "b"])).resolves.toBeUndefined();
+		},
+	);
+});
+
+test("deleteSubscriptions throws TwitchAuthError (with status) on 401/429/5xx — never a silent success", async () => {
+	for (const status of [401, 429, 500]) {
+		await withFetch(
+			() => new Response("nope", { status }),
+			async () => {
+				let caught: unknown;
+				try {
+					await deleteSubscriptions("cid", "app", ["a"]);
+				} catch (e) {
+					caught = e;
+				}
+				expect(caught).toBeInstanceOf(TwitchAuthError);
+				expect((caught as TwitchAuthError).status).toBe(status);
+			},
+		);
+	}
+});
 
 test("a gifted recipient's subscribe is ignored (counted via the gift event)", () => {
 	expect(parseEvent("channel.subscribe", { is_gift: true, tier: "1000" })).toBeNull();
