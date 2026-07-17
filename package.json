@@ -37,8 +37,6 @@
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
 		"test": "bun test packages/api/src",
-		"dev:web": "turbo -F web dev",
-		"dev:server": "turbo -F server dev",
 		"db:generate": "turbo -F @wolfathon/db db:generate",
 		"deploy": "turbo -F @wolfathon/infra deploy",
 		"destroy": "turbo -F @wolfathon/infra destroy"

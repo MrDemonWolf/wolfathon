@@ -53,15 +53,16 @@ Routes: operator panel at `/dashboard/*`; OBS sources at
 ## Where logic lives — reuse it, don't re-implement
 
 - **Pure domain modules** in `packages/api/src` (`timer.ts`, `wheel.ts`,
-  `giveaway.ts`, `theme.ts`, `state.ts`, backup) are kept separate from
-  persistence and covered by `bun test` (`bun run test`). Validation (Zod),
-  the CSPRNG draw, token-gating, and time math live here and are shared by the
-  overlays, the panel, and the Twitch webhook — add domain logic here, not in a
-  component or router.
-- **Shared UI** in `packages/ui/src` — components (`button`, `card`, `input`,
-  `checkbox`, `label`, `alert-dialog`, `dropdown-menu`, `skeleton`, `sonner`),
-  the `cn` helper (`lib/utils`), and `use-copy-to-clipboard`. Use these; do not
-  hand-roll a button/card/input or a second copy-to-clipboard.
+  `giveaway.ts`, `theme.ts`, `state.ts`, `bot.ts`, `twitch.ts`, backup, plus the
+  small shared `util.ts`) are kept separate from persistence and covered by
+  `bun test` (`bun run test`). Validation (Zod), the CSPRNG draw, token-gating,
+  and time math live here and are shared by the overlays, the panel, and the
+  Twitch webhook — add domain logic here, not in a component or router.
+- **Shared UI** in `packages/ui/src` — components (`button`, `input`,
+  `checkbox`, `label`, `alert-dialog`, `number-stepper`, `sonner`), the `cn`
+  helper (`lib/utils`), and `use-copy-to-clipboard`. Use these; do not hand-roll
+  a button/input or a second copy-to-clipboard, and reach for `cn` instead of a
+  ternary template-literal className.
 - Operator tab components live in `apps/web/src/components/control`, overlay
   rendering in `apps/web/src/components/overlay`.
 

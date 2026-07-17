@@ -4,9 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 /**
- * Copy-to-clipboard with a transient "copied" flash. Shared by the Twitch setup
- * URLs and the overlay URL cards, which all do the same writeText → flash → reset
- * dance. Pass `successMessage` to also fire a toast. Empty values are a no-op.
+ * Copy-to-clipboard with a transient "copied" flash. Shared by the copy buttons
+ * that do the same writeText → flash → reset dance (overlay URL cards, the winner
+ * list, import/export). Pass `successMessage` to also fire a toast. Empty values
+ * are a no-op.
  */
 export function useCopyToClipboard(resetMs = 1500): {
 	copied: boolean;
