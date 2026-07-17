@@ -4,6 +4,8 @@
  * their own geometry (a capsule vs a card map `corners` to different radii).
  */
 
+import { isPlainObject } from "./util";
+
 export type ThemePreset = "brand" | "sunset" | "aurora" | "mono" | "custom";
 export type ThemeFont = "montserrat" | "roboto" | "poppins" | "inter" | "system";
 export type ThemeCorners = "rounded" | "pill" | "sharp";
@@ -95,6 +97,15 @@ export function expandHex(hex: string, fallback = BRAND_ACCENT): string {
 		return `#${r}${r}${g}${g}${b}${b}`;
 	}
 	return /^#[0-9a-fA-F]{6}$/.test(v) ? v : fallback;
+}
+
+/**
+ * A stored/user hex normalized to `#rrggbb`, or `undefined` when the value is
+ * absent or not a valid hex. The "validate-or-drop" companion to {@link expandHex}
+ * (which always returns a colour); callers `?? fallback` to pick their own default.
+ */
+export function normalizeHex(value: unknown): string | undefined {
+	return typeof value === "string" && HEX_COLOR.test(value) ? expandHex(value) : undefined;
 }
 
 /** Built-in capsule gradients. `brand` is the default (MrDemonWolf blue). */
@@ -226,7 +237,7 @@ export function validateOverlayTheme(
 ): OverlayTheme {
 	const theme = defaultOverlayTheme();
 	if (raw === undefined) return theme;
-	if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+	if (!isPlainObject(raw)) {
 		errors.push({ path: at, message: "must be an object" });
 		return theme;
 	}

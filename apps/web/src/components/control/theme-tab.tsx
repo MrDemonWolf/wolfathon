@@ -1,18 +1,19 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import type { Data } from "@wolfathon/api/state";
 import type { OverlayTheme } from "@wolfathon/api/theme";
 import { defaultTimerConfig, type TimerDoc } from "@wolfathon/api/timer";
 import { useMemo } from "react";
 import { toast } from "sonner";
 
-import { controlTrpc, queryClient } from "@/utils/trpc";
+import { controlTrpc } from "@/utils/trpc";
 
 import { DirtyBar } from "./dirty-bar";
 import { OverlayPreview } from "./overlay-preview";
 import { ThemeEditor } from "./theme-editor";
 import { TimerPreview } from "./timer-preview";
+import { useControlDoc } from "./use-control-doc";
 import { useDraft } from "./use-draft";
 
 /** Dummy timer doc for the preview — a running clock with a few hours left. */
@@ -56,9 +57,9 @@ function dummyData(theme: OverlayTheme): Data {
  * without touching their live goals or timer.
  */
 export function ThemeTab() {
-	const rawOptions = controlTrpc.state.getRaw.queryOptions();
-	const { data, isLoading, isError, refetch } = useQuery(rawOptions);
-	const invalidate = () => queryClient.invalidateQueries({ queryKey: rawOptions.queryKey });
+	const { data, isLoading, isError, refetch, invalidate } = useControlDoc(
+		controlTrpc.state.getRaw.queryOptions(),
+	);
 
 	const setTheme = useMutation(controlTrpc.state.setTheme.mutationOptions());
 	const { draft, setDraft, dirty, discard, seed } = useDraft(

@@ -1,10 +1,11 @@
-import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import { setAnnounceGifts, setCooldown, setEnabled, updateCommand } from "../bot";
 import { protectedProcedure, router } from "../index";
 import { mutateBot, readBot, readTwitch, writeTwitch } from "../store";
 import { BOT_SCOPES, buildAuthorizeUrl } from "../twitch";
+import { randomToken } from "../util";
+import { requireCreds, requireRedirectUri } from "./creds";
 
 /**
  * Operator-only chat-bot control. Returns the bot command config + a MASKED
@@ -34,26 +35,16 @@ export const botRouter = router({
 	 * different account than the one already logged in.
 	 */
 	startAuth: protectedProcedure.mutation(async ({ ctx }) => {
-		const clientId = ctx.twitch?.clientId;
-		if (!clientId || !ctx.twitch?.clientSecret) {
-			throw new TRPCError({
-				code: "BAD_REQUEST",
-				message: "Set TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET in the environment, then redeploy.",
-			});
-		}
-		if (!ctx.twitch?.redirectUri) {
-			throw new TRPCError({
-				code: "INTERNAL_SERVER_ERROR",
-				message: "OAuth redirect URI not configured.",
-			});
-		}
-		const state = `bot.${crypto.randomUUID().replace(/-/g, "")}`;
+		const { clientId } = requireCreds(ctx);
+		const redirectUri = requireRedirectUri(ctx);
+		// `bot.`-prefixed state routes the shared callback to the bot-account path.
+		const state = `bot.${randomToken()}`;
 		const doc = await readTwitch(ctx.db);
 		await writeTwitch(ctx.db, { ...doc, botOauthState: state });
 		return {
 			url: buildAuthorizeUrl({
 				clientId,
-				redirectUri: ctx.twitch.redirectUri,
+				redirectUri,
 				state,
 				scopes: BOT_SCOPES,
 				forceVerify: true,

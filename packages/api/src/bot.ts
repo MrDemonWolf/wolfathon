@@ -18,9 +18,10 @@
  * live data. The value formatters live here (pure) so they stay tested.
  */
 
-import type { GiveawayDoc } from "./giveaway";
+import { CLAIM_WINDOW_MS, type GiveawayDoc } from "./giveaway";
 import type { Data } from "./state";
 import { currentRemainingMs, splitDuration, type TimerDoc } from "./timer";
+import { firstToken } from "./util";
 import type { WheelDoc } from "./wheel";
 
 /**
@@ -267,7 +268,7 @@ function isGiftBatch(v: unknown): v is GiftBatch {
 /** Find the enabled command a chat line triggers, or null. `text` is the raw message. */
 export function matchCommand(doc: BotDoc, text: string): BotCommand | null {
 	if (!doc.enabled) return null;
-	const first = text.trim().split(/\s+/)[0]?.toLowerCase();
+	const first = firstToken(text);
 	if (!first || !first.startsWith("!")) return null;
 	return (
 		doc.commands.find((c) => c.enabled && c.triggers.some((t) => t.toLowerCase() === first)) ?? null
@@ -402,7 +403,7 @@ export function buildGiftAnnouncement(batch: GiftBatch, minutesAdded: number): s
 // ---- giveaway draw → claim chat lines (pure) ------------------------------
 
 /** Minutes a drawn raffle winner has to claim (derived from {@link CLAIM_WINDOW_MS}). */
-const GIVEAWAY_CLAIM_MINUTES = 5;
+const GIVEAWAY_CLAIM_MINUTES = CLAIM_WINDOW_MS / 60_000;
 
 /** "You won — type !claim" line posted right after a raffle draw. */
 export function buildGiveawayDrawAnnouncement(name: string): string {

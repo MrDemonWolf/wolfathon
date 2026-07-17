@@ -17,6 +17,7 @@ import {
 	type ThemeCorners,
 	type ThemeFont,
 } from "./theme";
+import { isPlainObject } from "./util";
 
 /**
  * Which way the time-add emote burst travels across the timer capsule.
@@ -528,12 +529,12 @@ function num(
  */
 export function validateTimerConfig(input: unknown): TimerConfigResult {
 	const errors: TimerConfigError[] = [];
-	if (typeof input !== "object" || input === null || Array.isArray(input)) {
+	if (!isPlainObject(input)) {
 		return { ok: false, errors: [{ path: "(root)", message: "must be a JSON object" }] };
 	}
 	// Unwrap a full export ({ config, state }) or take the object as the config.
-	const raw = (input as Record<string, unknown>).config ?? input;
-	if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+	const raw = input.config ?? input;
+	if (!isPlainObject(raw)) {
 		return { ok: false, errors: [{ path: "config", message: "must be an object" }] };
 	}
 	const r = raw as Record<string, unknown>;

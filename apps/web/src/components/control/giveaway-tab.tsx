@@ -1,12 +1,14 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import {
 	CLAIM_WINDOW_MS,
 	type Entrant,
-	type GiveawayDoc,
+	qualifyingGifters,
 	type Winner,
+	winnersText,
 } from "@wolfathon/api/giveaway";
+import { pad2 } from "@wolfathon/api/timer";
 import {
 	AlertDialog,
 	AlertDialogClose,
@@ -20,6 +22,7 @@ import { Button } from "@wolfathon/ui/components/button";
 import { Checkbox } from "@wolfathon/ui/components/checkbox";
 import { Input } from "@wolfathon/ui/components/input";
 import { Label } from "@wolfathon/ui/components/label";
+import { cn } from "@wolfathon/ui/lib/utils";
 import { useCopyToClipboard } from "@wolfathon/ui/hooks/use-copy-to-clipboard";
 import {
 	Check,
@@ -40,7 +43,9 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { LIVE_POLL_MS } from "@/utils/constants";
-import { controlTrpc, queryClient } from "@/utils/trpc";
+import { controlTrpc } from "@/utils/trpc";
+
+import { useControlDoc } from "./use-control-doc";
 
 // ponytail: render at most this many entrant rows. A raffle pool can reach
 // MAX_ENTRANTS (5000) and we don't want 5000 DOM nodes — the filter box narrows
@@ -52,20 +57,14 @@ const ENTRANT_RENDER_CAP = 200;
 const COMMAND_PRESETS = ["!enter", "!join", "!giveaway"] as const;
 const THRESHOLD_PRESETS = [3, 5, 10] as const;
 
-/** Active/idle styling for a one-tap preset chip (matches the bot-panel presets). */
+/** Active/idle styling for a one-tap preset chip (command / threshold / winner-source). */
 function chipCls(active: boolean): string {
-	return `rounded-lg border px-3 py-1.5 text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
+	return cn(
+		"rounded-lg border px-3 py-1.5 text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
 		active
 			? "border-primary/60 bg-primary/10 text-foreground"
-			: "border-border text-muted-foreground hover:border-primary/40 hover:bg-accent"
-	}`;
-}
-
-/** Gifters who reached the threshold, earliest first ("first to gift N+"). */
-function qualifying(doc: GiveawayDoc) {
-	return doc.gifters
-		.filter((g) => g.qualifiedAt != null)
-		.sort((a, b) => (a.qualifiedAt ?? 0) - (b.qualifiedAt ?? 0));
+			: "border-border text-muted-foreground hover:border-primary/40 hover:bg-accent",
+	);
 }
 
 /** Compact relative time ("12s ago"). Recomputed each 3s poll — no timer needed. */
@@ -82,19 +81,10 @@ function ago(ms: number, now: number) {
 /** "4:07" countdown from a remaining-ms value (clamped at 0:00). */
 function mmss(ms: number) {
 	const s = Math.max(0, Math.ceil(ms / 1000));
-	return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+	return `${Math.floor(s / 60)}:${pad2(s % 60)}`;
 }
 
 const twitchUrl = (login: string) => `https://twitch.tv/${login}`;
-
-/** Paste-friendly winner list, grouped by source — for copying into chat/DMs. */
-function winnersText(gift: Winner[], raffle: Winner[]): string {
-	const line = (w: Winner, i: number) => `${i + 1}. ${w.name} (@${w.login})`;
-	const parts: string[] = [];
-	if (gift.length) parts.push(`Gift sub winners:\n${gift.map(line).join("\n")}`);
-	if (raffle.length) parts.push(`Raffle winners:\n${raffle.map(line).join("\n")}`);
-	return parts.join("\n\n");
-}
 
 /** Brand-tinted initial bubble — we only have login/name, no avatar URLs. */
 function Avatar({ name, className = "" }: { name: string; className?: string }) {
@@ -123,12 +113,12 @@ function Stat({ label, value, accent }: { label: string; value: number; accent?:
 }
 
 export function GiveawayTab() {
-	const rawOptions = controlTrpc.giveaway.getRaw.queryOptions(undefined, {
-		// Poll so live gifters / entrants appear without a manual refresh.
-		refetchInterval: LIVE_POLL_MS,
-	});
-	const { data, isError, refetch } = useQuery(rawOptions);
-	const invalidate = () => queryClient.invalidateQueries({ queryKey: rawOptions.queryKey });
+	const { data, isError, refetch, invalidate } = useControlDoc(
+		controlTrpc.giveaway.getRaw.queryOptions(undefined, {
+			// Poll so live gifters / entrants appear without a manual refresh.
+			refetchInterval: LIVE_POLL_MS,
+		}),
+	);
 	// Every mutation surfaces failures — the panel polls every 3s, so a silently
 	// rejected save/draw/reset would otherwise just look like nothing happened.
 	const onError = (e: { message: string }) => toast.error(e.message);
@@ -281,7 +271,7 @@ export function GiveawayTab() {
 	const now = Date.now();
 	const cfg = data.config;
 	const started = data.startedAt != null;
-	const gifters = qualifying(data);
+	const gifters = qualifyingGifters(data);
 	const giftWinners = data.winners.filter((w) => w.source === "gift");
 	const raffleWinners = data.winners.filter((w) => w.source === "raffle");
 	const wonLogins = new Set(data.winners.map((w) => w.login));
