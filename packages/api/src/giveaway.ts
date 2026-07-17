@@ -11,6 +11,7 @@
  */
 
 import { secureRandom } from "./random";
+import { clampInt, firstToken } from "./util";
 
 export type WinnerSource = "gift" | "raffle";
 
@@ -152,7 +153,7 @@ export function parseGiveawayEvent(
 	if (type === "channel.chat.message") {
 		const text = (event.message as { text?: unknown } | undefined)?.text;
 		if (typeof text !== "string") return null;
-		const first = text.trim().split(/\s+/)[0]?.toLowerCase();
+		const first = firstToken(text);
 		if (!first || first !== command.trim().toLowerCase()) return null;
 		const login =
 			typeof event.chatter_user_login === "string" ? event.chatter_user_login.toLowerCase() : "";
@@ -207,6 +208,15 @@ export function qualifyingGifters(doc: GiveawayDoc): Gifter[] {
 		.sort((a, b) => (a.qualifiedAt ?? 0) - (b.qualifiedAt ?? 0));
 }
 
+/** Paste-friendly winner list, grouped by source — for copying into chat/DMs. */
+export function winnersText(gift: Winner[], raffle: Winner[]): string {
+	const line = (w: Winner, i: number) => `${i + 1}. ${w.name} (@${w.login})`;
+	const parts: string[] = [];
+	if (gift.length) parts.push(`Gift sub winners:\n${gift.map(line).join("\n")}`);
+	if (raffle.length) parts.push(`Raffle winners:\n${raffle.map(line).join("\n")}`);
+	return parts.join("\n\n");
+}
+
 /** Add a winner if that login hasn't already won. */
 export function addWinner(
 	doc: GiveawayDoc,
@@ -245,6 +255,11 @@ function armPendingClaim(doc: GiveawayDoc, pick: Entrant, now: number): Giveaway
 	};
 }
 
+/** Pick one entrant uniformly at random from a pool (null if empty). `rand` injected for tests. */
+function pickEntrant(pool: Entrant[], rand: () => number): Entrant | null {
+	return pool.length === 0 ? null : pool[Math.floor(rand() * pool.length)]!;
+}
+
 /**
  * Draw one raffle winner from entrants not already won. Returns the new doc and
  * the picked entrant (null if the pool is empty). Defaults to a crypto CSPRNG so
@@ -259,9 +274,11 @@ export function drawRaffle(
 	rand: () => number = secureRandom,
 ): { doc: GiveawayDoc; winner: Entrant | null } {
 	const taken = new Set(doc.winners.map((w) => w.login));
-	const pool = doc.entrants.filter((e) => !taken.has(e.login));
-	if (pool.length === 0) return { doc, winner: null };
-	const pick = pool[Math.floor(rand() * pool.length)]!;
+	const pick = pickEntrant(
+		doc.entrants.filter((e) => !taken.has(e.login)),
+		rand,
+	);
+	if (!pick) return { doc, winner: null };
 	const withWinner = addWinner(doc, { ...pick, source: "raffle" }, now);
 	return { doc: armPendingClaim(withWinner, pick, now), winner: pick };
 }
@@ -283,9 +300,11 @@ export function rerollRaffle(
 	const without = removeWinner(doc, id);
 	const taken = new Set(without.winners.map((w) => w.login));
 	taken.add(target.login); // don't re-pick the person we just rerolled out
-	const pool = without.entrants.filter((e) => !taken.has(e.login));
-	if (pool.length === 0) return { doc, winner: null };
-	const pick = pool[Math.floor(rand() * pool.length)]!;
+	const pick = pickEntrant(
+		without.entrants.filter((e) => !taken.has(e.login)),
+		rand,
+	);
+	if (!pick) return { doc, winner: null };
 	const withWinner = addWinner(without, { ...pick, source: "raffle" }, now);
 	// A reroll IS the redraw: the fresh winner now owes a `!claim`.
 	return { doc: armPendingClaim(withWinner, pick, now), winner: pick };
@@ -377,15 +396,25 @@ export function applyConfig(doc: GiveawayDoc, patch: ConfigPatch): GiveawayDoc {
 		patch.command !== undefined
 			? patch.command.trim().slice(0, MAX_COMMAND_LENGTH) || c.command
 			: c.command;
-	const clampInt = (v: number | undefined, fallback: number, min: number, max: number) =>
-		v === undefined || !Number.isFinite(v) ? fallback : Math.max(min, Math.min(max, Math.round(v)));
 	return {
 		...doc,
 		config: {
 			command,
-			giftThreshold: clampInt(patch.giftThreshold, c.giftThreshold, 1, 1000),
-			giftWinnerSlots: clampInt(patch.giftWinnerSlots, c.giftWinnerSlots, 0, 100),
-			raffleWinnerSlots: clampInt(patch.raffleWinnerSlots, c.raffleWinnerSlots, 0, 100),
+			giftThreshold: clampInt(patch.giftThreshold, {
+				min: 1,
+				max: 1000,
+				fallback: c.giftThreshold,
+			}),
+			giftWinnerSlots: clampInt(patch.giftWinnerSlots, {
+				min: 0,
+				max: 100,
+				fallback: c.giftWinnerSlots,
+			}),
+			raffleWinnerSlots: clampInt(patch.raffleWinnerSlots, {
+				min: 0,
+				max: 100,
+				fallback: c.raffleWinnerSlots,
+			}),
 			open: patch.open ?? c.open,
 			tosUrl: patch.tosUrl !== undefined ? normalizeTosUrl(patch.tosUrl) : (c.tosUrl ?? ""),
 		},

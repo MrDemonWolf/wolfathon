@@ -18,6 +18,8 @@ import {
 	setShipped,
 	setWinnerNote,
 	startGiveaway,
+	type Winner,
+	winnersText,
 } from "./giveaway";
 
 /** A 3-entrant, open, started doc — the common fixture for the raffle/claim tests. */
@@ -332,4 +334,18 @@ test("resetPool empties entrants + pending claim but keeps the round + winners",
 	expect(cleared.startedAt).toBe(0); // round still started
 	expect(cleared.config.open).toBe(true); // entries stay open for a fresh wave
 	expect(cleared.winners.map((w) => w.login).sort()).toEqual(["a", "z"]); // winners kept
+});
+
+test("winnersText groups winners by source; omits an empty group", () => {
+	const gift: Winner[] = [
+		{ id: "1", login: "ann", name: "Ann", source: "gift", shipped: false, drawnAt: 1 },
+	];
+	const raffle: Winner[] = [
+		{ id: "2", login: "bob", name: "Bob", source: "raffle", shipped: false, drawnAt: 2 },
+	];
+	expect(winnersText(gift, raffle)).toBe(
+		"Gift sub winners:\n1. Ann (@ann)\n\nRaffle winners:\n1. Bob (@bob)",
+	);
+	expect(winnersText(gift, [])).toBe("Gift sub winners:\n1. Ann (@ann)");
+	expect(winnersText([], [])).toBe("");
 });
