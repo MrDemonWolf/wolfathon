@@ -12,19 +12,8 @@ import {
 	sendTestNotification,
 	toStatus,
 } from "../twitch";
-
-/** App credentials come from the web Worker env, surfaced via ctx.twitch. */
-function requireCreds(ctx: { twitch?: { clientId?: string; clientSecret?: string } }) {
-	const clientId = ctx.twitch?.clientId;
-	const clientSecret = ctx.twitch?.clientSecret;
-	if (!clientId || !clientSecret) {
-		throw new TRPCError({
-			code: "BAD_REQUEST",
-			message: "Set TWITCH_CLIENT_ID and TWITCH_CLIENT_SECRET in the environment, then redeploy.",
-		});
-	}
-	return { clientId, clientSecret };
-}
+import { randomToken } from "../util";
+import { requireCreds, requireRedirectUri } from "./creds";
 
 /** Operator-only Twitch setup. Returns masked status — never secrets/tokens. */
 export const twitchRouter = router({
@@ -38,16 +27,11 @@ export const twitchRouter = router({
 	 */
 	startAuth: protectedProcedure.mutation(async ({ ctx }) => {
 		const { clientId } = requireCreds(ctx);
-		if (!ctx.twitch?.redirectUri) {
-			throw new TRPCError({
-				code: "INTERNAL_SERVER_ERROR",
-				message: "OAuth redirect URI not configured.",
-			});
-		}
+		const redirectUri = requireRedirectUri(ctx);
 		const doc = await readTwitch(ctx.db);
-		const state = crypto.randomUUID().replace(/-/g, "");
+		const state = randomToken();
 		await writeTwitch(ctx.db, { ...doc, oauthState: state });
-		return { url: buildAuthorizeUrl({ clientId, redirectUri: ctx.twitch.redirectUri, state }) };
+		return { url: buildAuthorizeUrl({ clientId, redirectUri, state }) };
 	}),
 
 	/** Channel emotes for the overlay emoji picker. Needs a connected broadcaster. */

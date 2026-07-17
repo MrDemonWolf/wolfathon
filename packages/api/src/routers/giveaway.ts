@@ -5,6 +5,7 @@ import {
 	applyConfig,
 	applyGiveawayEvent,
 	drawRaffle,
+	type Entrant,
 	removeWinner,
 	rerollRaffle,
 	resetPool,
@@ -14,7 +15,7 @@ import {
 	startGiveaway,
 } from "../giveaway";
 import { protectedProcedure, router } from "../index";
-import { readGiveaway, writeGiveaway } from "../store";
+import { mutateGiveaway, readGiveaway } from "../store";
 
 const loginSchema = z
 	.string()
@@ -42,29 +43,23 @@ export const giveawayRouter = router({
 				tosUrl: z.string().max(400).optional(),
 			}),
 		)
-		.mutation(async ({ ctx, input }) => {
-			const doc = await readGiveaway(ctx.db);
-			return writeGiveaway(ctx.db, applyConfig(doc, input));
-		}),
+		.mutation(async ({ ctx, input }) => mutateGiveaway(ctx.db, (doc) => applyConfig(doc, input))),
 
 	/** Start the round so gift events begin counting (gifts before this are ignored). */
-	start: protectedProcedure.mutation(async ({ ctx }) => {
-		const doc = await readGiveaway(ctx.db);
-		return writeGiveaway(ctx.db, startGiveaway(doc, Date.now()));
-	}),
+	start: protectedProcedure.mutation(async ({ ctx }) =>
+		mutateGiveaway(ctx.db, (doc) => startGiveaway(doc, Date.now())),
+	),
 
 	/** Confirm a qualifying gifter as a winner (the "auto-capture, you confirm" step). */
 	addGiftWinner: protectedProcedure
 		.input(z.object({ login: loginSchema }))
-		.mutation(async ({ ctx, input }) => {
-			const doc = await readGiveaway(ctx.db);
-			const gifter = doc.gifters.find((g) => g.login === input.login);
-			const name = gifter?.name ?? input.login;
-			return writeGiveaway(
-				ctx.db,
-				addWinner(doc, { login: input.login, name, source: "gift" }, Date.now()),
-			);
-		}),
+		.mutation(async ({ ctx, input }) =>
+			mutateGiveaway(ctx.db, (doc) => {
+				const gifter = doc.gifters.find((g) => g.login === input.login);
+				const name = gifter?.name ?? input.login;
+				return addWinner(doc, { login: input.login, name, source: "gift" }, Date.now());
+			}),
+		),
 
 	/**
 	 * Add a winner directly by login — the manual override for winners picked
@@ -79,38 +74,44 @@ export const giveawayRouter = router({
 				source: z.enum(["gift", "raffle"]).default("gift"),
 			}),
 		)
-		.mutation(async ({ ctx, input }) => {
-			const doc = await readGiveaway(ctx.db);
-			return writeGiveaway(
-				ctx.db,
+		.mutation(async ({ ctx, input }) =>
+			mutateGiveaway(ctx.db, (doc) =>
 				addWinner(
 					doc,
 					{ login: input.login, name: input.name?.trim() || input.login, source: input.source },
 					Date.now(),
 				),
-			);
-		}),
+			),
+		),
 
 	/**
 	 * Draw one raffle winner from the open pool. Arms a pending `!claim`; the
 	 * public Worker announces it and handles the claim/timeout IN CHAT — this
-	 * mutation only mutates the doc and never sends chat directly.
+	 * mutation only mutates the doc and never sends chat directly. The winner is
+	 * captured from inside the CAS apply, so a retry re-draws and the returned
+	 * winner always matches the persisted doc.
 	 */
 	drawRaffle: protectedProcedure.mutation(async ({ ctx }) => {
-		const doc = await readGiveaway(ctx.db);
-		const { doc: next, winner } = drawRaffle(doc, Date.now());
-		await writeGiveaway(ctx.db, next);
-		return { winner };
+		const out: { winner: Entrant | null } = { winner: null };
+		await mutateGiveaway(ctx.db, (doc) => {
+			const result = drawRaffle(doc, Date.now());
+			out.winner = result.winner;
+			return result.doc;
+		});
+		return out;
 	}),
 
 	/** Swap a raffle winner for a fresh draw (excludes the person rerolled out). */
 	reroll: protectedProcedure
 		.input(z.object({ id: z.string() }))
 		.mutation(async ({ ctx, input }) => {
-			const doc = await readGiveaway(ctx.db);
-			const { doc: next, winner } = rerollRaffle(doc, input.id, Date.now());
-			await writeGiveaway(ctx.db, next);
-			return { winner };
+			const out: { winner: Entrant | null } = { winner: null };
+			await mutateGiveaway(ctx.db, (doc) => {
+				const result = rerollRaffle(doc, input.id, Date.now());
+				out.winner = result.winner;
+				return result.doc;
+			});
+			return out;
 		}),
 
 	/**
@@ -119,52 +120,48 @@ export const giveawayRouter = router({
 	 */
 	addEntrant: protectedProcedure
 		.input(z.object({ login: loginSchema, name: z.string().trim().max(50).optional() }))
-		.mutation(async ({ ctx, input }) => {
-			const doc = await readGiveaway(ctx.db);
-			const next = applyGiveawayEvent(
-				{ ...doc, config: { ...doc.config, open: true } },
-				{ kind: "entry", login: input.login, name: input.name?.trim() || input.login },
-				Date.now(),
-			);
-			// Preserve the operator's real open/closed setting.
-			return writeGiveaway(ctx.db, { ...next, config: doc.config });
-		}),
+		.mutation(async ({ ctx, input }) =>
+			mutateGiveaway(ctx.db, (doc) => {
+				const next = applyGiveawayEvent(
+					{ ...doc, config: { ...doc.config, open: true } },
+					{ kind: "entry", login: input.login, name: input.name?.trim() || input.login },
+					Date.now(),
+				);
+				// Preserve the operator's real open/closed setting.
+				return { ...next, config: doc.config };
+			}),
+		),
 
 	setShipped: protectedProcedure
 		.input(z.object({ id: z.string(), shipped: z.boolean() }))
-		.mutation(async ({ ctx, input }) => {
-			const doc = await readGiveaway(ctx.db);
-			return writeGiveaway(ctx.db, setShipped(doc, input.id, input.shipped));
-		}),
+		.mutation(async ({ ctx, input }) =>
+			mutateGiveaway(ctx.db, (doc) => setShipped(doc, input.id, input.shipped)),
+		),
 
 	setNote: protectedProcedure
 		.input(z.object({ id: z.string(), note: z.string().max(500) }))
-		.mutation(async ({ ctx, input }) => {
-			const doc = await readGiveaway(ctx.db);
-			return writeGiveaway(ctx.db, setWinnerNote(doc, input.id, input.note));
-		}),
+		.mutation(async ({ ctx, input }) =>
+			mutateGiveaway(ctx.db, (doc) => setWinnerNote(doc, input.id, input.note)),
+		),
 
 	removeWinner: protectedProcedure
 		.input(z.object({ id: z.string() }))
-		.mutation(async ({ ctx, input }) => {
-			const doc = await readGiveaway(ctx.db);
-			return writeGiveaway(ctx.db, removeWinner(doc, input.id));
-		}),
+		.mutation(async ({ ctx, input }) =>
+			mutateGiveaway(ctx.db, (doc) => removeWinner(doc, input.id)),
+		),
 
 	/**
 	 * Empty the raffle pool (entrants + any pending claim) without un-starting the
 	 * round or clearing gift winners — for reopening `!enter` for a fresh wave.
 	 */
-	resetPool: protectedProcedure.mutation(async ({ ctx }) => {
-		const doc = await readGiveaway(ctx.db);
-		return writeGiveaway(ctx.db, resetPool(doc));
-	}),
+	resetPool: protectedProcedure.mutation(async ({ ctx }) =>
+		mutateGiveaway(ctx.db, (doc) => resetPool(doc)),
+	),
 
 	/** Clear gifters, entrants, and winners for a fresh round (keeps config). */
-	resetRound: protectedProcedure.mutation(async ({ ctx }) => {
-		const doc = await readGiveaway(ctx.db);
-		return writeGiveaway(ctx.db, resetRound(doc));
-	}),
+	resetRound: protectedProcedure.mutation(async ({ ctx }) =>
+		mutateGiveaway(ctx.db, (doc) => resetRound(doc)),
+	),
 });
 
 export type GiveawayRouter = typeof giveawayRouter;
