@@ -1,3 +1,4 @@
+import { TRPCError } from "@trpc/server";
 import { expect, test } from "bun:test";
 
 import { mutateWithCas } from "./store";
@@ -123,16 +124,20 @@ test("seeds an absent row then applies", async () => {
 	expect(result).toEqual({ ms: 0, subs: 1 });
 });
 
-test("throws after exhausting attempts when the CAS never lands", async () => {
+test("exhausting attempts surfaces a typed CONFLICT, not a bare Error", async () => {
+	// Reachable under a big gift bomb. A dropped write means lost Wolfathon time, so
+	// the operator must get something actionable rather than a generic 500 carrying
+	// an internal function name.
 	const s = makeStore(JSON.stringify({ ms: 0, subs: 0 }));
 	const ops = { ...s.ops, cas: async () => false };
-	await expect(
-		mutateWithCas<Doc>(
-			ops,
-			() => ({ ms: 0, subs: 0 }),
-			(d) => d,
-		),
-	).rejects.toThrow(/exceeded/);
+	const run = mutateWithCas<Doc>(
+		ops,
+		() => ({ ms: 0, subs: 0 }),
+		(d) => d,
+	);
+	await expect(run).rejects.toBeInstanceOf(TRPCError);
+	await expect(run).rejects.toMatchObject({ code: "CONFLICT" });
+	await expect(run).rejects.toThrow(/didn't save/);
 });
 
 test("an apply that changes nothing writes nothing", async () => {

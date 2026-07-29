@@ -40,6 +40,7 @@ import {
 } from "@wolfathon/api/twitch";
 import {
 	applyTimerEventAndBumpSubs,
+	claimEventId,
 	mutateBot,
 	mutateGiveaway,
 	mutateTimer,
@@ -50,6 +51,8 @@ import {
 	readTimer,
 	readWheel,
 	readTwitch,
+	seenInLegacyRing,
+	sweepSeenEventIds,
 } from "@wolfathon/api/store";
 import { createDb, type Db } from "@wolfathon/db";
 import { env } from "@wolfathon/env/server";
@@ -178,27 +181,27 @@ app.post("/twitch/eventsub", async (c) => {
 		// Nothing actionable → skip dedup write + all giveaway/timer reads.
 		if (!timerEvent && !maybeGiveaway && !isStreamState) return c.body(null, 204);
 
-		// Actionable — now the twitch doc is genuinely needed (dedupe ring + the bot's
-		// and gift-announcement's credentials). Ordinary chat never reaches here.
+		// Actionable — now the twitch doc is genuinely needed (the bot's and
+		// gift-announcement's credentials). Ordinary chat never reaches here.
 		const twitch = await loadTwitch();
-		const recent = twitch.recentEventIds ?? [];
-		if (messageId && recent.includes(messageId)) return c.body(null, 204); // already processed
 
-		// Idempotency: record the message id BEFORE applying side effects, so a
-		// retried delivery short-circuits the dedup check above. Trade-off: if the
-		// handler crashes mid-apply, the event is dropped (lost time) rather than
-		// double-counted on retry — the safer failure mode, since over-counting
-		// silently inflates the timer and is unrecoverable, and Twitch's
-		// at-least-once delivery already tolerates the occasional loss. mutateTwitch
-		// is compare-and-swap, so concurrent deliveries can't clobber each other's ids.
-		if (messageId) {
-			await mutateTwitch(db, (doc) => ({
-				...doc,
-				recentEventIds: [messageId, ...(doc.recentEventIds ?? [])].slice(0, 50),
-			}));
-		}
-
+		// Idempotency: claim the message id BEFORE applying side effects, so a retried
+		// delivery short-circuits here. Trade-off: if the handler crashes mid-apply the
+		// event is dropped (lost time) rather than double-counted on retry — the safer
+		// failure mode, since over-counting silently inflates the timer and is
+		// unrecoverable, and Twitch's at-least-once delivery already tolerates the
+		// occasional loss. The claim is an INSERT on a primary key, so concurrent
+		// deliveries can't both win and distinct ids never contend.
 		const now = Date.now();
+		if (messageId) {
+			// One-release shim: ids written by the previous deploy live in the twitch
+			// doc's old ring buffer, so a retry spanning the deploy is still recognised.
+			if (seenInLegacyRing(twitch, messageId)) return c.body(null, 204);
+			if (!(await claimEventId(db, messageId))) return c.body(null, 204); // already processed
+			// Housekeeping, off the response path and only occasionally — the table is
+			// correct whether or not this ever runs.
+			if (Math.random() < 0.01) c.executionCtx.waitUntil(sweepSeenEventIds(db, now));
+		}
 		if (isStreamState) {
 			// Stream went down / came back — auto-pause so an outage doesn't burn
 			// Wolfathon time, then auto-resume on return. Opt-in (default on); resume

@@ -1,5 +1,6 @@
-import { type Db, trackerState } from "@wolfathon/db";
-import { and, eq } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
+import { type Db, eventsubSeen, trackerState } from "@wolfathon/db";
+import { and, eq, lt } from "drizzle-orm";
 
 import { type BotDoc, defaultBotDoc, withBotDefaults } from "./bot";
 import { type GiveawayDoc, defaultGiveawayDoc } from "./giveaway";
@@ -99,7 +100,14 @@ export async function mutateWithCas<T>(
 		if (await ops.cas(current.token, next)) return next;
 		// Lost the CAS race; another delivery wrote first — re-read and retry.
 	}
-	throw new Error(`mutateWithCas: exceeded ${maxAttempts} attempts`);
+	// Sustained contention on one row. Surfaced as a typed CONFLICT rather than a
+	// bare Error so the operator sees something actionable instead of a generic 500
+	// with an internal function name in it — this is reachable during a big gift
+	// bomb, and a silently dropped write means lost Wolfathon time.
+	throw new TRPCError({
+		code: "CONFLICT",
+		message: "Too many updates at once — that didn't save. Try again in a moment.",
+	});
 }
 
 /**
@@ -330,4 +338,51 @@ export async function applyTimerEventAndBumpSubs(
 			: undefined,
 	]);
 	return { timer, subsBefore, subsAfter };
+}
+
+// ---- EventSub idempotency --------------------------------------------------
+
+/** How long a processed message id is remembered. Twitch retries for far less. */
+const EVENT_ID_TTL_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * Claim a Twitch EventSub message id. Returns true the FIRST time an id is seen
+ * and false for a retry of the same delivery.
+ *
+ * `INSERT … ON CONFLICT DO NOTHING` on a primary key makes this a single write with
+ * no row contention — distinct ids never touch the same row, so a sub train no
+ * longer serialises through one CAS chain the way the old in-document ring buffer
+ * did. It also keeps the credential row out of the hot path entirely: that ring
+ * lived in the `twitch` doc, so the event firehose raced the bot's token refresh,
+ * and losing that race threw away an already-rotated refresh token.
+ */
+export async function claimEventId(db: Db, messageId: string): Promise<boolean> {
+	const res = await db
+		.insert(eventsubSeen)
+		.values({ messageId, seenAt: Date.now() })
+		.onConflictDoNothing()
+		.run();
+	return res.meta.changes > 0;
+}
+
+/**
+ * Drop message ids past the TTL. Cheap and unimportant, so callers fire it from
+ * `waitUntil` on a small fraction of deliveries rather than on every one — the
+ * table is correct whether or not it ever runs.
+ */
+export async function sweepSeenEventIds(db: Db, now: number): Promise<void> {
+	await db
+		.delete(eventsubSeen)
+		.where(lt(eventsubSeen.seenAt, now - EVENT_ID_TTL_MS))
+		.run();
+}
+
+/**
+ * One-release compatibility shim: ids recorded by the previous deploy still live in
+ * the `twitch` document's ring buffer, so a delivery retried across the deploy must
+ * still be recognised. Drop this (and `TwitchDoc.recentEventIds`) one release after
+ * the table ships — by then no in-flight retry can predate it.
+ */
+export function seenInLegacyRing(doc: TwitchDoc, messageId: string): boolean {
+	return (doc.recentEventIds ?? []).includes(messageId);
 }
