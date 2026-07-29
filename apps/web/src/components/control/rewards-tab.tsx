@@ -14,6 +14,7 @@ import { OverlayPreview } from "./overlay-preview";
 import { SubsControl } from "./subs-control";
 import { useControlDoc } from "./use-control-doc";
 import { useDraft } from "./use-draft";
+import { useSaveConflict } from "./use-save-conflict";
 
 /** The bits we diff for dirty-state (currentIndex is server-derived; theme is global → Settings). */
 function persisted(d: Data) {
@@ -39,8 +40,14 @@ export function RewardsTab() {
 	);
 
 	const preview = draft ? recompute(draft) : data;
+	const { conflict, handle, clear } = useSaveConflict(refetch);
 
-	function save() {
+	/**
+	 * `force` re-issues a rejected save against the revision we have just refetched,
+	 * deliberately overwriting whoever won the race. Anything else sends the revision
+	 * the draft was built from, so a concurrent edit is caught instead of clobbered.
+	 */
+	function save(force = false) {
 		if (!draft) return;
 		const goals = draft.goals.map((g) => ({ ...g, reward: g.reward.trim() }));
 		const empties = goals.filter((g) => !g.reward).length;
@@ -72,6 +79,7 @@ export function RewardsTab() {
 					? { currentSubs: draft.currentSubs }
 					: {}),
 				freezeMetTargets: draft.freezeMetTargets,
+				baseGoalsRev: force ? data?.goalsRev : (saved?.goalsRev ?? draft.goalsRev),
 			},
 			{
 				onSuccess: (res) => {
@@ -79,9 +87,15 @@ export function RewardsTab() {
 						toast.error(res.errors[0]?.message ?? "Couldn't save");
 						return;
 					}
+					clear();
 					seed(res.state);
 					toast.success("Goals saved");
 					invalidate();
+				},
+				onError: (error) => {
+					// A base-revision conflict is handled by the DirtyBar, not a toast — the
+					// operator's edits are still valid, they just need to pick a resolution.
+					if (!handle(error)) toast.error(error.message);
 				},
 			},
 		);
@@ -135,10 +149,19 @@ export function RewardsTab() {
 				<DirtyBar
 					dirty={dirty}
 					saving={replace.isPending}
-					onSave={save}
-					onDiscard={discard}
+					onSave={() => save()}
+					onDiscard={() => {
+						clear();
+						discard();
+					}}
 					summary={summary}
 					stale={stale}
+					conflict={conflict}
+					onLoadLatest={() => {
+						clear();
+						discard();
+					}}
+					onForceSave={() => save(true)}
 				/>
 			</div>
 			<div className="flex flex-col gap-3 lg:sticky lg:top-6 lg:self-start">

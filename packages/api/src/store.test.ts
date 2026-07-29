@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { expect, test } from "bun:test";
 
-import { mutateWithCas } from "./store";
+import { mutateWithCas, nextRev, revMatches, staleRevError } from "./store";
 
 /**
  * Regression tests for the optimistic-concurrency loop behind every mutate*
@@ -160,4 +160,40 @@ test("an apply that changes nothing writes nothing", async () => {
 	expect(rebuilt).toEqual({ ms: 7, subs: 3 });
 	expect(s.writes()).toBe(0);
 	expect(s.get()).toBe(JSON.stringify({ ms: 7, subs: 3 }));
+});
+
+// ---- region revs (optimistic concurrency for operator saves) ----------------
+
+test("nextRev bumps only when the guarded region actually changed", () => {
+	const goals = [{ id: "a", unlocked: false }];
+	// Deep-equal but a different object — the panel rebuilds arrays constantly, so
+	// identity would bump on every save and make every second tab conflict.
+	expect(nextRev(goals, [{ id: "a", unlocked: false }], 3)).toBe(3);
+	expect(nextRev(goals, [{ id: "a", unlocked: true }], 3)).toBe(4);
+	// A document written before revs shipped reads as 0.
+	expect(nextRev(goals, [{ id: "b", unlocked: false }], undefined)).toBe(1);
+});
+
+test("revMatches opts out on an absent base and treats a missing stored rev as zero", () => {
+	// Backup restores and scripts send no rev at all — they must never conflict.
+	expect(revMatches(undefined, 7)).toBe(true);
+	expect(revMatches(0, undefined)).toBe(true);
+	expect(revMatches(2, 2)).toBe(true);
+	expect(revMatches(2, 3)).toBe(false);
+});
+
+test("a rejected save writes nothing — the throw escapes the CAS loop", async () => {
+	const s = makeStore(JSON.stringify({ ms: 1, subs: 1 }));
+	const before = s.get();
+	await expect(
+		mutateWithCas<Doc>(
+			s.ops,
+			() => ({ ms: 0, subs: 0 }),
+			() => {
+				throw staleRevError("goals");
+			},
+		),
+	).rejects.toMatchObject({ code: "CONFLICT" });
+	expect(s.get()).toBe(before);
+	expect(s.writes()).toBe(0);
 });

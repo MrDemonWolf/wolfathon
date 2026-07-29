@@ -10,6 +10,7 @@ import {
 	MAX_EMOJIS,
 	MAX_EMOTE_COUNT,
 	type TimerConfig,
+	type TimerDoc,
 } from "@wolfathon/api/timer";
 import { Button } from "@wolfathon/ui/components/button";
 import { Checkbox } from "@wolfathon/ui/components/checkbox";
@@ -54,9 +55,12 @@ import { controlTrpc, queryClient } from "@/utils/trpc";
 export function TimerConfigPanel({
 	config,
 	onChange,
+	onDocChanged,
 }: {
 	config: TimerConfig;
 	onChange: (c: TimerConfig) => void;
+	/** A channel-point reward write-through landed; adopt the returned doc as saved. */
+	onDocChanged: (doc: TimerDoc) => void;
 }) {
 	const n = (v: string): number => {
 		const x = Number(v);
@@ -202,7 +206,7 @@ export function TimerConfigPanel({
 					</div>
 
 					{/* channel point rewards — created/owned on Twitch */}
-					<ChannelRewards config={config} onChange={onChange} />
+					<ChannelRewards config={config} onChange={onChange} onDocChanged={onDocChanged} />
 				</div>
 			)}
 
@@ -419,9 +423,11 @@ export function TimerConfigPanel({
 function ChannelRewards({
 	config,
 	onChange,
+	onDocChanged,
 }: {
 	config: TimerConfig;
 	onChange: (c: TimerConfig) => void;
+	onDocChanged: (doc: TimerDoc) => void;
 }) {
 	const enabledId = useId();
 	const [title, setTitle] = useState("");
@@ -439,7 +445,10 @@ function ChannelRewards({
 	const create = useMutation(
 		controlTrpc.timer.createChannelReward.mutationOptions({
 			onSuccess: (doc) => {
-				onChange({ ...config, channelPoints: doc.config.channelPoints });
+				// Already persisted server-side (and on Twitch) — adopt it as the SAVED
+				// baseline, not as an edit, so the tab stays clean and picks up the
+				// `configRev` this write just bumped.
+				onDocChanged(doc);
 				setTitle("");
 				setMinutes("5");
 				toast.success("Reward created on Twitch");
@@ -451,7 +460,7 @@ function ChannelRewards({
 	const remove = useMutation(
 		controlTrpc.timer.removeChannelReward.mutationOptions({
 			onSuccess: (doc) => {
-				onChange({ ...config, channelPoints: doc.config.channelPoints });
+				onDocChanged(doc);
 				toast.success("Reward removed");
 				invalidate();
 			},

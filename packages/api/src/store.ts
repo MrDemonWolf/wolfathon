@@ -176,6 +176,42 @@ export function mutateDoc<T>(
 	);
 }
 
+// ---- optimistic concurrency for operator saves -----------------------------
+
+/**
+ * Next revision for one guarded REGION of a document — bumped only when that
+ * region actually changed.
+ *
+ * Scoped per region rather than per document on purpose: `mutateTimer` runs on
+ * every timer event and `mutateState` on every counted sub, so a whole-document
+ * revision would make the Timer and Rewards tabs conflict constantly during any
+ * live stream. Guarding only `goals` and `config` — the parts a human edits —
+ * means a save is rejected when someone else edited the same thing, and never
+ * because Twitch moved the clock.
+ */
+export function nextRev(prev: unknown, next: unknown, prevRev: number | undefined): number {
+	const base = prevRev ?? 0;
+	return JSON.stringify(prev) === JSON.stringify(next) ? base : base + 1;
+}
+
+/**
+ * Does an operator's save still apply to the document it was built from?
+ * `expected === undefined` opts out entirely, which is how backup restores and
+ * any non-panel caller keep working unchanged. A missing stored rev reads as 0,
+ * so documents written before this shipped are not all treated as conflicts.
+ */
+export function revMatches(expected: number | undefined, actual: number | undefined): boolean {
+	return expected === undefined || expected === (actual ?? 0);
+}
+
+/** Thrown from inside a CAS apply when the operator's base revision is stale. */
+export function staleRevError(what: string): TRPCError {
+	return new TRPCError({
+		code: "CONFLICT",
+		message: `These ${what} changed on the server after you opened this page.`,
+	});
+}
+
 // ---- rewards (goals) ------------------------------------------------------
 
 /**
@@ -195,9 +231,18 @@ export async function writeState(db: Db, data: Data): Promise<Data> {
 	return writeDoc(db, STATE_ID, recompute(data));
 }
 
-/** Concurrency-safe rewards mutation (recompute on read and write, like read/writeState). */
+/**
+ * Concurrency-safe rewards mutation (recompute on read and write, like
+ * read/writeState). Bumps `goalsRev` whenever the goals actually change — done
+ * here rather than in the routers so it is automatic for `state.import`,
+ * `resetForNextSubathon` and every future writer.
+ */
 export function mutateState(db: Db, fn: (data: Data) => Data): Promise<Data> {
-	return mutateDoc(db, STATE_ID, sampleData, (raw) => recompute(fn(recompute(raw))));
+	return mutateDoc(db, STATE_ID, sampleData, (raw) => {
+		const prev = recompute(raw);
+		const next = recompute(fn(prev));
+		return { ...next, goalsRev: nextRev(prev.goals, next.goals, prev.goalsRev) };
+	});
 }
 
 // ---- timer ----------------------------------------------------------------
@@ -210,9 +255,18 @@ export async function writeTimer(db: Db, doc: TimerDoc): Promise<TimerDoc> {
 	return writeDoc(db, TIMER_ID, doc);
 }
 
-/** Concurrency-safe timer mutation (config defaults backfilled on read, like readTimer). */
+/**
+ * Concurrency-safe timer mutation (config defaults backfilled on read, like
+ * readTimer). Bumps `configRev` whenever the CONFIG changes — deliberately not on
+ * a `state` change, or every sub during a live stream would invalidate the panel's
+ * open draft.
+ */
 export function mutateTimer(db: Db, fn: (doc: TimerDoc) => TimerDoc): Promise<TimerDoc> {
-	return mutateDoc(db, TIMER_ID, defaultTimerDoc, (raw) => fn(withTimerConfigDefaults(raw)));
+	return mutateDoc(db, TIMER_ID, defaultTimerDoc, (raw) => {
+		const prev = withTimerConfigDefaults(raw);
+		const next = fn(prev);
+		return { ...next, configRev: nextRev(prev.config, next.config, prev.configRev) };
+	});
 }
 
 // ---- twitch (secret) ------------------------------------------------------
