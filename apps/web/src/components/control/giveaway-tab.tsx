@@ -739,8 +739,6 @@ export function GiveawayTab() {
 								? "border-destructive/50 bg-destructive/5"
 								: "border-primary/50 bg-primary/5"
 						}`}
-						role="status"
-						aria-live="polite"
 					>
 						{claimLapsed ? (
 							<Clock className="size-5 shrink-0 text-destructive" aria-hidden />
@@ -757,7 +755,11 @@ export function GiveawayTab() {
 							>
 								{pending.name}
 							</a>
-							<div className="text-xs text-muted-foreground">
+							{/* The live region is the STATE line only. It used to wrap the whole
+							    block, which contains a countdown re-rendering every second — so a
+							    screen reader re-read the entire claim panel once a second for the
+							    full five-minute window. */}
+							<div role="status" aria-live="polite" className="text-xs text-muted-foreground">
 								{claimLapsed
 									? "Didn’t claim in time — redraw a new winner."
 									: "Drawn — waiting for them to type !claim in chat."}
@@ -765,6 +767,7 @@ export function GiveawayTab() {
 						</div>
 						{!claimLapsed && (
 							<span
+								aria-live="off"
 								className="font-heading text-lg font-bold tabular-nums text-primary"
 								aria-label={`${mmss(claimRemaining)} left to claim`}
 							>

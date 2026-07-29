@@ -154,6 +154,7 @@ export function ImportExportPanel({
 					</p>
 
 					<textarea
+						aria-label={`${config.title} JSON`}
 						value={text}
 						onChange={(e) => updateText(e.target.value)}
 						spellCheck={false}

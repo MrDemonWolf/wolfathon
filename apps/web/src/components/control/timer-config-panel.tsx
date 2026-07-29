@@ -51,6 +51,36 @@ const EMOJI_PRESETS = [
 
 import { controlTrpc, queryClient } from "@/utils/trpc";
 
+/**
+ * WAI-ARIA radiogroup keyboard behaviour: arrows/Home/End move the selection AND
+ * focus. Paired with a roving `tabIndex` (only the checked radio is tabbable) so
+ * the group is ONE tab stop.
+ *
+ * Without it these announce as radiogroups but don't behave like one — every
+ * option was a separate tab stop and the arrow keys did nothing. Mirrors
+ * `onTabKeyDown`, which already does this correctly for the tablist above.
+ */
+function radioGroupKeyDown<T extends string | number>(
+	e: KeyboardEvent<HTMLDivElement>,
+	values: readonly T[],
+	current: T,
+	select: (v: T) => void,
+	domId: (v: T) => string,
+): void {
+	const i = values.indexOf(current);
+	let next: number;
+	if (e.key === "ArrowRight" || e.key === "ArrowDown") next = (i + 1) % values.length;
+	else if (e.key === "ArrowLeft" || e.key === "ArrowUp")
+		next = (i - 1 + values.length) % values.length;
+	else if (e.key === "Home") next = 0;
+	else if (e.key === "End") next = values.length - 1;
+	else return;
+	e.preventDefault();
+	const value = values[next]!;
+	select(value);
+	document.getElementById(domId(value))?.focus();
+}
+
 /** Controlled — the Timer tab holds the draft config and persists it on Save. */
 export function TimerConfigPanel({
 	config,
@@ -259,6 +289,15 @@ export function TimerConfigPanel({
 						<div
 							role="radiogroup"
 							aria-label="Emote size"
+							onKeyDown={(e) =>
+								radioGroupKeyDown(
+									e,
+									EMOTE_SCALES,
+									config.emoteScale,
+									(emoteScale) => onChange({ ...config, emoteScale }),
+									(v) => `emote-scale-${v}`,
+								)
+							}
 							className="segmented mt-2 inline-flex w-fit gap-1 rounded-[0.95rem] p-1"
 						>
 							{EMOTE_SCALES.map((scale) => {
@@ -266,9 +305,11 @@ export function TimerConfigPanel({
 								return (
 									<button
 										key={scale}
+										id={`emote-scale-${scale}`}
 										type="button"
 										role="radio"
 										aria-checked={active}
+										tabIndex={active ? 0 : -1}
 										onClick={() => onChange({ ...config, emoteScale: scale })}
 										className={`rounded-[0.7rem] px-4 py-1.5 text-sm font-medium transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
 											active
@@ -292,6 +333,15 @@ export function TimerConfigPanel({
 						<div
 							role="radiogroup"
 							aria-label="Emote direction"
+							onKeyDown={(e) =>
+								radioGroupKeyDown(
+									e,
+									EMOTE_DIRECTIONS,
+									config.emoteDirection,
+									(emoteDirection) => onChange({ ...config, emoteDirection }),
+									(v) => `emote-dir-${v}`,
+								)
+							}
 							className="mt-2 grid max-w-md gap-2 [grid-template-columns:repeat(auto-fit,minmax(7rem,1fr))]"
 						>
 							{EMOTE_DIRECTIONS.map((dir) => {
@@ -299,9 +349,11 @@ export function TimerConfigPanel({
 								return (
 									<button
 										key={dir}
+										id={`emote-dir-${dir}`}
 										type="button"
 										role="radio"
 										aria-checked={active}
+										tabIndex={active ? 0 : -1}
 										onClick={() => onChange({ ...config, emoteDirection: dir })}
 										className={`flex flex-col items-stretch gap-2 rounded-lg border p-2 text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
 											active
