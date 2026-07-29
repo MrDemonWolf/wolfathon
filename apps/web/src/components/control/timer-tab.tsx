@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
+import type { TimerConfig } from "@wolfathon/api/timer";
 import { Button } from "@wolfathon/ui/components/button";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -14,6 +15,15 @@ import { TimerPreview } from "./timer-preview";
 import { useControlDoc } from "./use-control-doc";
 import { useDraft } from "./use-draft";
 
+/**
+ * Draft projection. `channelPoints` is excluded from the dirty diff because it is
+ * server-owned: creating or removing a reward writes through to Twitch immediately,
+ * so the returned rules landing in the draft must not read as an unsaved edit — it
+ * did, which left the tab permanently dirty and blocked every later re-seed.
+ */
+const configKey = ({ channelPoints: _serverOwned, ...rest }: TimerConfig) => JSON.stringify(rest);
+const selectConfig = (d: { config: TimerConfig }) => d.config;
+
 export function TimerTab() {
 	const { data, isLoading, isError, refetch, invalidate } = useControlDoc(
 		controlTrpc.timer.getRaw.queryOptions(),
@@ -24,17 +34,17 @@ export function TimerTab() {
 	const { data: stateDoc } = useQuery(controlTrpc.state.getRaw.queryOptions());
 
 	const setConfig = useMutation(controlTrpc.timer.setConfig.mutationOptions());
-	const { draft, setDraft, dirty, discard, seed } = useDraft(
-		data,
-		(d) => d.config,
-		(c) => JSON.stringify(c),
-	);
+	const { draft, setDraft, dirty, stale, discard, seed } = useDraft(data, selectConfig, configKey);
 
 	const previewDoc = data ? { config: draft ?? data.config, state: data.state } : undefined;
 
 	function save() {
 		if (!draft) return;
-		setConfig.mutate(draft, {
+		// `channelPoints` is server-owned — creating/removing a reward writes straight
+		// through to Twitch and D1. Omitting the key tells `setConfig` to preserve the
+		// stored rules instead of replacing them with this page's snapshot.
+		const { channelPoints: _serverOwned, ...payload } = draft;
+		setConfig.mutate(payload, {
 			onSuccess: (res) => {
 				if (!res.ok) {
 					toast.error(
@@ -78,6 +88,7 @@ export function TimerTab() {
 					onSave={save}
 					onDiscard={discard}
 					summary="timer settings"
+					stale={stale}
 				/>
 			</div>
 			<div className="flex flex-col gap-3 lg:sticky lg:top-6 lg:self-start">

@@ -12,9 +12,10 @@ import {
 	type TimerConfig,
 } from "@wolfathon/api/timer";
 import { Button } from "@wolfathon/ui/components/button";
+import { Checkbox } from "@wolfathon/ui/components/checkbox";
 import { Input } from "@wolfathon/ui/components/input";
 import { ArrowRight, ArrowUp, Plus, RotateCcw, Trash2, Twitch, X } from "lucide-react";
-import { type KeyboardEvent, useState } from "react";
+import { type KeyboardEvent, useId, useState } from "react";
 import { toast } from "sonner";
 
 const EMOTE_DIRECTION_LABELS: Record<EmoteDirection, string> = {
@@ -406,9 +407,14 @@ export function TimerConfigPanel({
 /**
  * Channel-point rewards card. Unlike the rest of the timer config (which is a
  * draft saved by the DirtyBar), creating/removing a reward hits Twitch
- * IMMEDIATELY (Helix create/delete) and persists the rule server-side — so these
- * mutations write straight through and we sync the draft + the saved baseline
- * from the returned doc, never leaving a phantom-dirty channelPoints diff.
+ * IMMEDIATELY (Helix create/delete) and persists the rule server-side.
+ *
+ * So `channelPoints` is SERVER-OWNED: the tab excludes it from both the dirty diff
+ * and the Save payload (see `timer-tab.tsx`), and `timer.setConfig` preserves the
+ * stored rules for any payload that omits the key. Patching it into the draft here
+ * is display-only — it keeps the list on screen in step with the server without
+ * making the tab dirty, and a later Save can no longer rewind a reward that was
+ * recreated on Twitch in the meantime.
  */
 function ChannelRewards({
 	config,
@@ -417,9 +423,11 @@ function ChannelRewards({
 	config: TimerConfig;
 	onChange: (c: TimerConfig) => void;
 }) {
+	const enabledId = useId();
 	const [title, setTitle] = useState("");
 	const [minutes, setMinutes] = useState("5");
 	const rules = config.channelPoints;
+	const enabled = config.channelPointsEnabled;
 	const atCap = rules.length >= MAX_CHANNEL_POINT_RULES;
 
 	// Keep the saved baseline in sync so the through-write doesn't read as dirty.
@@ -451,6 +459,8 @@ function ChannelRewards({
 		}),
 	);
 	const busy = create.isPending || remove.isPending;
+	/** Creating is closed at the cap, mid-request, or while the integration is parked. */
+	const locked = busy || atCap || !enabled;
 
 	function submit() {
 		const t = title.trim();
@@ -468,8 +478,25 @@ function ChannelRewards({
 				to {MAX_CHANNEL_POINT_RULES}.
 			</p>
 
-			{/* existing rewards (up to 2) */}
-			<div className="mt-2 flex flex-col gap-2">
+			<div className="mt-3 flex items-center gap-2 text-sm font-medium">
+				<Checkbox
+					id={enabledId}
+					checked={enabled}
+					onCheckedChange={(v) => onChange({ ...config, channelPointsEnabled: v === true })}
+				/>
+				<label htmlFor={enabledId} className="cursor-pointer">
+					Channel-point rewards add time
+				</label>
+			</div>
+			<p className="mt-1 text-xs text-muted-foreground">
+				{enabled
+					? "Redemptions of the rewards below add their minutes to the clock."
+					: "Redemptions won’t add time while this is off. Your rewards stay on Twitch and viewers can still redeem them — turn this back on any time."}
+			</p>
+
+			{/* existing rewards (up to 2). Remove stays live while the integration is off:
+			    parking it shouldn't strand rewards on the channel with no way to clear them. */}
+			<div className="mt-3 flex flex-col gap-2">
 				{rules.map((rule, i) => (
 					<div
 						key={rule.rewardId ?? i}
@@ -500,7 +527,8 @@ function ChannelRewards({
 				)}
 			</div>
 
-			{/* create form */}
+			{/* create form — closed while the integration is off (a new reward would sit
+			    on the channel adding nothing) */}
 			<div className="mt-3 flex items-end gap-2">
 				<label className="flex flex-1 flex-col gap-1 text-xs text-muted-foreground">
 					Reward title
@@ -509,7 +537,7 @@ function ChannelRewards({
 						placeholder="e.g. Add 5 minutes"
 						value={title}
 						maxLength={45}
-						disabled={atCap || busy}
+						disabled={locked}
 						onChange={(e) => setTitle(e.target.value)}
 						onKeyDown={(e) => {
 							if (e.key === "Enter") {
@@ -526,7 +554,7 @@ function ChannelRewards({
 						type="number"
 						min={0}
 						value={minutes}
-						disabled={atCap || busy}
+						disabled={locked}
 						onChange={(e) => setMinutes(e.target.value)}
 					/>
 				</label>
@@ -534,14 +562,14 @@ function ChannelRewards({
 					variant="outline"
 					size="sm"
 					className="mb-px rounded-lg"
-					disabled={atCap || busy || !title.trim()}
+					disabled={locked || !title.trim()}
 					onClick={submit}
 				>
 					<Plus className="size-3.5" />
 					{create.isPending ? "Creating…" : "Create"}
 				</Button>
 			</div>
-			{atCap && (
+			{atCap && enabled && (
 				<p className="mt-2 text-xs text-muted-foreground">
 					At the {MAX_CHANNEL_POINT_RULES}-reward limit. Remove one to create another.
 				</p>

@@ -13,7 +13,9 @@ import {
 import { requireCreds } from "./creds";
 import {
 	applyEvent,
+	hasChannelPointsKey,
 	MAX_CHANNEL_POINT_RULES,
+	mergeTimerConfig,
 	pause,
 	reset,
 	start,
@@ -158,11 +160,21 @@ export const timerRouter = router({
 		return { ok: true as const, config: result.config };
 	}),
 
-	/** Validate, then replace the timer config (keeps the running state). */
+	/**
+	 * Validate, then merge the timer config over the stored one (keeps the running
+	 * state). `channelPoints` is server-owned — see {@link mergeTimerConfig}. A
+	 * payload that omits the key preserves the stored rules, so the panel's Save
+	 * can't rewind a reward created or removed since the page loaded; a backup
+	 * restore, which carries the key, still replaces them.
+	 */
 	setConfig: protectedProcedure.input(z.unknown()).mutation(async ({ ctx, input }) => {
 		const result = validateTimerConfig(input);
 		if (!result.ok) return { ok: false as const, errors: result.errors };
-		const doc = await mutateTimer(ctx.db, (prev) => ({ config: result.config, state: prev.state }));
+		const replaceChannelPoints = hasChannelPointsKey(input);
+		const doc = await mutateTimer(ctx.db, (prev) => ({
+			...prev,
+			config: mergeTimerConfig(prev.config, result.config, { replaceChannelPoints }),
+		}));
 		return { ok: true as const, doc };
 	}),
 
