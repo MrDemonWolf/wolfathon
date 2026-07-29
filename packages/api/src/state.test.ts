@@ -169,7 +169,9 @@ test("bumpPassedGoals raises passed targets above current, keeps ascending order
 		{ id: "c", reward: "C", unlocked: false, target: 40 },
 		{ id: "d", reward: "D", unlocked: false }, // no target, untouched
 	];
-	const { goals: out, bumped } = bumpPassedGoals(goals, 12);
+	// Freezing off — the legacy raise-everything behaviour, pinned so the flag stays
+	// a real switch rather than a one-way removal.
+	const { goals: out, bumped } = bumpPassedGoals(goals, 12, false);
 	expect(bumped).toBe(2); // 5 and 8 were ≤ 12
 	expect(out[0]!.target!).toBeGreaterThan(12);
 	expect(out[1]!.target!).toBeGreaterThan(out[0]!.target!);
@@ -183,11 +185,80 @@ test("bumpPassedGoals leaves unlocked (past) goals untouched", () => {
 		{ id: "b", reward: "B", unlocked: true, target: 10 }, // done, below count — stays
 		{ id: "c", reward: "C", unlocked: false, target: 8 }, // upcoming, below count — raised
 	];
-	const { goals: out, bumped } = bumpPassedGoals(goals, 12);
+	const { goals: out, bumped } = bumpPassedGoals(goals, 12, false);
 	expect(bumped).toBe(1); // only the upcoming goal moves
 	expect(out[0]!.target).toBe(5);
 	expect(out[1]!.target).toBe(10);
 	expect(out[2]!.target!).toBeGreaterThan(12);
+});
+
+test("bumpPassedGoals leaves a met-but-locked target exactly as typed by default", () => {
+	// The count passed goal B's target but the operator hasn't unlocked it yet —
+	// that's the goal they're working ON. Its number must not move under them.
+	const goals: Goal[] = [
+		{ id: "a", reward: "A", unlocked: true, target: 5 },
+		{ id: "b", reward: "B", unlocked: false, target: 10 },
+	];
+	const { goals: out, bumped } = bumpPassedGoals(goals, 12);
+	expect(bumped).toBe(0);
+	expect(out[1]!.target).toBe(10);
+});
+
+test("bumpPassedGoals no longer cascades into later goals from a frozen met goal", () => {
+	// The reported case: working on goal #4 must not rewrite #2 and #3. Under the
+	// old floor cascade, raising B to ~14 pushed C and D above it too.
+	const goals: Goal[] = [
+		{ id: "a", reward: "A", unlocked: false, target: 10 }, // met — frozen
+		{ id: "b", reward: "B", unlocked: false, target: 11 }, // met — frozen
+		{ id: "c", reward: "C", unlocked: false, target: 20 }, // ahead — untouched
+		{ id: "d", reward: "D", unlocked: false, target: 30 }, // ahead — untouched
+	];
+	const { goals: out, bumped } = bumpPassedGoals(goals, 12);
+	expect(bumped).toBe(0);
+	expect(out.map((g) => g.target)).toEqual([10, 11, 20, 30]);
+});
+
+test("bumpPassedGoals still repairs a target sitting below an already-unlocked goal", () => {
+	// Genuinely out of order: C is awarded at 30, but D would unlock at 20. That's
+	// the case the raise still exists for, and freezing must not mask it.
+	const goals: Goal[] = [
+		{ id: "c", reward: "C", unlocked: true, target: 30 },
+		{ id: "d", reward: "D", unlocked: false, target: 20 },
+	];
+	const { goals: out, bumped } = bumpPassedGoals(goals, 5);
+	expect(bumped).toBe(1);
+	expect(out[1]!.target!).toBeGreaterThan(30);
+});
+
+test("bumpPassedGoals reports zero raises once every goal is unlocked", () => {
+	const goals: Goal[] = [
+		{ id: "a", reward: "A", unlocked: true, target: 5 },
+		{ id: "b", reward: "B", unlocked: true, target: 10 },
+	];
+	expect(bumpPassedGoals(goals, 999).bumped).toBe(0);
+	expect(bumpPassedGoals(goals, 999, false).bumped).toBe(0);
+});
+
+test("recompute backfills freezeMetTargets on a pre-flag row (and never drops it)", () => {
+	const legacy = {
+		goals: [{ id: "a", reward: "A", unlocked: false }],
+		currentIndex: 0,
+		currentSubs: 0,
+		theme: defaultOverlayTheme(),
+	} as Data;
+	expect(recompute(legacy).freezeMetTargets).toBe(true);
+	// recompute runs on both sides of every mutateState — an explicit false has to
+	// survive the round trip or the operator's choice is erased on the next write.
+	expect(recompute({ ...legacy, freezeMetTargets: false }).freezeMetTargets).toBe(false);
+});
+
+test("validateImport defaults freezeMetTargets to true and round-trips an explicit false", () => {
+	const absent = validateImport({ goals: [{ reward: "Q&A" }] });
+	expect(absent.ok && absent.data.freezeMetTargets).toBe(true);
+	const off = validateImport({ goals: [{ reward: "Q&A" }], freezeMetTargets: false });
+	expect(off.ok && off.data.freezeMetTargets).toBe(false);
+	const bad = validateImport({ goals: [{ reward: "Q&A" }], freezeMetTargets: "yes" });
+	expect(bad.ok).toBe(false);
 });
 
 test("validateImport round-trips an embedded theme and rejects a bad one", () => {

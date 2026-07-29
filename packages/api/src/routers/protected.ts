@@ -37,10 +37,11 @@ const goalSchema = z.object({
 
 const dataSchema = z.object({
 	goals: z.array(goalSchema).min(1).max(MAX_GOALS),
-	currentIndex: z.number().int().nonnegative().optional(),
 	currentSubs: z.number().int().nonnegative().optional(),
 	/** Optional — when present, validated + saved in the same write as the goals. */
 	theme: z.unknown().optional(),
+	/** Optional — absent preserves the stored choice. */
+	freezeMetTargets: z.boolean().optional(),
 });
 
 function normalizeNote(note: string | undefined): string | undefined {
@@ -89,10 +90,13 @@ export const protectedRouter = router({
 			}
 			const state = await mutateState(ctx.db, (existing) => ({
 				goals,
-				currentIndex: input.currentIndex ?? 0,
+				// Derived from the unlocked flags by `recompute` on the way out — anything
+				// set here is overwritten, so it isn't accepted from the client at all.
+				currentIndex: existing.currentIndex,
 				currentSubs: input.currentSubs ?? existing.currentSubs ?? 0,
 				// Theme rides along when present; otherwise the existing one is preserved.
 				theme: nextTheme ?? existing.theme,
+				freezeMetTargets: input.freezeMetTargets ?? existing.freezeMetTargets,
 			}));
 			return { ok: true as const, state };
 		}),
@@ -152,6 +156,8 @@ export const protectedRouter = router({
 				...result.data,
 				theme: "theme" in obj ? result.data.theme : existing.theme,
 				currentSubs: "currentSubs" in obj ? result.data.currentSubs : existing.currentSubs,
+				freezeMetTargets:
+					"freezeMetTargets" in obj ? result.data.freezeMetTargets : existing.freezeMetTargets,
 			}));
 			return { ok: true as const, state, rewards: result.rewards };
 		}),

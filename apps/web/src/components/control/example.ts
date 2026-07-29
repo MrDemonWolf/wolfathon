@@ -20,6 +20,7 @@ export const REWARDS_SCHEMA_BULLETS = [
 	"`target` (optional, number) is the sub milestone — drives the next-goal progress bar; only the next goal's target is ever exposed.",
 	"`hidden: true` (optional, boolean) keeps a goal operator-only — it never shows on the overlay (a secret/surprise reward).",
 	"Top-level `currentSubs` (optional) seeds the running sub count.",
+	"`freezeMetTargets` (optional, default true) stops a target moving once your sub count reaches it; omit it and import keeps your current setting.",
 	"Optional `theme` (colour/font/corners/`label`) round-trips on export; omit it and import keeps your current theme. `theme.label` is the timer eyebrow text.",
 	"On import every goal resets to locked and progress returns to the first goal.",
 ];

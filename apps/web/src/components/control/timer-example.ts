@@ -14,7 +14,8 @@ export const TIMER_EXAMPLE_JSON = JSON.stringify(TIMER_EXAMPLE, null, 2);
 export const TIMER_SCHEMA_BULLETS = [
 	"`startMinutes` = time on the clock at reset; `maxMinutes` = cap (0 = no cap).",
 	"`sub.t1/t2/t3/prime`, `giftSubMinutes`, `bitsPer100Minutes` are minutes added per event.",
-	"`channelPoints` is a list of `{ rewardTitle, minutes, rewardId? }` (max 50).",
+	"`channelPoints` is a list of `{ rewardTitle, minutes, rewardId? }` (max 2). Omit the key entirely and your existing rewards are kept — they're managed on Twitch, not here.",
+	"`channelPointsEnabled` (default true) — off keeps the rewards on your channel but stops redemptions adding time.",
 	"`autoPauseOnOffline` (default true) pauses on stream.offline and resumes on stream.online.",
 	"`emoteDirection` = up|left|right — which way the time-add emote burst travels.",
 	"Overlay theme (colour/font/corners) is a global setting under Settings → Theme, shared by both overlays — it's not part of this config.",
