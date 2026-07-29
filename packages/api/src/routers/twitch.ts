@@ -113,5 +113,3 @@ export const twitchRouter = router({
 		return toStatus(next, hasCreds);
 	}),
 });
-
-export type TwitchRouter = typeof twitchRouter;

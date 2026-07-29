@@ -1,4 +1,3 @@
-import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import { protectedProcedure, router } from "../index";
@@ -117,23 +116,6 @@ export const protectedRouter = router({
 			return { ok: true as const, state };
 		}),
 
-		/** Adjust the running sub count (positive or negative); clamps at zero. */
-		adjustSubs: protectedProcedure
-			.input(z.object({ delta: z.number().int() }))
-			.mutation(async ({ ctx, input }) =>
-				mutateState(ctx.db, (data) => ({
-					...data,
-					currentSubs: Math.max(0, (data.currentSubs ?? 0) + input.delta),
-				})),
-			),
-
-		/** Set the running sub count to an exact value. */
-		setSubs: protectedProcedure
-			.input(z.object({ value: z.number().int().nonnegative() }))
-			.mutation(async ({ ctx, input }) =>
-				mutateState(ctx.db, (data) => ({ ...data, currentSubs: input.value })),
-			),
-
 		/** Update only the overlay theme, preserving goals. */
 		setTheme: protectedProcedure.input(z.unknown()).mutation(async ({ ctx, input }) => {
 			const errors: ThemeError[] = [];
@@ -179,77 +161,6 @@ export const protectedRouter = router({
 		}),
 	}),
 
-	goals: router({
-		/** Unlock the current (first locked) goal and advance to the next one. */
-		unlockNext: protectedProcedure.mutation(async ({ ctx }) =>
-			mutateState(ctx.db, (data) => {
-				const target = data.goals.findIndex((g) => !g.unlocked);
-				if (target === -1) return data;
-				return {
-					...data,
-					goals: data.goals.map((g, i) => (i === target ? { ...g, unlocked: true } : g)),
-				};
-			}),
-		),
-
-		/** Add a goal, optionally at a specific position (defaults to the end). */
-		add: protectedProcedure
-			.input(
-				z.object({
-					reward: rewardSchema,
-					note: z.string().optional(),
-					index: z.number().int().optional(),
-				}),
-			)
-			.mutation(async ({ ctx, input }) =>
-				mutateState(ctx.db, (data) => {
-					if (data.goals.length >= MAX_GOALS) {
-						throw new TRPCError({ code: "BAD_REQUEST", message: `Max ${MAX_GOALS} goals.` });
-					}
-					const goal: Goal = {
-						id: crypto.randomUUID(),
-						reward: input.reward.trim(),
-						note: normalizeNote(input.note),
-						unlocked: false,
-					};
-					const at =
-						input.index === undefined
-							? data.goals.length
-							: Math.max(0, Math.min(input.index, data.goals.length));
-					const goals = [...data.goals];
-					goals.splice(at, 0, goal);
-					return { ...data, goals };
-				}),
-			),
-
-		/** Remove a goal by id. */
-		remove: protectedProcedure
-			.input(z.object({ id: z.string() }))
-			.mutation(async ({ ctx, input }) =>
-				mutateState(ctx.db, (data) => ({
-					...data,
-					goals: data.goals.filter((g) => g.id !== input.id),
-				})),
-			),
-
-		/** Reorder goals to match the provided id list (must reference every goal). */
-		reorder: protectedProcedure
-			.input(z.object({ ids: z.array(z.string()) }))
-			.mutation(async ({ ctx, input }) =>
-				mutateState(ctx.db, (data) => {
-					const byId = new Map(data.goals.map((g) => [g.id, g]));
-					if (input.ids.length !== data.goals.length || input.ids.some((id) => !byId.has(id))) {
-						throw new TRPCError({
-							code: "BAD_REQUEST",
-							message: "Reorder must reference every goal exactly once.",
-						});
-					}
-					return { ...data, goals: input.ids.map((id) => byId.get(id)!) };
-				}),
-			),
-	}),
-
-	/** Overlay token: the shared secret in the OBS source URLs. */
 	settings: router({
 		get: protectedProcedure.query(async ({ ctx }) => readSettings(ctx.db)),
 		/** Rotate the overlay token — instantly breaks old URLs (re-paste in OBS). */

@@ -43,5 +43,3 @@ export const OVERLAY_SIZES = {
 	rewards: { size: "760×540", aspect: "aspect-[38/27]" },
 	wheel: { size: "1080×1080", aspect: "aspect-square" },
 } as const;
-
-export type OverlayId = keyof typeof OVERLAY_SIZES;

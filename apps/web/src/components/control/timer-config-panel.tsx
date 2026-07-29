@@ -132,6 +132,9 @@ export function TimerConfigPanel({
 				</p>
 			</div>
 
+			{/* Roving tabindex: focus lives on the CHILD tabs/radios (exactly one is
+			    tabbable), so the container must not be a tab stop itself. */}
+			{/* eslint-disable-next-line jsx-a11y/interactive-supports-focus */}
 			<div
 				role="tablist"
 				aria-label="Timer setup sections"
@@ -286,6 +289,9 @@ export function TimerConfigPanel({
 						<p className="mt-1 text-xs text-muted-foreground">
 							How big each flooding emote renders. Bump it up for a 1080p source.
 						</p>
+						{/* Roving tabindex: focus lives on the CHILD tabs/radios (exactly one is
+					    tabbable), so the container must not be a tab stop itself. */}
+						{/* eslint-disable-next-line jsx-a11y/interactive-supports-focus */}
 						<div
 							role="radiogroup"
 							aria-label="Emote size"
@@ -330,6 +336,9 @@ export function TimerConfigPanel({
 						<p className="mt-1 text-xs text-muted-foreground">
 							Which way the emotes travel when time is added.
 						</p>
+						{/* Roving tabindex: focus lives on the CHILD tabs/radios (exactly one is
+					    tabbable), so the container must not be a tab stop itself. */}
+						{/* eslint-disable-next-line jsx-a11y/interactive-supports-focus */}
 						<div
 							role="radiogroup"
 							aria-label="Emote direction"

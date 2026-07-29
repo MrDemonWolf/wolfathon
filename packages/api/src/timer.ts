@@ -573,7 +573,12 @@ export function applyEvent(
  * router reads it there and passes it in, so both overlays always match.
  */
 export function toPublicTimer(doc: TimerDoc, now: number, theme: OverlayTheme): PublicTimer {
-	const emojis = doc.config.emojis?.length ? doc.config.emojis : DEFAULT_TIMER_EMOJIS;
+	// An EMPTY list is deliberate — `withTimerConfigDefaults` already fills in the
+	// wolf set for a row that predates the field, so anything empty here is an
+	// operator who cleared it. Substituting the defaults ignored that and burst the
+	// full 8 back at them, contradicting the panel's "None — overlay falls back to
+	// 🐺" copy (the overlay's own single-wolf fallback then never ran).
+	const emojis = doc.config.emojis ?? DEFAULT_TIMER_EMOJIS;
 	return {
 		running: doc.state.running,
 		endsAt: doc.state.endsAt,

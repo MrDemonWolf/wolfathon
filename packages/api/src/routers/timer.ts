@@ -318,5 +318,3 @@ export const timerRouter = router({
 			}));
 		}),
 });
-
-export type TimerRouter = typeof timerRouter;
