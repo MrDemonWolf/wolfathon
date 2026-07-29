@@ -84,20 +84,22 @@ export function TimerPanel({
 
 			{/* Live hub — everything used mid-stream: countdown, transport, add-time. */}
 			<div className="mt-4 rounded-xl border border-primary/30 bg-primary/[0.06] p-4">
-				{/* status + live countdown */}
-				<div
-					role="status"
-					aria-live="polite"
-					aria-atomic="true"
-					className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/40 px-5 py-4"
-				>
+				{/* status + live countdown. The live region wraps the STATUS chip only:
+				    the digits re-render every second, so announcing them politely made a
+				    screen reader read the full remaining time once per second, forever. */}
+				<div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/40 px-5 py-4">
 					<div>
 						<div className="eyebrow text-[0.65rem]">Remaining</div>
-						<div className="mt-0.5 font-heading text-4xl font-extrabold tabular-nums tracking-tight">
+						<div
+							aria-live="off"
+							className="mt-0.5 font-heading text-4xl font-extrabold tabular-nums tracking-tight"
+						>
 							{fmt(remaining)}
 						</div>
 					</div>
 					<span
+						role="status"
+						aria-live="polite"
 						className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
 							running
 								? "bg-primary/15 text-primary"
