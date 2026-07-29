@@ -71,7 +71,11 @@ const ELEMENT_TOGGLES: { key: ToggleKey; label: string; hint: string }[] = [
 	{ key: "showLiveDot", label: "Live dot", hint: "Pulsing dot on the rewards card" },
 	{ key: "showUnits", label: "Unit labels", hint: "D / H / M / S under the timer" },
 	{ key: "showProgressBar", label: "Progress bar", hint: "Subs toward the next reward" },
-	{ key: "showNext", label: "Next rewards", hint: "Row of the next few upcoming rewards" },
+	{
+		key: "showNext",
+		label: "Next rewards",
+		hint: "Row of the next few upcoming rewards. Off also keeps them out of the overlay data.",
+	},
 ];
 
 /**
