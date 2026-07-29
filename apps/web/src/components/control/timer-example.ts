@@ -9,8 +9,6 @@ export const TIMER_EXAMPLE = {
 	emoteDirection: "up",
 };
 
-export const TIMER_EXAMPLE_JSON = JSON.stringify(TIMER_EXAMPLE, null, 2);
-
 export const TIMER_SCHEMA_BULLETS = [
 	"`startMinutes` = time on the clock at reset; `maxMinutes` = cap (0 = no cap).",
 	"`sub.t1/t2/t3/prime`, `giftSubMinutes`, `bitsPer100Minutes` are minutes added per event.",

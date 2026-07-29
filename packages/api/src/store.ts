@@ -225,15 +225,8 @@ export async function readState(db: Db): Promise<Data> {
 }
 
 /**
- * Persist the rewards tracker, re-deriving invariants first (see recompute).
- */
-export async function writeState(db: Db, data: Data): Promise<Data> {
-	return writeDoc(db, STATE_ID, recompute(data));
-}
-
-/**
  * Concurrency-safe rewards mutation (recompute on read and write, like
- * read/writeState). Bumps `goalsRev` whenever the goals actually change — done
+ * readState). Bumps `goalsRev` whenever the goals actually change — done
  * here rather than in the routers so it is automatic for `state.import`,
  * `resetForNextSubathon` and every future writer.
  */
@@ -249,10 +242,6 @@ export function mutateState(db: Db, fn: (data: Data) => Data): Promise<Data> {
 
 export async function readTimer(db: Db): Promise<TimerDoc> {
 	return withTimerConfigDefaults(await readDoc(db, TIMER_ID, defaultTimerDoc));
-}
-
-export async function writeTimer(db: Db, doc: TimerDoc): Promise<TimerDoc> {
-	return writeDoc(db, TIMER_ID, doc);
 }
 
 /**
@@ -300,10 +289,6 @@ export async function readGiveaway(db: Db): Promise<GiveawayDoc> {
 	return readDoc(db, GIVEAWAY_ID, defaultGiveawayDoc);
 }
 
-export async function writeGiveaway(db: Db, doc: GiveawayDoc): Promise<GiveawayDoc> {
-	return writeDoc(db, GIVEAWAY_ID, doc);
-}
-
 /** Concurrency-safe giveaway mutation (gifters / entrants / winners). */
 export function mutateGiveaway(
 	db: Db,
@@ -318,10 +303,6 @@ export async function readWheel(db: Db): Promise<WheelDoc> {
 	return withWheelDefaults(await readDoc(db, WHEEL_ID, defaultWheelDoc));
 }
 
-export async function writeWheel(db: Db, doc: WheelDoc): Promise<WheelDoc> {
-	return writeDoc(db, WHEEL_ID, doc);
-}
-
 /** Concurrency-safe wheel mutation (missing keys backfilled on read, like readWheel). */
 export function mutateWheel(db: Db, fn: (doc: WheelDoc) => WheelDoc): Promise<WheelDoc> {
 	return mutateDoc(db, WHEEL_ID, defaultWheelDoc, (raw) => fn(withWheelDefaults(raw)));
@@ -331,10 +312,6 @@ export function mutateWheel(db: Db, fn: (doc: WheelDoc) => WheelDoc): Promise<Wh
 
 export async function readBot(db: Db): Promise<BotDoc> {
 	return withBotDefaults(await readDoc(db, BOT_ID, defaultBotDoc));
-}
-
-export async function writeBot(db: Db, doc: BotDoc): Promise<BotDoc> {
-	return writeDoc(db, BOT_ID, doc);
 }
 
 /**

@@ -22,20 +22,11 @@ import { EXAMPLE_DOC, REWARDS_SCHEMA_BULLETS } from "./example";
 import { type IEError, type IEConfig, ImportExportPanel } from "./import-export-panel";
 import { TIMER_EXAMPLE, TIMER_SCHEMA_BULLETS } from "./timer-example";
 import { guard } from "./use-draft";
-import { nowStamp } from "./util";
+import { downloadFile, nowStamp } from "./util";
 
 const rewardsLabel = (index: number) => (index < 0 ? "Document" : `Goal #${index + 1}`);
 
 /** Trigger a client-side file download of arbitrary text. */
-function downloadText(filename: string, text: string, mime: string) {
-	const url = URL.createObjectURL(new Blob([text], { type: mime }));
-	const a = document.createElement("a");
-	a.href = url;
-	a.download = filename;
-	a.click();
-	URL.revokeObjectURL(url);
-}
-
 /** One combined backup file: the rewards doc and the timer config in one document. */
 const BACKUP_EXAMPLE_JSON = JSON.stringify(buildBackupDoc(EXAMPLE_DOC, TIMER_EXAMPLE), null, 2);
 
@@ -210,7 +201,7 @@ export function BackupTab() {
 						disabled={!ready}
 						onClick={() =>
 							ready &&
-							downloadText(
+							downloadFile(
 								`wolfathon-recap-${nowStamp()}.md`,
 								buildRecapMarkdown(rewards, timer, giveaway),
 								"text/markdown",

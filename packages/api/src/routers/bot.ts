@@ -91,5 +91,3 @@ export const botRouter = router({
 			return mutateBot(ctx.db, (doc) => updateCommand(doc, id, patch));
 		}),
 });
-
-export type BotRouter = typeof botRouter;
