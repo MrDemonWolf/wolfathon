@@ -17,7 +17,11 @@ import { useDraft } from "./use-draft";
 
 /** The bits we diff for dirty-state (currentIndex is server-derived; theme is global → Settings). */
 function persisted(d: Data) {
-	return JSON.stringify({ goals: d.goals, currentSubs: d.currentSubs });
+	return JSON.stringify({
+		goals: d.goals,
+		currentSubs: d.currentSubs,
+		freezeMetTargets: d.freezeMetTargets,
+	});
 }
 
 const identity = (d: Data) => d;
@@ -67,6 +71,7 @@ export function RewardsTab() {
 				...(saved && draft.currentSubs !== saved.currentSubs
 					? { currentSubs: draft.currentSubs }
 					: {}),
+				freezeMetTargets: draft.freezeMetTargets,
 			},
 			{
 				onSuccess: (res) => {
@@ -115,7 +120,11 @@ export function RewardsTab() {
 						<GoalEditor
 							goals={draft.goals}
 							currentSubs={draft.currentSubs}
+							freezeMetTargets={draft.freezeMetTargets}
 							onChange={(goals) => setDraft((d) => d && { ...d, goals })}
+							onFreezeChange={(freezeMetTargets) =>
+								setDraft((d) => d && { ...d, freezeMetTargets })
+							}
 						/>
 						<SubsControl
 							value={draft.currentSubs}

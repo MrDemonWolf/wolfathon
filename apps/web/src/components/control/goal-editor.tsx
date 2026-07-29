@@ -2,6 +2,7 @@
 
 import { bumpPassedGoals, type Goal, MAX_TARGET, nextGoalIndex } from "@wolfathon/api/state";
 import { Button } from "@wolfathon/ui/components/button";
+import { Checkbox } from "@wolfathon/ui/components/checkbox";
 import { Input } from "@wolfathon/ui/components/input";
 import { NumberStepper } from "@wolfathon/ui/components/number-stepper";
 import {
@@ -17,40 +18,51 @@ import {
 	Trophy,
 	X,
 } from "lucide-react";
+import { useId } from "react";
 
 /**
  * Controlled goal list — every edit is local (the Rewards tab holds the draft
  * and persists on Save). `currentSubs` is used for the live next-goal progress
  * counter and to flag future targets that sit at/below the count.
  *
- * The live `subs / target` counter lives ONLY in the banner for the next goal:
- * that's the one target the overlay actually uses (`nextTarget`), and the one
- * the operator nudges just before unlocking. Future rows keep an optional
- * pre-plan target; unlocked + next rows show none (banner owns it).
+ * The banner shows the live `subs / target` counter for the next goal — that's the
+ * one target the overlay actually uses (`nextTarget`). Its stepper and the next
+ * goal's own row field edit the SAME number: the row field used to disappear once
+ * a goal became "next", which meant the prominent banner stepper was writing to a
+ * row the operator couldn't see themselves editing.
  *
- * Targets are never auto-raised on save — they persist exactly as typed. When a
- * target has fallen at/below the live sub count, the operator raises it on demand
- * with the "Raise past goals" button, which floors every trailing target above
- * the count in one click (a preview of the edit; it isn't saved until Save).
+ * Targets are never auto-raised on save — they persist exactly as typed. With
+ * "Keep met targets" on (the default) a goal the count has already reached is
+ * frozen; only genuinely out-of-order targets can still be raised, on demand, with
+ * the "Raise past goals" button (a preview of the edit; nothing saves until Save).
  */
 export function GoalEditor({
 	goals,
 	currentSubs,
+	freezeMetTargets,
 	onChange,
+	onFreezeChange,
 }: {
 	goals: Goal[];
 	currentSubs: number;
+	freezeMetTargets: boolean;
 	onChange: (goals: Goal[]) => void;
+	onFreezeChange: (v: boolean) => void;
 }) {
+	const freezeId = useId();
 	const nextIndex = nextGoalIndex(goals);
 	const next = goals[nextIndex];
 	const allUnlocked = goals.length > 0 && !next;
 
 	// Preview the "Raise past goals" edit without applying it: `raised` is the
-	// list with every trailing target floored above the count, and `raisedCount`
+	// list with every out-of-order target floored above the count, and `raisedCount`
 	// drives the button (shown only when at least one target would move).
 	// ponytail: recompute per render — the list is tiny, no memo needed.
-	const { goals: raised, bumped: raisedCount } = bumpPassedGoals(goals, currentSubs);
+	const { goals: raised, bumped: raisedCount } = bumpPassedGoals(
+		goals,
+		currentSubs,
+		freezeMetTargets,
+	);
 
 	const patch = (i: number, p: Partial<Goal>) =>
 		onChange(goals.map((g, j) => (j === i ? { ...g, ...p } : g)));
@@ -99,7 +111,11 @@ export function GoalEditor({
 							size="sm"
 							className="rounded-lg border-amber-400/40 text-amber-400 hover:bg-amber-400/10 hover:text-amber-300"
 							onClick={raisePastGoals}
-							title={`${raisedCount} ${raisedCount === 1 ? "target sits" : "targets sit"} at or below your current ${currentSubs} subs. Raise ${raisedCount === 1 ? "it" : "them"} just above the count so the ${raisedCount === 1 ? "goal stays" : "goals stay"} ahead. Nothing saves until you hit Save.`}
+							title={
+								freezeMetTargets
+									? `${raisedCount} ${raisedCount === 1 ? "target sits" : "targets sit"} out of order — below a reward you've already unlocked. Raise ${raisedCount === 1 ? "it" : "them"} so the list stays ascending. Nothing saves until you hit Save.`
+									: `${raisedCount} ${raisedCount === 1 ? "target sits" : "targets sit"} at or below your current ${currentSubs} subs. Raise ${raisedCount === 1 ? "it" : "them"} just above the count so the ${raisedCount === 1 ? "goal stays" : "goals stay"} ahead. Nothing saves until you hit Save.`
+							}
 						>
 							<TrendingUp className="size-3.5" />
 							Raise {raisedCount} past {raisedCount === 1 ? "goal" : "goals"}
@@ -123,6 +139,22 @@ export function GoalEditor({
 				stream — the note stays private, and the <span className="text-foreground">eye</span> toggle
 				hides a reward from the overlay so it stays a surprise (only you see it). Set the sub target
 				on the highlighted next goal below.
+			</p>
+
+			<div className="mt-3 flex items-center gap-2 text-sm font-medium">
+				<Checkbox
+					id={freezeId}
+					checked={freezeMetTargets}
+					onCheckedChange={(v) => onFreezeChange(v === true)}
+				/>
+				<label htmlFor={freezeId} className="cursor-pointer">
+					Keep met targets
+				</label>
+			</div>
+			<p className="mt-1 text-xs text-muted-foreground">
+				{freezeMetTargets
+					? "Once your sub count reaches a goal's target, that number stops moving — and it can't push the goals after it either."
+					: "Targets at or below your sub count can be raised in one click, which also pushes every later target up to keep the list ascending."}
 			</p>
 
 			{/* Next reward — the live hub: name, progress, target stepper, unlock. */}
@@ -203,8 +235,11 @@ export function GoalEditor({
 			<ul className="mt-4 flex flex-col gap-2">
 				{goals.map((g, i) => {
 					const isNext = i === nextIndex;
-					// Optional pre-plan target lives on future (locked, not-next) rows only.
-					const showRowTarget = !g.unlocked && !isNext;
+					// Every locked row shows its own target — including the next one. It used
+					// to hide here and be editable only from the banner stepper, so unlocking a
+					// goal made the following row's field vanish and the banner silently became
+					// the write target for a row the operator wasn't looking at.
+					const showRowTarget = !g.unlocked;
 					const passed = g.target != null && g.target <= currentSubs && !g.unlocked;
 					return (
 						<li
@@ -335,14 +370,23 @@ export function GoalEditor({
 										<span className="text-xs text-muted-foreground">target</span>
 									</div>
 								)}
-								{passed && showRowTarget && (
-									<span
-										className="text-xs font-medium whitespace-nowrap text-amber-400"
-										title={`At or below your current count (${currentSubs}). It saves exactly as typed — use "Raise past goals" up top to bump it above the count.`}
-									>
-										below your count
-									</span>
-								)}
+								{passed &&
+									showRowTarget &&
+									(freezeMetTargets ? (
+										<span
+											className="text-xs font-medium whitespace-nowrap text-primary"
+											title={`Your count (${currentSubs}) has reached this target. It's frozen — nothing will move it, and it can't push the goals below it either.`}
+										>
+											reached
+										</span>
+									) : (
+										<span
+											className="text-xs font-medium whitespace-nowrap text-amber-400"
+											title={`At or below your current count (${currentSubs}). It saves exactly as typed — use "Raise past goals" up top to bump it above the count.`}
+										>
+											below your count
+										</span>
+									))}
 							</div>
 						</li>
 					);
