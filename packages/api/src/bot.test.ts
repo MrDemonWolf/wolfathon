@@ -23,6 +23,7 @@ import {
 } from "./bot";
 import { defaultTimerDoc, start } from "./timer";
 import { sampleData } from "./state";
+import { defaultOverlayTheme } from "./theme";
 import { defaultWheelDoc } from "./wheel";
 
 test("matchCommand resolves aliases on enabled commands only", () => {
@@ -87,6 +88,39 @@ test("live value formatters", () => {
 	const enabled = wheel.slots.filter((s) => s.enabled).length;
 	expect(wheelValue(wheel)).toBe(`${enabled} ${enabled === 1 ? "dare" : "dares"}`);
 	expect(wheelValue({ ...wheel, slots: [] })).toBe("no dares yet");
+});
+
+test("goalsValue never names a hidden goal or its target (chat is public)", () => {
+	const data = {
+		goals: [
+			{ id: "a", reward: "Q&A", unlocked: true, target: 5 },
+			{ id: "b", reward: "Onesie reveal", unlocked: false, target: 8, hidden: true },
+			{ id: "c", reward: "Phasmophobia", unlocked: false, target: 20 },
+		],
+		currentIndex: 1, // raw pointer sits on the hidden goal
+		currentSubs: 7,
+		theme: defaultOverlayTheme(),
+	};
+	const line = goalsValue(data);
+	expect(line).toBe("Phasmophobia at 20 subs (7/20)");
+	expect(line).not.toContain("Onesie");
+	expect(line).not.toContain("8");
+});
+
+test("!wolfathon reports all rewards unlocked when only hidden goals remain locked", () => {
+	const wolf = { ...defaultBotDoc().commands.wolfathon, parts: ["goal" as const] };
+	const data = {
+		goals: [
+			{ id: "a", reward: "Q&A", unlocked: true },
+			{ id: "b", reward: "Onesie reveal", unlocked: false, hidden: true },
+		],
+		currentIndex: 1,
+		currentSubs: 3,
+		theme: defaultOverlayTheme(),
+	};
+	const line = wolfathonValue(wolf, defaultTimerDoc(), data, 0);
+	expect(line).toBe("🎯 All rewards unlocked!");
+	expect(line).not.toContain("Onesie");
 });
 
 test("updateCommand clamps response, validates triggers + formatKey", () => {

@@ -1,7 +1,7 @@
 import { RewardsTab } from "@/components/control/rewards-tab";
 
-/** Root = the control panel's default section (rewards). The panel layout's
- *  navbar tabs switch between this and the timer/twitch/overlays sections. */
+/** The operator panel's default section (rewards). The dashboard layout's nav
+ *  switches between this, the timer, the wheel, the giveaway and Settings. */
 export default function ControlRewardsPage() {
 	return <RewardsTab />;
 }

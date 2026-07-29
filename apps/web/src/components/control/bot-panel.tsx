@@ -303,10 +303,11 @@ function CommandRow({ cmd }: { cmd: BotCommand }) {
 
 			{/* Triggers (aliases) */}
 			<div className="mt-3">
-				<div className="mb-1 text-xs text-muted-foreground">
+				<label htmlFor={`${cmd.id}-triggers`} className="mb-1 block text-xs text-muted-foreground">
 					Triggers (space-separated, each starts with !)
-				</div>
+				</label>
 				<Input
+					id={`${cmd.id}-triggers`}
 					value={triggers}
 					onChange={(e) => setTriggers(e.target.value)}
 					onBlur={commitTriggers}
@@ -366,8 +367,14 @@ function CommandRow({ cmd }: { cmd: BotCommand }) {
 				</div>
 			) : (
 				<div className="mt-3">
-					<div className="mb-1 text-xs text-muted-foreground">Reply text</div>
+					<label
+						htmlFor={`${cmd.id}-response`}
+						className="mb-1 block text-xs text-muted-foreground"
+					>
+						Reply text
+					</label>
 					<textarea
+						id={`${cmd.id}-response`}
 						value={response}
 						onChange={(e) => setResponse(e.target.value)}
 						onBlur={commitResponse}

@@ -8,6 +8,7 @@
 
 import {
 	defaultOverlayTheme,
+	NEXT_REWARDS_SHOWN,
 	type OverlayTheme,
 	resolveThemeGradient,
 	type ThemeCorners,
@@ -39,6 +40,19 @@ export type Data = {
 	currentSubs: number;
 	/** Overlay colours + chrome. Optional on old rows; defaults to brand. */
 	theme: OverlayTheme;
+	/**
+	 * Once the sub count reaches a goal's target, freeze that target — see
+	 * {@link bumpPassedGoals}. On by default; absent on pre-flag rows, which is the
+	 * behaviour those rows should have had.
+	 */
+	freezeMetTargets: boolean;
+	/**
+	 * Bumped by `mutateState` whenever `goals` changes. An operator save sends the
+	 * revision it loaded; a mismatch means someone else edited the goals in between
+	 * and the save is rejected rather than silently overwriting them. Never reaches
+	 * the overlay (`stripNotes` builds an explicit literal).
+	 */
+	goalsRev: number;
 };
 
 /** A goal as sent to the overlay — note, target AND hidden flag removed. */
@@ -93,10 +107,19 @@ function roundUpClean(n: number): number {
  *
  * Unlocked goals are already awarded, so they're left exactly as typed — only
  * upcoming (still-locked) goals get raised.
+ *
+ * `freezeMetTargets` (the default) additionally pins a goal the sub count has
+ * ALREADY REACHED but which isn't unlocked yet — that's the goal the operator is
+ * working on, and moving its number out from under them is the whole complaint
+ * this flag exists to answer. It also stops the cascade: because the floor runs
+ * forward through the list, an unfrozen met goal raised the goals AFTER it too, so
+ * editing goal #5 could rewrite #2, #3 and #4. A frozen goal can no longer
+ * originate that. Turn the flag off to get the old raise-everything behaviour back.
  */
 export function bumpPassedGoals(
 	goals: Goal[],
 	currentSubs: number,
+	freezeMetTargets = true,
 ): { goals: Goal[]; bumped: number } {
 	let floor = Math.max(0, currentSubs);
 	let bumped = 0;
@@ -105,6 +128,13 @@ export function bumpPassedGoals(
 		// Already-awarded goals never move — keep their target, but let it hold the
 		// floor so upcoming targets still sort above a manually-high unlocked one.
 		if (g.unlocked) {
+			floor = Math.max(floor, g.target);
+			return g;
+		}
+		// Met but not yet unlocked: the goal in progress. Hold the floor with it (it
+		// can't push the floor past `currentSubs`, since it's at or below it), so the
+		// goals after it are still measured from the right place.
+		if (freezeMetTargets && g.target <= currentSubs) {
 			floor = Math.max(floor, g.target);
 			return g;
 		}
@@ -156,6 +186,8 @@ export function sampleData(): Data {
 		currentIndex: 0,
 		currentSubs: 0,
 		theme: defaultOverlayTheme(),
+		freezeMetTargets: true,
+		goalsRev: 0,
 	};
 }
 
@@ -189,17 +221,46 @@ export function withThemeDefaults(stored: OverlayTheme | undefined): OverlayThem
 }
 
 /**
+ * Index of the first still-locked goal, or `goals.length` when everything is
+ * unlocked. Goals unlock top-to-bottom, so this doubles as "how many are done".
+ */
+export function nextGoalIndex(goals: { unlocked: boolean }[]): number {
+	const firstLocked = goals.findIndex((g) => !g.unlocked);
+	return firstLocked === -1 ? goals.length : firstLocked;
+}
+
+/**
+ * The next goal as every PUBLIC surface must see it — hidden goals are operator-only,
+ * so they are filtered out BEFORE the pointer is derived.
+ *
+ * The overlay gets this for free via {@link stripNotes}. The chat bot has no
+ * projection of its own, so it must call this directly: reading
+ * `data.goals[data.currentIndex]` off the raw document points at the first locked
+ * goal INCLUDING hidden ones, which posts a secret reward (and its target) to chat.
+ */
+export function nextVisibleGoal(data: Data): Goal | undefined {
+	const visible = data.goals.filter((g) => !g.hidden);
+	return visible[nextGoalIndex(visible)];
+}
+
+/**
  * Keep the tracker's invariants consistent after any mutation:
  * `currentIndex` always points at the first locked goal (or past the end when
  * everything is unlocked). Goals unlock top-to-bottom.
+ *
+ * CAREFUL: this rebuilds an explicit literal, and it runs on BOTH sides of every
+ * `mutateState` — so any key not named here is erased from the stored document on
+ * the next read or write. A new `Data` field must be added below (with its
+ * pre-flag default) or it will silently never persist.
  */
 export function recompute(data: Data): Data {
-	const firstLocked = data.goals.findIndex((g) => !g.unlocked);
 	return {
 		goals: data.goals,
-		currentIndex: firstLocked === -1 ? data.goals.length : firstLocked,
+		currentIndex: nextGoalIndex(data.goals),
 		currentSubs: Math.max(0, data.currentSubs ?? 0),
 		theme: withThemeDefaults(data.theme),
+		freezeMetTargets: data.freezeMetTargets ?? true,
+		goalsRev: data.goalsRev ?? 0,
 	};
 }
 
@@ -210,16 +271,29 @@ export function stripNotes(data: Data): PublicData {
 	// then recompute the next-goal pointer over what's left so a hidden reward
 	// never shows (not even as the upcoming "next").
 	const visible = data.goals.filter((g) => !g.hidden);
-	const firstLocked = visible.findIndex((g) => !g.unlocked);
-	const currentIndex = firstLocked === -1 ? visible.length : firstLocked;
+	const currentIndex = nextGoalIndex(visible);
 	// Only the NEXT goal's target is exposed — never future ones (a big gifter
 	// must not see the final ceiling).
 	const nextTarget = visible[currentIndex]?.target ?? null;
+	// Ship only what the overlay can actually DRAW: everything up to and including
+	// the current goal, plus the "Coming up" window when that's switched on.
+	//
+	// `showNext` used to gate rendering only, so every upcoming reward name still
+	// arrived in the payload — readable by anyone holding the `?t=` URL, or from the
+	// OBS browser source's own devtools. Turning "Next rewards" off looked like it
+	// hid them and didn't. Slicing here is what actually makes a surprise reward a
+	// surprise; `hidden` remains the way to keep one out of the payload entirely,
+	// even when it is the next goal.
+	//
+	// The kept prefix always contains every unlocked goal (they unlock top-to-bottom),
+	// so `currentIndex` still indexes correctly and the overlay's unlock-celebration
+	// tracker still sees each goal the moment it flips.
+	const shown = visible.slice(0, currentIndex + 1 + (theme.showNext ? NEXT_REWARDS_SHOWN : 0));
 	return {
 		currentIndex,
 		currentSubs: Math.max(0, data.currentSubs ?? 0),
 		nextTarget,
-		goals: visible.map(({ id, reward, unlocked }) => ({ id, reward, unlocked })),
+		goals: shown.map(({ id, reward, unlocked }) => ({ id, reward, unlocked })),
 		gradient: resolveThemeGradient(theme),
 		textColor: theme.textColor,
 		font: theme.font,
@@ -333,6 +407,14 @@ export function validateImport(input: unknown): ImportResult {
 		}
 	}
 
+	// Optional; absent → on. The import router preserves the operator's existing
+	// choice when the doc omits the key (same rule as `theme`).
+	const rawFreeze = (input as Record<string, unknown>).freezeMetTargets;
+	if (rawFreeze !== undefined && typeof rawFreeze !== "boolean") {
+		errors.push({ index: -1, message: "`freezeMetTargets` must be a boolean." });
+	}
+	const freezeMetTargets = typeof rawFreeze === "boolean" ? rawFreeze : true;
+
 	// Theme is optional on import; absent → brand default (the import router
 	// preserves the operator's existing theme when the doc omits one).
 	const themeErrors: ThemeError[] = [];
@@ -345,7 +427,9 @@ export function validateImport(input: unknown): ImportResult {
 
 	return {
 		ok: true,
-		data: { goals: normalized, currentIndex: 0, currentSubs, theme },
+		// `goalsRev` is server-owned — `mutateState` bumps it on write, so an import
+		// document never carries or restores one.
+		data: { goals: normalized, currentIndex: 0, currentSubs, theme, freezeMetTargets, goalsRev: 0 },
 		rewards: normalized.map((g) => g.reward),
 	};
 }

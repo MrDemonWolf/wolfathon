@@ -10,11 +10,13 @@ import {
 	MAX_EMOJIS,
 	MAX_EMOTE_COUNT,
 	type TimerConfig,
+	type TimerDoc,
 } from "@wolfathon/api/timer";
 import { Button } from "@wolfathon/ui/components/button";
+import { Checkbox } from "@wolfathon/ui/components/checkbox";
 import { Input } from "@wolfathon/ui/components/input";
 import { ArrowRight, ArrowUp, Plus, RotateCcw, Trash2, Twitch, X } from "lucide-react";
-import { type KeyboardEvent, useState } from "react";
+import { type KeyboardEvent, useId, useState } from "react";
 import { toast } from "sonner";
 
 const EMOTE_DIRECTION_LABELS: Record<EmoteDirection, string> = {
@@ -49,13 +51,46 @@ const EMOJI_PRESETS = [
 
 import { controlTrpc, queryClient } from "@/utils/trpc";
 
+/**
+ * WAI-ARIA radiogroup keyboard behaviour: arrows/Home/End move the selection AND
+ * focus. Paired with a roving `tabIndex` (only the checked radio is tabbable) so
+ * the group is ONE tab stop.
+ *
+ * Without it these announce as radiogroups but don't behave like one — every
+ * option was a separate tab stop and the arrow keys did nothing. Mirrors
+ * `onTabKeyDown`, which already does this correctly for the tablist above.
+ */
+function radioGroupKeyDown<T extends string | number>(
+	e: KeyboardEvent<HTMLDivElement>,
+	values: readonly T[],
+	current: T,
+	select: (v: T) => void,
+	domId: (v: T) => string,
+): void {
+	const i = values.indexOf(current);
+	let next: number;
+	if (e.key === "ArrowRight" || e.key === "ArrowDown") next = (i + 1) % values.length;
+	else if (e.key === "ArrowLeft" || e.key === "ArrowUp")
+		next = (i - 1 + values.length) % values.length;
+	else if (e.key === "Home") next = 0;
+	else if (e.key === "End") next = values.length - 1;
+	else return;
+	e.preventDefault();
+	const value = values[next]!;
+	select(value);
+	document.getElementById(domId(value))?.focus();
+}
+
 /** Controlled — the Timer tab holds the draft config and persists it on Save. */
 export function TimerConfigPanel({
 	config,
 	onChange,
+	onDocChanged,
 }: {
 	config: TimerConfig;
 	onChange: (c: TimerConfig) => void;
+	/** A channel-point reward write-through landed; adopt the returned doc as saved. */
+	onDocChanged: (doc: TimerDoc) => void;
 }) {
 	const n = (v: string): number => {
 		const x = Number(v);
@@ -97,6 +132,9 @@ export function TimerConfigPanel({
 				</p>
 			</div>
 
+			{/* Roving tabindex: focus lives on the CHILD tabs/radios (exactly one is
+			    tabbable), so the container must not be a tab stop itself. */}
+			{/* eslint-disable-next-line jsx-a11y/interactive-supports-focus */}
 			<div
 				role="tablist"
 				aria-label="Timer setup sections"
@@ -201,7 +239,7 @@ export function TimerConfigPanel({
 					</div>
 
 					{/* channel point rewards — created/owned on Twitch */}
-					<ChannelRewards config={config} onChange={onChange} />
+					<ChannelRewards config={config} onChange={onChange} onDocChanged={onDocChanged} />
 				</div>
 			)}
 
@@ -251,9 +289,21 @@ export function TimerConfigPanel({
 						<p className="mt-1 text-xs text-muted-foreground">
 							How big each flooding emote renders. Bump it up for a 1080p source.
 						</p>
+						{/* Roving tabindex: focus lives on the CHILD tabs/radios (exactly one is
+					    tabbable), so the container must not be a tab stop itself. */}
+						{/* eslint-disable-next-line jsx-a11y/interactive-supports-focus */}
 						<div
 							role="radiogroup"
 							aria-label="Emote size"
+							onKeyDown={(e) =>
+								radioGroupKeyDown(
+									e,
+									EMOTE_SCALES,
+									config.emoteScale,
+									(emoteScale) => onChange({ ...config, emoteScale }),
+									(v) => `emote-scale-${v}`,
+								)
+							}
 							className="segmented mt-2 inline-flex w-fit gap-1 rounded-[0.95rem] p-1"
 						>
 							{EMOTE_SCALES.map((scale) => {
@@ -261,9 +311,11 @@ export function TimerConfigPanel({
 								return (
 									<button
 										key={scale}
+										id={`emote-scale-${scale}`}
 										type="button"
 										role="radio"
 										aria-checked={active}
+										tabIndex={active ? 0 : -1}
 										onClick={() => onChange({ ...config, emoteScale: scale })}
 										className={`rounded-[0.7rem] px-4 py-1.5 text-sm font-medium transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
 											active
@@ -284,9 +336,21 @@ export function TimerConfigPanel({
 						<p className="mt-1 text-xs text-muted-foreground">
 							Which way the emotes travel when time is added.
 						</p>
+						{/* Roving tabindex: focus lives on the CHILD tabs/radios (exactly one is
+					    tabbable), so the container must not be a tab stop itself. */}
+						{/* eslint-disable-next-line jsx-a11y/interactive-supports-focus */}
 						<div
 							role="radiogroup"
 							aria-label="Emote direction"
+							onKeyDown={(e) =>
+								radioGroupKeyDown(
+									e,
+									EMOTE_DIRECTIONS,
+									config.emoteDirection,
+									(emoteDirection) => onChange({ ...config, emoteDirection }),
+									(v) => `emote-dir-${v}`,
+								)
+							}
 							className="mt-2 grid max-w-md gap-2 [grid-template-columns:repeat(auto-fit,minmax(7rem,1fr))]"
 						>
 							{EMOTE_DIRECTIONS.map((dir) => {
@@ -294,9 +358,11 @@ export function TimerConfigPanel({
 								return (
 									<button
 										key={dir}
+										id={`emote-dir-${dir}`}
 										type="button"
 										role="radio"
 										aria-checked={active}
+										tabIndex={active ? 0 : -1}
 										onClick={() => onChange({ ...config, emoteDirection: dir })}
 										className={`flex flex-col items-stretch gap-2 rounded-lg border p-2 text-sm font-medium transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${
 											active
@@ -406,20 +472,29 @@ export function TimerConfigPanel({
 /**
  * Channel-point rewards card. Unlike the rest of the timer config (which is a
  * draft saved by the DirtyBar), creating/removing a reward hits Twitch
- * IMMEDIATELY (Helix create/delete) and persists the rule server-side — so these
- * mutations write straight through and we sync the draft + the saved baseline
- * from the returned doc, never leaving a phantom-dirty channelPoints diff.
+ * IMMEDIATELY (Helix create/delete) and persists the rule server-side.
+ *
+ * So `channelPoints` is SERVER-OWNED: the tab excludes it from both the dirty diff
+ * and the Save payload (see `timer-tab.tsx`), and `timer.setConfig` preserves the
+ * stored rules for any payload that omits the key. Patching it into the draft here
+ * is display-only — it keeps the list on screen in step with the server without
+ * making the tab dirty, and a later Save can no longer rewind a reward that was
+ * recreated on Twitch in the meantime.
  */
 function ChannelRewards({
 	config,
 	onChange,
+	onDocChanged,
 }: {
 	config: TimerConfig;
 	onChange: (c: TimerConfig) => void;
+	onDocChanged: (doc: TimerDoc) => void;
 }) {
+	const enabledId = useId();
 	const [title, setTitle] = useState("");
 	const [minutes, setMinutes] = useState("5");
 	const rules = config.channelPoints;
+	const enabled = config.channelPointsEnabled;
 	const atCap = rules.length >= MAX_CHANNEL_POINT_RULES;
 
 	// Keep the saved baseline in sync so the through-write doesn't read as dirty.
@@ -431,7 +506,10 @@ function ChannelRewards({
 	const create = useMutation(
 		controlTrpc.timer.createChannelReward.mutationOptions({
 			onSuccess: (doc) => {
-				onChange({ ...config, channelPoints: doc.config.channelPoints });
+				// Already persisted server-side (and on Twitch) — adopt it as the SAVED
+				// baseline, not as an edit, so the tab stays clean and picks up the
+				// `configRev` this write just bumped.
+				onDocChanged(doc);
 				setTitle("");
 				setMinutes("5");
 				toast.success("Reward created on Twitch");
@@ -443,7 +521,7 @@ function ChannelRewards({
 	const remove = useMutation(
 		controlTrpc.timer.removeChannelReward.mutationOptions({
 			onSuccess: (doc) => {
-				onChange({ ...config, channelPoints: doc.config.channelPoints });
+				onDocChanged(doc);
 				toast.success("Reward removed");
 				invalidate();
 			},
@@ -451,6 +529,8 @@ function ChannelRewards({
 		}),
 	);
 	const busy = create.isPending || remove.isPending;
+	/** Creating is closed at the cap, mid-request, or while the integration is parked. */
+	const locked = busy || atCap || !enabled;
 
 	function submit() {
 		const t = title.trim();
@@ -468,8 +548,25 @@ function ChannelRewards({
 				to {MAX_CHANNEL_POINT_RULES}.
 			</p>
 
-			{/* existing rewards (up to 2) */}
-			<div className="mt-2 flex flex-col gap-2">
+			<div className="mt-3 flex items-center gap-2 text-sm font-medium">
+				<Checkbox
+					id={enabledId}
+					checked={enabled}
+					onCheckedChange={(v) => onChange({ ...config, channelPointsEnabled: v === true })}
+				/>
+				<label htmlFor={enabledId} className="cursor-pointer">
+					Channel-point rewards add time
+				</label>
+			</div>
+			<p className="mt-1 text-xs text-muted-foreground">
+				{enabled
+					? "Redemptions of the rewards below add their minutes to the clock."
+					: "Redemptions won’t add time while this is off. Your rewards stay on Twitch and viewers can still redeem them — turn this back on any time."}
+			</p>
+
+			{/* existing rewards (up to 2). Remove stays live while the integration is off:
+			    parking it shouldn't strand rewards on the channel with no way to clear them. */}
+			<div className="mt-3 flex flex-col gap-2">
 				{rules.map((rule, i) => (
 					<div
 						key={rule.rewardId ?? i}
@@ -500,7 +597,8 @@ function ChannelRewards({
 				)}
 			</div>
 
-			{/* create form */}
+			{/* create form — closed while the integration is off (a new reward would sit
+			    on the channel adding nothing) */}
 			<div className="mt-3 flex items-end gap-2">
 				<label className="flex flex-1 flex-col gap-1 text-xs text-muted-foreground">
 					Reward title
@@ -509,7 +607,7 @@ function ChannelRewards({
 						placeholder="e.g. Add 5 minutes"
 						value={title}
 						maxLength={45}
-						disabled={atCap || busy}
+						disabled={locked}
 						onChange={(e) => setTitle(e.target.value)}
 						onKeyDown={(e) => {
 							if (e.key === "Enter") {
@@ -526,7 +624,7 @@ function ChannelRewards({
 						type="number"
 						min={0}
 						value={minutes}
-						disabled={atCap || busy}
+						disabled={locked}
 						onChange={(e) => setMinutes(e.target.value)}
 					/>
 				</label>
@@ -534,14 +632,14 @@ function ChannelRewards({
 					variant="outline"
 					size="sm"
 					className="mb-px rounded-lg"
-					disabled={atCap || busy || !title.trim()}
+					disabled={locked || !title.trim()}
 					onClick={submit}
 				>
 					<Plus className="size-3.5" />
 					{create.isPending ? "Creating…" : "Create"}
 				</Button>
 			</div>
-			{atCap && (
+			{atCap && enabled && (
 				<p className="mt-2 text-xs text-muted-foreground">
 					At the {MAX_CHANNEL_POINT_RULES}-reward limit. Remove one to create another.
 				</p>

@@ -163,5 +163,3 @@ export const giveawayRouter = router({
 		mutateGiveaway(ctx.db, (doc) => resetRound(doc)),
 	),
 });
-
-export type GiveawayRouter = typeof giveawayRouter;

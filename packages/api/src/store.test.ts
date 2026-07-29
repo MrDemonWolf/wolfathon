@@ -1,6 +1,7 @@
+import { TRPCError } from "@trpc/server";
 import { expect, test } from "bun:test";
 
-import { mutateWithCas } from "./store";
+import { mutateWithCas, nextRev, revMatches, staleRevError } from "./store";
 
 /**
  * Regression tests for the optimistic-concurrency loop behind every mutate*
@@ -16,16 +17,22 @@ type Doc = { ms: number; subs: number };
 /** Minimal in-memory CAS store mirroring the D1 ops mutateDoc wires up. */
 function makeStore(initial: string | null) {
 	let json = initial; // null = row absent
+	let writes = 0;
 	return {
 		get: () => json,
+		/** How many times `cas` actually wrote — a no-op apply must not bump this. */
+		writes: () => writes,
 		set: (v: string) => {
 			json = v;
 		},
 		ops: {
 			read: async () => (json == null ? null : { value: JSON.parse(json) as Doc, token: json }),
 			cas: async (token: string, next: Doc) => {
+				const data = JSON.stringify(next);
+				if (data === token) return true; // unchanged — mutateDoc skips the UPDATE
 				if (json !== token) return false; // another writer changed the row first
-				json = JSON.stringify(next);
+				json = data;
+				writes++;
 				return true;
 			},
 			seed: async (value: Doc) => {
@@ -117,14 +124,76 @@ test("seeds an absent row then applies", async () => {
 	expect(result).toEqual({ ms: 0, subs: 1 });
 });
 
-test("throws after exhausting attempts when the CAS never lands", async () => {
+test("exhausting attempts surfaces a typed CONFLICT, not a bare Error", async () => {
+	// Reachable under a big gift bomb. A dropped write means lost Wolfathon time, so
+	// the operator must get something actionable rather than a generic 500 carrying
+	// an internal function name.
 	const s = makeStore(JSON.stringify({ ms: 0, subs: 0 }));
 	const ops = { ...s.ops, cas: async () => false };
+	const run = mutateWithCas<Doc>(
+		ops,
+		() => ({ ms: 0, subs: 0 }),
+		(d) => d,
+	);
+	await expect(run).rejects.toBeInstanceOf(TRPCError);
+	await expect(run).rejects.toMatchObject({ code: "CONFLICT" });
+	await expect(run).rejects.toThrow(/didn't save/);
+});
+
+test("an apply that changes nothing writes nothing", async () => {
+	// The chat firehose leans on this: a `!command` with nothing to record must not
+	// rewrite the whole doc just to store the value it already held. Content compare,
+	// not reference — the read-boundary normalizers always return a fresh object, so
+	// an identity check would never fire for the state/timer/wheel/bot docs.
+	const s = makeStore(JSON.stringify({ ms: 7, subs: 3 }));
+	const byRef = await mutateWithCas<Doc>(
+		s.ops,
+		() => ({ ms: 0, subs: 0 }),
+		(d) => d,
+	);
+	expect(byRef).toEqual({ ms: 7, subs: 3 });
+	const rebuilt = await mutateWithCas<Doc>(
+		s.ops,
+		() => ({ ms: 0, subs: 0 }),
+		(d) => ({ ...d }),
+	);
+	expect(rebuilt).toEqual({ ms: 7, subs: 3 });
+	expect(s.writes()).toBe(0);
+	expect(s.get()).toBe(JSON.stringify({ ms: 7, subs: 3 }));
+});
+
+// ---- region revs (optimistic concurrency for operator saves) ----------------
+
+test("nextRev bumps only when the guarded region actually changed", () => {
+	const goals = [{ id: "a", unlocked: false }];
+	// Deep-equal but a different object — the panel rebuilds arrays constantly, so
+	// identity would bump on every save and make every second tab conflict.
+	expect(nextRev(goals, [{ id: "a", unlocked: false }], 3)).toBe(3);
+	expect(nextRev(goals, [{ id: "a", unlocked: true }], 3)).toBe(4);
+	// A document written before revs shipped reads as 0.
+	expect(nextRev(goals, [{ id: "b", unlocked: false }], undefined)).toBe(1);
+});
+
+test("revMatches opts out on an absent base and treats a missing stored rev as zero", () => {
+	// Backup restores and scripts send no rev at all — they must never conflict.
+	expect(revMatches(undefined, 7)).toBe(true);
+	expect(revMatches(0, undefined)).toBe(true);
+	expect(revMatches(2, 2)).toBe(true);
+	expect(revMatches(2, 3)).toBe(false);
+});
+
+test("a rejected save writes nothing — the throw escapes the CAS loop", async () => {
+	const s = makeStore(JSON.stringify({ ms: 1, subs: 1 }));
+	const before = s.get();
 	await expect(
 		mutateWithCas<Doc>(
-			ops,
+			s.ops,
 			() => ({ ms: 0, subs: 0 }),
-			(d) => d,
+			() => {
+				throw staleRevError("goals");
+			},
 		),
-	).rejects.toThrow(/exceeded/);
+	).rejects.toMatchObject({ code: "CONFLICT" });
+	expect(s.get()).toBe(before);
+	expect(s.writes()).toBe(0);
 });

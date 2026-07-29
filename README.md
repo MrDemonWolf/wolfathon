@@ -68,8 +68,7 @@ Keep the rewards flowing. Keep the clock ticking.
   weighted-random result or send the wheel to a specific slot. The token-gated
   OBS overlay stays hidden until you spin (then whirls a long, settling spin and
   reveals the result — a "Keep wheel on screen" toggle parks it permanently),
-  with the centre logo spinning along. It can also **auto-spin every N counted
-  subs** (default 10, configurable), announcing the dare in chat.
+  with the centre logo spinning along.
 - **Chat bot** - Connect a separate bot account and it answers chat commands
   (`!wolfathon`, `!timer`, `!goals`, `!wheel`, `!giveaway`) from the server,
   reusing the EventSub webhook — no process to babysit. Live commands pick from
@@ -162,9 +161,11 @@ Each overlay is its own source — drag them where you want in OBS. Each renders
 at the fixed native size above and fills its source, so to fit a different scene
 just scale the **Browser** source in OBS (or size the source to match).
 
-Both poll every 2 seconds, so control-panel edits and Twitch events appear on
-stream within about 2 seconds (the timer keeps counting smoothly between
-polls).
+Each overlay polls at its own cadence: the timer every 5 seconds (it counts
+down locally between polls, so it stays smooth), rewards every 10 seconds, and
+the wheel every 3 seconds so a triggered spin starts promptly. Control-panel
+edits and Twitch events show on stream within one tick of the relevant
+overlay.
 
 ### Wolfathon timer
 
@@ -267,13 +268,21 @@ The timer half:
 
 ### What the rewards overlay shows
 
-| Element           | Shown on stream                                   |
-| ----------------- | ------------------------------------------------- |
-| Current reward    | The next locked goal's `reward` name, prominently |
-| Unlocked rewards  | A dimmed row of already-unlocked `reward` names   |
-| Future goals      | Hidden entirely                                   |
-| Numbers / amounts | Never shown                                       |
-| `note` field      | Never sent to the browser                         |
+| Element           | Shown on stream                                               |
+| ----------------- | ------------------------------------------------------------- |
+| Current reward    | The next locked goal's `reward` name, prominently             |
+| Coming up         | The next few upcoming `reward` names, if "Next rewards" is on |
+| Further-off goals | Never shown, and never sent to the browser                    |
+| Hidden goals      | Never shown, and never sent to the browser                    |
+| Numbers / amounts | Only the next goal's target (for the progress bar)            |
+| `note` field      | Never sent to the browser                                     |
+
+The overlay is only ever sent what it can draw: everything up to the current
+reward, plus the "Coming up" window when that toggle is on. Turning **Next
+rewards** off removes those names from the payload as well as the screen, so a
+reward further down the list can't be read out of the OBS source. To keep a
+reward secret even when it's the very next one, use the **eye** toggle — a
+hidden goal never reaches the browser at all.
 
 ### Wheel of dares
 
@@ -291,11 +300,6 @@ dare under the fixed top pointer, then hides again — flip **Keep wheel on
 screen** in the Customizer to park it permanently. It honours
 `prefers-reduced-motion` (lands without the whirl), shows only enabled slots,
 and never receives the token or any internal field.
-
-The wheel can also **auto-spin every N counted subs** — set the cadence on the
-Wheel tab (default 10, or Off to spin only by hand). When a sub milestone is
-crossed the overlay plays the spin and, if the chat bot is connected, it
-announces the dare it landed on.
 
 ### Chat bot
 
@@ -370,7 +374,7 @@ it is operator-only behind Cloudflare Access.
 
 **Settings → Customizer** tunes how the overlays paint: accent colours, font,
 corner radius, the eyebrow label, and per-overlay show/hide toggles (units,
-progress bar, unlocked row, status, and the rest), plus a **Keep wheel on
+progress bar, next rewards, status, and the rest), plus a **Keep wheel on
 screen** toggle (off by default — the wheel only appears when it spins). Each
 overlay renders at a fixed native size — scale the OBS source to fit your scene.
 A live preview renders the timer and rewards surfaces with sample data
@@ -569,7 +573,7 @@ route in the web app, where Cloudflare Access injects the verified identity.
 Twitch posts EventSub webhooks to the public server Worker, which verifies the
 HMAC and adds time. All three share one D1 database (rewards, timer, and
 Twitch secrets live in separate rows). For instant push instead of polling, a
-Durable Object plus WebSocket can replace the 2-second refetch later.
+Durable Object plus WebSocket can replace the polling later.
 
 ## Project Structure
 

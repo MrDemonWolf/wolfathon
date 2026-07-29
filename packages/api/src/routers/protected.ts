@@ -1,4 +1,3 @@
-import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import { protectedProcedure, router } from "../index";
@@ -12,6 +11,8 @@ import {
 	mutateWheel,
 	readSettings,
 	readState,
+	revMatches,
+	staleRevError,
 	writeSettings,
 } from "../store";
 import { type OverlayTheme, type ThemeError, validateOverlayTheme } from "../theme";
@@ -37,10 +38,17 @@ const goalSchema = z.object({
 
 const dataSchema = z.object({
 	goals: z.array(goalSchema).min(1).max(MAX_GOALS),
-	currentIndex: z.number().int().nonnegative().optional(),
 	currentSubs: z.number().int().nonnegative().optional(),
 	/** Optional — when present, validated + saved in the same write as the goals. */
 	theme: z.unknown().optional(),
+	/** Optional — absent preserves the stored choice. */
+	freezeMetTargets: z.boolean().optional(),
+	/**
+	 * The `goalsRev` this edit was built from. A mismatch means someone else changed
+	 * the goals since this page loaded, and the save is rejected instead of silently
+	 * overwriting them. Omit to opt out (scripts, restores).
+	 */
+	baseGoalsRev: z.number().int().nonnegative().optional(),
 });
 
 function normalizeNote(note: string | undefined): string | undefined {
@@ -87,32 +95,26 @@ export const protectedRouter = router({
 					};
 				}
 			}
-			const state = await mutateState(ctx.db, (existing) => ({
-				goals,
-				currentIndex: input.currentIndex ?? 0,
-				currentSubs: input.currentSubs ?? existing.currentSubs ?? 0,
-				// Theme rides along when present; otherwise the existing one is preserved.
-				theme: nextTheme ?? existing.theme,
-			}));
+			const state = await mutateState(ctx.db, (existing) => {
+				// Checked INSIDE the CAS apply so the comparison is against the row we are
+				// about to write, not a racy pre-read. A throw here escapes the retry loop
+				// uncaught, so a rejected save writes nothing at all.
+				if (!revMatches(input.baseGoalsRev, existing.goalsRev)) throw staleRevError("goals");
+				return {
+					goals,
+					// Derived from the unlocked flags by `recompute` on the way out — anything
+					// set here is overwritten, so it isn't accepted from the client at all.
+					currentIndex: existing.currentIndex,
+					currentSubs: input.currentSubs ?? existing.currentSubs ?? 0,
+					// Theme rides along when present; otherwise the existing one is preserved.
+					theme: nextTheme ?? existing.theme,
+					freezeMetTargets: input.freezeMetTargets ?? existing.freezeMetTargets,
+					// Server-owned; `mutateState` recomputes it on write.
+					goalsRev: existing.goalsRev,
+				};
+			});
 			return { ok: true as const, state };
 		}),
-
-		/** Adjust the running sub count (positive or negative); clamps at zero. */
-		adjustSubs: protectedProcedure
-			.input(z.object({ delta: z.number().int() }))
-			.mutation(async ({ ctx, input }) =>
-				mutateState(ctx.db, (data) => ({
-					...data,
-					currentSubs: Math.max(0, (data.currentSubs ?? 0) + input.delta),
-				})),
-			),
-
-		/** Set the running sub count to an exact value. */
-		setSubs: protectedProcedure
-			.input(z.object({ value: z.number().int().nonnegative() }))
-			.mutation(async ({ ctx, input }) =>
-				mutateState(ctx.db, (data) => ({ ...data, currentSubs: input.value })),
-			),
 
 		/** Update only the overlay theme, preserving goals. */
 		setTheme: protectedProcedure.input(z.unknown()).mutation(async ({ ctx, input }) => {
@@ -152,82 +154,13 @@ export const protectedRouter = router({
 				...result.data,
 				theme: "theme" in obj ? result.data.theme : existing.theme,
 				currentSubs: "currentSubs" in obj ? result.data.currentSubs : existing.currentSubs,
+				freezeMetTargets:
+					"freezeMetTargets" in obj ? result.data.freezeMetTargets : existing.freezeMetTargets,
 			}));
 			return { ok: true as const, state, rewards: result.rewards };
 		}),
 	}),
 
-	goals: router({
-		/** Unlock the current (first locked) goal and advance to the next one. */
-		unlockNext: protectedProcedure.mutation(async ({ ctx }) =>
-			mutateState(ctx.db, (data) => {
-				const target = data.goals.findIndex((g) => !g.unlocked);
-				if (target === -1) return data;
-				return {
-					...data,
-					goals: data.goals.map((g, i) => (i === target ? { ...g, unlocked: true } : g)),
-				};
-			}),
-		),
-
-		/** Add a goal, optionally at a specific position (defaults to the end). */
-		add: protectedProcedure
-			.input(
-				z.object({
-					reward: rewardSchema,
-					note: z.string().optional(),
-					index: z.number().int().optional(),
-				}),
-			)
-			.mutation(async ({ ctx, input }) =>
-				mutateState(ctx.db, (data) => {
-					if (data.goals.length >= MAX_GOALS) {
-						throw new TRPCError({ code: "BAD_REQUEST", message: `Max ${MAX_GOALS} goals.` });
-					}
-					const goal: Goal = {
-						id: crypto.randomUUID(),
-						reward: input.reward.trim(),
-						note: normalizeNote(input.note),
-						unlocked: false,
-					};
-					const at =
-						input.index === undefined
-							? data.goals.length
-							: Math.max(0, Math.min(input.index, data.goals.length));
-					const goals = [...data.goals];
-					goals.splice(at, 0, goal);
-					return { ...data, goals };
-				}),
-			),
-
-		/** Remove a goal by id. */
-		remove: protectedProcedure
-			.input(z.object({ id: z.string() }))
-			.mutation(async ({ ctx, input }) =>
-				mutateState(ctx.db, (data) => ({
-					...data,
-					goals: data.goals.filter((g) => g.id !== input.id),
-				})),
-			),
-
-		/** Reorder goals to match the provided id list (must reference every goal). */
-		reorder: protectedProcedure
-			.input(z.object({ ids: z.array(z.string()) }))
-			.mutation(async ({ ctx, input }) =>
-				mutateState(ctx.db, (data) => {
-					const byId = new Map(data.goals.map((g) => [g.id, g]));
-					if (input.ids.length !== data.goals.length || input.ids.some((id) => !byId.has(id))) {
-						throw new TRPCError({
-							code: "BAD_REQUEST",
-							message: "Reorder must reference every goal exactly once.",
-						});
-					}
-					return { ...data, goals: input.ids.map((id) => byId.get(id)!) };
-				}),
-			),
-	}),
-
-	/** Overlay token: the shared secret in the OBS source URLs. */
 	settings: router({
 		get: protectedProcedure.query(async ({ ctx }) => readSettings(ctx.db)),
 		/** Rotate the overlay token — instantly breaks old URLs (re-paste in OBS). */
@@ -243,16 +176,21 @@ export const protectedRouter = router({
 	 * kept). Twitch/bot connections and the overlay token are untouched, so OBS keeps
 	 * working. ponytail: four separate CAS writes, not one transaction — a failure
 	 * mid-way leaves a partial reset; re-running finishes it. Fine for a manual op.
+	 * They touch four different rows with no ordering between them, so they run
+	 * concurrently; `Promise.all` still rejects on the first failure, which keeps the
+	 * re-run-to-finish behaviour.
 	 */
 	resetForNextSubathon: protectedProcedure.mutation(async ({ ctx }) => {
-		await mutateState(ctx.db, (state) => ({
-			...state,
-			goals: state.goals.map((g) => ({ ...g, unlocked: false })),
-			currentSubs: 0,
-		}));
-		await mutateTimer(ctx.db, (timer) => ({ ...timer, state: resetTimerState(timer.config) }));
-		await mutateWheel(ctx.db, (wheel) => ({ ...wheel, history: [] }));
-		await mutateGiveaway(ctx.db, (giveaway) => resetRound(giveaway));
+		await Promise.all([
+			mutateState(ctx.db, (state) => ({
+				...state,
+				goals: state.goals.map((g) => ({ ...g, unlocked: false })),
+				currentSubs: 0,
+			})),
+			mutateTimer(ctx.db, (timer) => ({ ...timer, state: resetTimerState(timer.config) })),
+			mutateWheel(ctx.db, (wheel) => ({ ...wheel, history: [] })),
+			mutateGiveaway(ctx.db, (giveaway) => resetRound(giveaway)),
+		]);
 		return { ok: true as const };
 	}),
 

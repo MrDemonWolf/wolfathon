@@ -9,11 +9,15 @@ import {
 	mutateTwitch,
 	readTimer,
 	readTwitch,
+	revMatches,
+	staleRevError,
 } from "../store";
 import { requireCreds } from "./creds";
 import {
 	applyEvent,
+	hasChannelPointsKey,
 	MAX_CHANNEL_POINT_RULES,
+	mergeTimerConfig,
 	pause,
 	reset,
 	start,
@@ -109,6 +113,13 @@ function rewardError(err: unknown): TRPCError {
 
 const rewardTitleSchema = z.string().trim().min(1).max(45);
 
+/** Pull an optional `baseConfigRev` off a `setConfig` payload; absent = opt out. */
+function baseRevOf(input: unknown): number | undefined {
+	if (typeof input !== "object" || input === null) return undefined;
+	const rev = (input as Record<string, unknown>).baseConfigRev;
+	return typeof rev === "number" && Number.isInteger(rev) && rev >= 0 ? rev : undefined;
+}
+
 /** Operator-only timer control. Reads return the full doc (config + state). */
 export const timerRouter = router({
 	getRaw: protectedProcedure.query(async ({ ctx }) => readTimer(ctx.db)),
@@ -158,11 +169,30 @@ export const timerRouter = router({
 		return { ok: true as const, config: result.config };
 	}),
 
-	/** Validate, then replace the timer config (keeps the running state). */
+	/**
+	 * Validate, then merge the timer config over the stored one (keeps the running
+	 * state). `channelPoints` is server-owned — see {@link mergeTimerConfig}. A
+	 * payload that omits the key preserves the stored rules, so the panel's Save
+	 * can't rewind a reward created or removed since the page loaded; a backup
+	 * restore, which carries the key, still replaces them.
+	 */
 	setConfig: protectedProcedure.input(z.unknown()).mutation(async ({ ctx, input }) => {
 		const result = validateTimerConfig(input);
 		if (!result.ok) return { ok: false as const, errors: result.errors };
-		const doc = await mutateTimer(ctx.db, (prev) => ({ config: result.config, state: prev.state }));
+		const replaceChannelPoints = hasChannelPointsKey(input);
+		// Rides on the payload rather than a typed field because this input is
+		// `z.unknown()` (the hand-written validator owns the shape). A backup restore
+		// sends a bare config with no rev, so it opts out automatically.
+		const baseConfigRev = baseRevOf(input);
+		const doc = await mutateTimer(ctx.db, (prev) => {
+			// Inside the CAS apply — a throw escapes uncaught, so a rejected save writes
+			// nothing. Guards the CONFIG only; the clock moving never conflicts.
+			if (!revMatches(baseConfigRev, prev.configRev)) throw staleRevError("timer settings");
+			return {
+				...prev,
+				config: mergeTimerConfig(prev.config, result.config, { replaceChannelPoints }),
+			};
+		});
 		return { ok: true as const, doc };
 	}),
 
@@ -175,8 +205,7 @@ export const timerRouter = router({
 		.input(z.object({ title: rewardTitleSchema, minutes: z.number().min(0).max(525_600) }))
 		.mutation(async ({ ctx, input }) => {
 			const { clientId, clientSecret } = requireCreds(ctx);
-			const twitch = await readTwitch(ctx.db);
-			const timer = await readTimer(ctx.db);
+			const [twitch, timer] = await Promise.all([readTwitch(ctx.db), readTimer(ctx.db)]);
 			if (timer.config.channelPoints.length >= MAX_CHANNEL_POINT_RULES) {
 				throw new TRPCError({
 					code: "BAD_REQUEST",
@@ -251,8 +280,7 @@ export const timerRouter = router({
 		)
 		.mutation(async ({ ctx, input }) => {
 			const { clientId, clientSecret } = requireCreds(ctx);
-			const twitch = await readTwitch(ctx.db);
-			const timer = await readTimer(ctx.db);
+			const [twitch, timer] = await Promise.all([readTwitch(ctx.db), readTimer(ctx.db)]);
 			const rules = timer.config.channelPoints;
 			const idx =
 				input.rewardId !== undefined
@@ -290,5 +318,3 @@ export const timerRouter = router({
 			}));
 		}),
 });
-
-export type TimerRouter = typeof timerRouter;

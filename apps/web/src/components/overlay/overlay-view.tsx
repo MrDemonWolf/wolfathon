@@ -46,6 +46,7 @@ export function OverlayView({
 }) {
 	const end = align === "right";
 	const seen = useRef<Set<string> | null>(null);
+	const celebrateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	// Keyed by goal id (not reward text): two goals sharing a name unlocking within
 	// the celebrate window must each remount the animation — a primitive-equal
 	// setState would be a no-op and silently drop the second unlock.
@@ -94,9 +95,21 @@ export function OverlayView({
 		if (!fresh) return;
 
 		setCelebrate({ id: fresh.id, reward: fresh.reward });
-		const timer = setTimeout(() => setCelebrate(null), 3200);
-		return () => clearTimeout(timer);
+		// Held in a ref, NOT returned as the effect cleanup: the effect re-runs on
+		// every `data` change, so a poll landing inside the 3.2s window would clear
+		// the timeout and then early-return above without scheduling a replacement —
+		// leaving "Unlocked: X" stuck on the OBS source until the next unlock.
+		if (celebrateTimer.current) clearTimeout(celebrateTimer.current);
+		celebrateTimer.current = setTimeout(() => setCelebrate(null), 3200);
 	}, [data]);
+
+	// Only on unmount — never on a data change (see above).
+	useEffect(
+		() => () => {
+			if (celebrateTimer.current) clearTimeout(celebrateTimer.current);
+		},
+		[],
+	);
 
 	if (!data) return null;
 

@@ -15,6 +15,8 @@ import {
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { downloadFile } from "./util";
+
 export type IEError = { label: string; message: string };
 export type IEValidate = { ok: true; summary: string[] } | { ok: false; errors: IEError[] };
 export type IEImport = { ok: true } | { ok: false; errors: IEError[] };
@@ -35,16 +37,6 @@ export type IEConfig = {
 	validate: (value: unknown) => Promise<IEValidate>;
 	doImport: (value: unknown) => Promise<IEImport>;
 };
-
-function downloadJson(filename: string, text: string) {
-	const blob = new Blob([text], { type: "application/json" });
-	const url = URL.createObjectURL(blob);
-	const a = document.createElement("a");
-	a.href = url;
-	a.download = filename;
-	a.click();
-	URL.revokeObjectURL(url);
-}
 
 export function ImportExportPanel({
 	config,
@@ -115,7 +107,7 @@ export function ImportExportPanel({
 	function exportNow() {
 		const json = config.currentJson();
 		if (!json) return;
-		downloadJson(config.exportFilename(), json);
+		downloadFile(config.exportFilename(), json);
 	}
 
 	function copyCurrent() {
@@ -154,6 +146,7 @@ export function ImportExportPanel({
 					</p>
 
 					<textarea
+						aria-label={`${config.title} JSON`}
 						value={text}
 						onChange={(e) => updateText(e.target.value)}
 						spellCheck={false}
