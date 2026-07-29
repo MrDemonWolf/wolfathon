@@ -249,16 +249,21 @@ export const protectedRouter = router({
 	 * kept). Twitch/bot connections and the overlay token are untouched, so OBS keeps
 	 * working. ponytail: four separate CAS writes, not one transaction — a failure
 	 * mid-way leaves a partial reset; re-running finishes it. Fine for a manual op.
+	 * They touch four different rows with no ordering between them, so they run
+	 * concurrently; `Promise.all` still rejects on the first failure, which keeps the
+	 * re-run-to-finish behaviour.
 	 */
 	resetForNextSubathon: protectedProcedure.mutation(async ({ ctx }) => {
-		await mutateState(ctx.db, (state) => ({
-			...state,
-			goals: state.goals.map((g) => ({ ...g, unlocked: false })),
-			currentSubs: 0,
-		}));
-		await mutateTimer(ctx.db, (timer) => ({ ...timer, state: resetTimerState(timer.config) }));
-		await mutateWheel(ctx.db, (wheel) => ({ ...wheel, history: [] }));
-		await mutateGiveaway(ctx.db, (giveaway) => resetRound(giveaway));
+		await Promise.all([
+			mutateState(ctx.db, (state) => ({
+				...state,
+				goals: state.goals.map((g) => ({ ...g, unlocked: false })),
+				currentSubs: 0,
+			})),
+			mutateTimer(ctx.db, (timer) => ({ ...timer, state: resetTimerState(timer.config) })),
+			mutateWheel(ctx.db, (wheel) => ({ ...wheel, history: [] })),
+			mutateGiveaway(ctx.db, (giveaway) => resetRound(giveaway)),
+		]);
 		return { ok: true as const };
 	}),
 

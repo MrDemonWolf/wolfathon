@@ -131,9 +131,27 @@ export function mutateDoc<T>(
 				return row ? { value: JSON.parse(row.data) as T, token: row.data } : null;
 			},
 			cas: async (token, next) => {
+				const data = JSON.stringify(next);
+				// The apply produced exactly what we read — there is nothing to write, so
+				// don't. D1 counts a same-value UPDATE as a change, so without this every
+				// `!command` in chat rewrote the whole giveaway doc (up to MAX_ENTRANTS
+				// entrants), every stream.online/offline rewrote the timer with auto-pause
+				// off, and every cooldown-blocked reply rewrote the bot doc — pure write
+				// amplification on the hottest rows. Comparing serialized content rather
+				// than object identity is what makes this fire through the read-boundary
+				// normalizers (`recompute`, `withTimerConfigDefaults`, …), which always
+				// hand back a fresh object even when nothing changed.
+				//
+				// Contract: skipping the write means a no-op apply returns the value it
+				// READ, which a concurrent writer may already have superseded. That is
+				// consistent with what mutate* guarantees — "your change was applied
+				// atomically", never "this is the newest row" (any returned value is stale
+				// the instant it returns under concurrency). Callers that need freshness
+				// must re-read; none currently do on a no-op path.
+				if (data === token) return true;
 				const res = await db
 					.update(trackerState)
-					.set({ data: JSON.stringify(next), updatedAt: Date.now() })
+					.set({ data, updatedAt: Date.now() })
 					.where(and(eq(trackerState.id, id), eq(trackerState.data, token)))
 					.run();
 				return res.meta.changes > 0;
@@ -286,25 +304,30 @@ export async function applyTimerEventAndBumpSubs(
 	now: number,
 	preview = false,
 ): Promise<{ timer: TimerDoc; subsBefore: number; subsAfter: number }> {
-	const timer = await mutateTimer(db, (doc) => {
-		// Self-heal a channel-point rule whose stored reward id went stale (the reward
-		// was deleted and recreated on Twitch). Folded into the apply that already
-		// runs, so it costs no extra read or write. Skipped on a preview so the test
-		// button can never rewrite stored ids.
-		const config = preview ? doc.config : reconcileRewardId(doc.config, event);
-		return { ...doc, config, state: applyEvent(config, doc.state, event, now, preview).state };
-	});
 	// Sub/gift events also advance the reward goals' running sub count — but a
 	// preview (test button) must not move that either.
 	const subs = preview ? 0 : subsFromEvent(event);
 	let subsBefore = 0;
 	let subsAfter = 0;
-	if (subs > 0) {
-		await mutateState(db, (data) => {
-			subsBefore = data.currentSubs ?? 0;
-			subsAfter = subsBefore + subs;
-			return { ...data, currentSubs: subsAfter };
-		});
-	}
+	// Different rows, no data dependency between them — run the two CAS loops
+	// concurrently so a gift sub doesn't pay two sequential D1 waves on the
+	// webhook's critical path.
+	const [timer] = await Promise.all([
+		mutateTimer(db, (doc) => {
+			// Self-heal a channel-point rule whose stored reward id went stale (the reward
+			// was deleted and recreated on Twitch). Folded into the apply that already
+			// runs, so it costs no extra read or write. Skipped on a preview so the test
+			// button can never rewrite stored ids.
+			const config = preview ? doc.config : reconcileRewardId(doc.config, event);
+			return { ...doc, config, state: applyEvent(config, doc.state, event, now, preview).state };
+		}),
+		subs > 0
+			? mutateState(db, (data) => {
+					subsBefore = data.currentSubs ?? 0;
+					subsAfter = subsBefore + subs;
+					return { ...data, currentSubs: subsAfter };
+				})
+			: undefined,
+	]);
 	return { timer, subsBefore, subsAfter };
 }
