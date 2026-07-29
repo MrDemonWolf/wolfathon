@@ -12,6 +12,8 @@ import {
 	mutateWheel,
 	readSettings,
 	readState,
+	revMatches,
+	staleRevError,
 	writeSettings,
 } from "../store";
 import { type OverlayTheme, type ThemeError, validateOverlayTheme } from "../theme";
@@ -42,6 +44,12 @@ const dataSchema = z.object({
 	theme: z.unknown().optional(),
 	/** Optional — absent preserves the stored choice. */
 	freezeMetTargets: z.boolean().optional(),
+	/**
+	 * The `goalsRev` this edit was built from. A mismatch means someone else changed
+	 * the goals since this page loaded, and the save is rejected instead of silently
+	 * overwriting them. Omit to opt out (scripts, restores).
+	 */
+	baseGoalsRev: z.number().int().nonnegative().optional(),
 });
 
 function normalizeNote(note: string | undefined): string | undefined {
@@ -88,16 +96,24 @@ export const protectedRouter = router({
 					};
 				}
 			}
-			const state = await mutateState(ctx.db, (existing) => ({
-				goals,
-				// Derived from the unlocked flags by `recompute` on the way out — anything
-				// set here is overwritten, so it isn't accepted from the client at all.
-				currentIndex: existing.currentIndex,
-				currentSubs: input.currentSubs ?? existing.currentSubs ?? 0,
-				// Theme rides along when present; otherwise the existing one is preserved.
-				theme: nextTheme ?? existing.theme,
-				freezeMetTargets: input.freezeMetTargets ?? existing.freezeMetTargets,
-			}));
+			const state = await mutateState(ctx.db, (existing) => {
+				// Checked INSIDE the CAS apply so the comparison is against the row we are
+				// about to write, not a racy pre-read. A throw here escapes the retry loop
+				// uncaught, so a rejected save writes nothing at all.
+				if (!revMatches(input.baseGoalsRev, existing.goalsRev)) throw staleRevError("goals");
+				return {
+					goals,
+					// Derived from the unlocked flags by `recompute` on the way out — anything
+					// set here is overwritten, so it isn't accepted from the client at all.
+					currentIndex: existing.currentIndex,
+					currentSubs: input.currentSubs ?? existing.currentSubs ?? 0,
+					// Theme rides along when present; otherwise the existing one is preserved.
+					theme: nextTheme ?? existing.theme,
+					freezeMetTargets: input.freezeMetTargets ?? existing.freezeMetTargets,
+					// Server-owned; `mutateState` recomputes it on write.
+					goalsRev: existing.goalsRev,
+				};
+			});
 			return { ok: true as const, state };
 		}),
 

@@ -119,7 +119,17 @@ export type TimerState = {
 	autoPaused: boolean;
 };
 
-export type TimerDoc = { config: TimerConfig; state: TimerState };
+export type TimerDoc = {
+	config: TimerConfig;
+	state: TimerState;
+	/**
+	 * Bumped by `mutateTimer` whenever the CONFIG changes — not the state, or every
+	 * sub during a live stream would invalidate the panel's open draft. An operator
+	 * save sends the revision it loaded; a mismatch means someone else edited the
+	 * settings in between. Optional on rows written before this shipped (read as 0).
+	 */
+	configRev?: number;
+};
 
 /** What the overlay receives — no config, no secrets. */
 export type PublicTimer = {

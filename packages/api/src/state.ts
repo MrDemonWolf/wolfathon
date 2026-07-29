@@ -45,6 +45,13 @@ export type Data = {
 	 * behaviour those rows should have had.
 	 */
 	freezeMetTargets: boolean;
+	/**
+	 * Bumped by `mutateState` whenever `goals` changes. An operator save sends the
+	 * revision it loaded; a mismatch means someone else edited the goals in between
+	 * and the save is rejected rather than silently overwriting them. Never reaches
+	 * the overlay (`stripNotes` builds an explicit literal).
+	 */
+	goalsRev: number;
 };
 
 /** A goal as sent to the overlay — note, target AND hidden flag removed. */
@@ -179,6 +186,7 @@ export function sampleData(): Data {
 		currentSubs: 0,
 		theme: defaultOverlayTheme(),
 		freezeMetTargets: true,
+		goalsRev: 0,
 	};
 }
 
@@ -251,6 +259,7 @@ export function recompute(data: Data): Data {
 		currentSubs: Math.max(0, data.currentSubs ?? 0),
 		theme: withThemeDefaults(data.theme),
 		freezeMetTargets: data.freezeMetTargets ?? true,
+		goalsRev: data.goalsRev ?? 0,
 	};
 }
 
@@ -403,7 +412,9 @@ export function validateImport(input: unknown): ImportResult {
 
 	return {
 		ok: true,
-		data: { goals: normalized, currentIndex: 0, currentSubs, theme, freezeMetTargets },
+		// `goalsRev` is server-owned — `mutateState` bumps it on write, so an import
+		// document never carries or restores one.
+		data: { goals: normalized, currentIndex: 0, currentSubs, theme, freezeMetTargets, goalsRev: 0 },
 		rewards: normalized.map((g) => g.reward),
 	};
 }

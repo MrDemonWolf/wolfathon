@@ -40,6 +40,7 @@ function dummyData(theme: OverlayTheme): Data {
 		currentSubs: 7,
 		theme,
 		freezeMetTargets: true,
+		goalsRev: 0,
 		goals: [
 			{ id: "1", reward: "Q&A", unlocked: true, target: 1 },
 			{ id: "2", reward: "Phasmophobia", unlocked: true, target: 5 },
