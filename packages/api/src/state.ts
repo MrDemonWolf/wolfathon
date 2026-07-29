@@ -189,15 +189,37 @@ export function withThemeDefaults(stored: OverlayTheme | undefined): OverlayThem
 }
 
 /**
+ * Index of the first still-locked goal, or `goals.length` when everything is
+ * unlocked. Goals unlock top-to-bottom, so this doubles as "how many are done".
+ */
+export function nextGoalIndex(goals: { unlocked: boolean }[]): number {
+	const firstLocked = goals.findIndex((g) => !g.unlocked);
+	return firstLocked === -1 ? goals.length : firstLocked;
+}
+
+/**
+ * The next goal as every PUBLIC surface must see it — hidden goals are operator-only,
+ * so they are filtered out BEFORE the pointer is derived.
+ *
+ * The overlay gets this for free via {@link stripNotes}. The chat bot has no
+ * projection of its own, so it must call this directly: reading
+ * `data.goals[data.currentIndex]` off the raw document points at the first locked
+ * goal INCLUDING hidden ones, which posts a secret reward (and its target) to chat.
+ */
+export function nextVisibleGoal(data: Data): Goal | undefined {
+	const visible = data.goals.filter((g) => !g.hidden);
+	return visible[nextGoalIndex(visible)];
+}
+
+/**
  * Keep the tracker's invariants consistent after any mutation:
  * `currentIndex` always points at the first locked goal (or past the end when
  * everything is unlocked). Goals unlock top-to-bottom.
  */
 export function recompute(data: Data): Data {
-	const firstLocked = data.goals.findIndex((g) => !g.unlocked);
 	return {
 		goals: data.goals,
-		currentIndex: firstLocked === -1 ? data.goals.length : firstLocked,
+		currentIndex: nextGoalIndex(data.goals),
 		currentSubs: Math.max(0, data.currentSubs ?? 0),
 		theme: withThemeDefaults(data.theme),
 	};
@@ -210,8 +232,7 @@ export function stripNotes(data: Data): PublicData {
 	// then recompute the next-goal pointer over what's left so a hidden reward
 	// never shows (not even as the upcoming "next").
 	const visible = data.goals.filter((g) => !g.hidden);
-	const firstLocked = visible.findIndex((g) => !g.unlocked);
-	const currentIndex = firstLocked === -1 ? visible.length : firstLocked;
+	const currentIndex = nextGoalIndex(visible);
 	// Only the NEXT goal's target is exposed — never future ones (a big gifter
 	// must not see the final ceiling).
 	const nextTarget = visible[currentIndex]?.target ?? null;

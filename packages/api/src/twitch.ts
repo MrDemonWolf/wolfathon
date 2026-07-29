@@ -112,6 +112,34 @@ export function defaultTwitchDoc(): TwitchDoc {
 	return {};
 }
 
+/**
+ * The twitch row after the BROADCASTER disconnects.
+ *
+ * Allowlists what survives rather than clearing the row. The chat bot is a separate
+ * Twitch account with its own grant living on the same document — clearing the row
+ * takes it with it, silently, and the operator has to re-authorize from a second
+ * login to notice. A plain spread would be the opposite mistake: it would keep the
+ * broadcaster's access/refresh tokens.
+ *
+ * `unsubscribed` false (the Twitch-side delete failed) → keep the webhook secret,
+ * subscription ids and broadcaster identity so the still-live subs keep verifying
+ * (no orphans) and the next connect/disconnect can reconcile them.
+ */
+export function disconnectedDoc(cur: TwitchDoc, unsubscribed: boolean): TwitchDoc {
+	return {
+		...(cur.bot ? { bot: cur.bot } : {}),
+		...(unsubscribed
+			? {}
+			: {
+					broadcasterId: cur.broadcasterId,
+					broadcasterLogin: cur.broadcasterLogin,
+					webhookSecret: cur.webhookSecret,
+					subscriptionIds: cur.subscriptionIds,
+					recentEventIds: cur.recentEventIds,
+				}),
+	};
+}
+
 /** Masked status safe to return to the (Access-gated) control panel. */
 export type TwitchStatus = {
 	hasCredentials: boolean;

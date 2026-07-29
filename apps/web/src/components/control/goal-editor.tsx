@@ -1,6 +1,6 @@
 "use client";
 
-import { bumpPassedGoals, type Goal, MAX_TARGET } from "@wolfathon/api/state";
+import { bumpPassedGoals, type Goal, MAX_TARGET, nextGoalIndex } from "@wolfathon/api/state";
 import { Button } from "@wolfathon/ui/components/button";
 import { Input } from "@wolfathon/ui/components/input";
 import { NumberStepper } from "@wolfathon/ui/components/number-stepper";
@@ -42,8 +42,8 @@ export function GoalEditor({
 	currentSubs: number;
 	onChange: (goals: Goal[]) => void;
 }) {
-	const nextIndex = goals.findIndex((g) => !g.unlocked);
-	const next = nextIndex === -1 ? undefined : goals[nextIndex];
+	const nextIndex = nextGoalIndex(goals);
+	const next = goals[nextIndex];
 	const allUnlocked = goals.length > 0 && !next;
 
 	// Preview the "Raise past goals" edit without applying it: `raised` is the
