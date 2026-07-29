@@ -13,16 +13,16 @@
 		"db:generate": "drizzle-kit generate"
 	},
 	"dependencies": {
-		"@libsql/client": "0.15.15",
-		"@wolfathon/env": "workspace:*",
-		"dotenv": "catalog:",
-		"drizzle-orm": "^0.45.1",
-		"libsql": "0.5.22",
-		"zod": "catalog:"
+		"drizzle-orm": "^0.45.1"
 	},
 	"devDependencies": {
+		"@libsql/client": "0.15.15",
 		"@wolfathon/config": "workspace:*",
+		"@wolfathon/env": "workspace:*",
+		"dotenv": "catalog:",
 		"drizzle-kit": "^0.31.8",
-		"typescript": "catalog:"
+		"libsql": "0.5.22",
+		"typescript": "catalog:",
+		"zod": "catalog:"
 	}
 }
