@@ -40,20 +40,39 @@ function assertToken(stored: string, given: string): void {
 	}
 }
 
+/**
+ * Every overlay poll needs the settings doc (for the token) AND its own docs. Read
+ * them in ONE wave instead of awaiting the token check first: the gate still runs
+ * before anything is returned, but three OBS sources polling all day stop paying
+ * two sequential D1 round-trips each time. A rejected token costs one extra read,
+ * which is cheaper than the latency this saves on every legitimate poll.
+ */
+async function gated<T>(
+	db: Parameters<typeof readSettings>[0],
+	token: string,
+	load: () => Promise<T>,
+): Promise<T> {
+	const [settings, loaded] = await Promise.all([readSettings(db), load()]);
+	assertToken(settings.overlayToken, token);
+	return loaded;
+}
+
 export const publicRouter = router({
 	state: router({
-		getPublic: publicProcedure.input(tokenInput).query(async ({ ctx, input }) => {
-			assertToken((await readSettings(ctx.db)).overlayToken, input.token);
-			return stripNotes(await readState(ctx.db));
-		}),
+		getPublic: publicProcedure
+			.input(tokenInput)
+			.query(({ ctx, input }) =>
+				gated(ctx.db, input.token, async () => stripNotes(await readState(ctx.db))),
+			),
 	}),
 	timer: router({
-		getPublic: publicProcedure.input(tokenInput).query(async ({ ctx, input }) => {
-			assertToken((await readSettings(ctx.db)).overlayToken, input.token);
-			const [doc, state] = await Promise.all([readTimer(ctx.db), readState(ctx.db)]);
-			// Theme is shared with the rewards card and lives in the rewards doc.
-			return toPublicTimer(doc, Date.now(), state.theme);
-		}),
+		getPublic: publicProcedure.input(tokenInput).query(({ ctx, input }) =>
+			gated(ctx.db, input.token, async () => {
+				const [doc, state] = await Promise.all([readTimer(ctx.db), readState(ctx.db)]);
+				// Theme is shared with the rewards card and lives in the rewards doc.
+				return toPublicTimer(doc, Date.now(), state.theme);
+			}),
+		),
 	}),
 	wheel: router({
 		/**
@@ -63,18 +82,19 @@ export const publicRouter = router({
 		 * on read — multiple browser sources are safe and the overlay dedupes by
 		 * `spinId`; a structural slot edit clears it server-side.
 		 */
-		getPublic: publicProcedure.input(tokenInput).query(async ({ ctx, input }) => {
-			assertToken((await readSettings(ctx.db)).overlayToken, input.token);
-			const [wheel, state] = await Promise.all([readWheel(ctx.db), readState(ctx.db)]);
-			// Theme is shared with the timer + rewards card and lives in the state doc.
-			// `pending` is bounded by a TTL so a stale parked spin never re-whirls a
-			// freshly loaded overlay (the doc keeps pendingSpin indefinitely).
-			return {
-				...toPublicWheel(wheel),
-				theme: state.theme,
-				pending: freshPendingSpin(wheel, Date.now()),
-			};
-		}),
+		getPublic: publicProcedure.input(tokenInput).query(({ ctx, input }) =>
+			gated(ctx.db, input.token, async () => {
+				const [wheel, state] = await Promise.all([readWheel(ctx.db), readState(ctx.db)]);
+				// Theme is shared with the timer + rewards card and lives in the state doc.
+				// `pending` is bounded by a TTL so a stale parked spin never re-whirls a
+				// freshly loaded overlay (the doc keeps pendingSpin indefinitely).
+				return {
+					...toPublicWheel(wheel),
+					theme: state.theme,
+					pending: freshPendingSpin(wheel, Date.now()),
+				};
+			}),
+		),
 	}),
 });
 

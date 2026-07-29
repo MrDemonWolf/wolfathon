@@ -16,16 +16,22 @@ type Doc = { ms: number; subs: number };
 /** Minimal in-memory CAS store mirroring the D1 ops mutateDoc wires up. */
 function makeStore(initial: string | null) {
 	let json = initial; // null = row absent
+	let writes = 0;
 	return {
 		get: () => json,
+		/** How many times `cas` actually wrote — a no-op apply must not bump this. */
+		writes: () => writes,
 		set: (v: string) => {
 			json = v;
 		},
 		ops: {
 			read: async () => (json == null ? null : { value: JSON.parse(json) as Doc, token: json }),
 			cas: async (token: string, next: Doc) => {
+				const data = JSON.stringify(next);
+				if (data === token) return true; // unchanged — mutateDoc skips the UPDATE
 				if (json !== token) return false; // another writer changed the row first
-				json = JSON.stringify(next);
+				json = data;
+				writes++;
 				return true;
 			},
 			seed: async (value: Doc) => {
@@ -127,4 +133,26 @@ test("throws after exhausting attempts when the CAS never lands", async () => {
 			(d) => d,
 		),
 	).rejects.toThrow(/exceeded/);
+});
+
+test("an apply that changes nothing writes nothing", async () => {
+	// The chat firehose leans on this: a `!command` with nothing to record must not
+	// rewrite the whole doc just to store the value it already held. Content compare,
+	// not reference — the read-boundary normalizers always return a fresh object, so
+	// an identity check would never fire for the state/timer/wheel/bot docs.
+	const s = makeStore(JSON.stringify({ ms: 7, subs: 3 }));
+	const byRef = await mutateWithCas<Doc>(
+		s.ops,
+		() => ({ ms: 0, subs: 0 }),
+		(d) => d,
+	);
+	expect(byRef).toEqual({ ms: 7, subs: 3 });
+	const rebuilt = await mutateWithCas<Doc>(
+		s.ops,
+		() => ({ ms: 0, subs: 0 }),
+		(d) => ({ ...d }),
+	);
+	expect(rebuilt).toEqual({ ms: 7, subs: 3 });
+	expect(s.writes()).toBe(0);
+	expect(s.get()).toBe(JSON.stringify({ ms: 7, subs: 3 }));
 });

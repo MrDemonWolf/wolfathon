@@ -187,8 +187,7 @@ export const timerRouter = router({
 		.input(z.object({ title: rewardTitleSchema, minutes: z.number().min(0).max(525_600) }))
 		.mutation(async ({ ctx, input }) => {
 			const { clientId, clientSecret } = requireCreds(ctx);
-			const twitch = await readTwitch(ctx.db);
-			const timer = await readTimer(ctx.db);
+			const [twitch, timer] = await Promise.all([readTwitch(ctx.db), readTimer(ctx.db)]);
 			if (timer.config.channelPoints.length >= MAX_CHANNEL_POINT_RULES) {
 				throw new TRPCError({
 					code: "BAD_REQUEST",
@@ -263,8 +262,7 @@ export const timerRouter = router({
 		)
 		.mutation(async ({ ctx, input }) => {
 			const { clientId, clientSecret } = requireCreds(ctx);
-			const twitch = await readTwitch(ctx.db);
-			const timer = await readTimer(ctx.db);
+			const [twitch, timer] = await Promise.all([readTwitch(ctx.db), readTimer(ctx.db)]);
 			const rules = timer.config.channelPoints;
 			const idx =
 				input.rewardId !== undefined

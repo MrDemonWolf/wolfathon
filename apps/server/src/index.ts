@@ -66,10 +66,28 @@ import { logger } from "hono/logger";
  */
 const app = new Hono();
 
+/**
+ * The EventSub webhook secret, cached for the life of the isolate.
+ *
+ * Twitch delivers every chat message to this endpoint, so reading the twitch doc
+ * from D1 before the signature check made the entire chat firehose cost one D1 read
+ * per message — and made an unsigned-POST flood cost the same. With the secret
+ * cached, an ordinary chat line costs zero reads unless it turns out to be
+ * actionable. Fail-closed is unchanged: a failed verify re-reads once before the
+ * 403, so rotating the secret self-heals rather than blackholing deliveries.
+ */
+let cachedWebhookSecret: string | undefined;
+
 // Redact the overlay token (`?t=...`) from request logs — the public Worker logs
 // every path, and the token is the overlays' only credential (see sec audit).
-app.use(
-	logger((message, ...rest) => console.log(message.replace(/\?\S+/, "?[redacted]"), ...rest)),
+const redactedLogger = logger((message, ...rest) =>
+	console.log(message.replace(/\?\S+/, "?[redacted]"), ...rest),
+);
+app.use((c, next) =>
+	// Twitch delivers EVERY chat message to the webhook, so at raid volume logging it
+	// is thousands of lines a minute for deliveries that do nothing and 204. The
+	// handler logs what actually matters itself.
+	c.req.path === "/twitch/eventsub" ? next() : redactedLogger(c, next),
 );
 app.use(
 	"/*",
@@ -100,12 +118,23 @@ app.use(
 app.post("/twitch/eventsub", async (c) => {
 	const raw = await c.req.text();
 	const db = createDb(env.DB);
-	const twitch = await readTwitch(db);
 
-	// No secret = not connected; reject so nothing can be spoofed in.
-	if (!twitch.webhookSecret) return c.text("not configured", 404);
+	// The twitch doc, read at most once per delivery — and not at all for the chat
+	// firehose, which never gets past the pre-filter below.
+	let twitchDoc: Awaited<ReturnType<typeof readTwitch>> | undefined;
+	const loadTwitch = async () => (twitchDoc ??= await readTwitch(db));
 
-	const valid = await verifyEventsubSignature(c.req.raw.headers, raw, twitch.webhookSecret);
+	let secret = cachedWebhookSecret;
+	let valid = secret ? await verifyEventsubSignature(c.req.raw.headers, raw, secret) : false;
+	if (!valid) {
+		// Cache miss, or the secret rotated out from under this isolate — re-read once
+		// and retry, so a rotation self-heals instead of hard-failing every delivery.
+		secret = (await loadTwitch()).webhookSecret;
+		// No secret = not connected; reject so nothing can be spoofed in.
+		if (!secret) return c.text("not configured", 404);
+		cachedWebhookSecret = secret;
+		valid = await verifyEventsubSignature(c.req.raw.headers, raw, secret);
+	}
 	if (!valid) return c.text("invalid signature", 403);
 
 	const messageType = c.req.header("twitch-eventsub-message-type");
@@ -149,6 +178,9 @@ app.post("/twitch/eventsub", async (c) => {
 		// Nothing actionable → skip dedup write + all giveaway/timer reads.
 		if (!timerEvent && !maybeGiveaway && !isStreamState) return c.body(null, 204);
 
+		// Actionable — now the twitch doc is genuinely needed (dedupe ring + the bot's
+		// and gift-announcement's credentials). Ordinary chat never reaches here.
+		const twitch = await loadTwitch();
 		const recent = twitch.recentEventIds ?? [];
 		if (messageId && recent.includes(messageId)) return c.body(null, 204); // already processed
 
