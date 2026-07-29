@@ -121,7 +121,7 @@ export function TwitchPanel() {
 							</Button>
 							<DisconnectDialog
 								title="Disconnect Twitch?"
-								description="Time will stop being added from subs, gifts, bits, and channel points until you reconnect. Your timer keeps its current value."
+								description="Time will stop being added from subs, gifts, bits, and channel points until you reconnect. Your timer keeps its current value, and your chat bot account stays connected."
 								onConfirm={() => disconnect.mutate()}
 								pending={disconnect.isPending}
 								triggerVariant={degraded ? "ghost" : "destructive"}

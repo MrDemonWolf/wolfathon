@@ -4,6 +4,8 @@ import {
 	bumpPassedGoals,
 	type Data,
 	type Goal,
+	nextGoalIndex,
+	nextVisibleGoal,
 	recompute,
 	sampleData,
 	stripNotes,
@@ -117,6 +119,40 @@ test("stripNotes drops hidden goals and recomputes the next pointer past them", 
 	expect(pub.goals[pub.currentIndex]?.reward).toBe("Onesie");
 	expect(pub.nextTarget).toBe(10);
 	expect(JSON.stringify(pub)).not.toContain("Secret");
+});
+
+test("nextGoalIndex points past the end once every goal is unlocked", () => {
+	expect(nextGoalIndex([])).toBe(0);
+	expect(nextGoalIndex([{ unlocked: true }, { unlocked: false }])).toBe(1);
+	expect(nextGoalIndex([{ unlocked: true }, { unlocked: true }])).toBe(2);
+});
+
+test("nextVisibleGoal skips a hidden next goal (chat must never name a secret reward)", () => {
+	const data: Data = {
+		goals: [
+			{ id: "a", reward: "Q&A", unlocked: true, target: 5 },
+			{ id: "b", reward: "Secret", unlocked: false, target: 8, hidden: true },
+			{ id: "c", reward: "Onesie", unlocked: false, target: 10 },
+		],
+		currentIndex: 1, // raw pointer lands ON the hidden goal — that's the trap
+		currentSubs: 7,
+		theme: defaultOverlayTheme(),
+	};
+	expect(data.goals[data.currentIndex]?.reward).toBe("Secret");
+	expect(nextVisibleGoal(data)?.reward).toBe("Onesie");
+});
+
+test("nextVisibleGoal is undefined when every visible goal is unlocked", () => {
+	const data: Data = {
+		goals: [
+			{ id: "a", reward: "Q&A", unlocked: true },
+			{ id: "b", reward: "Secret", unlocked: false, hidden: true },
+		],
+		currentIndex: 1,
+		currentSubs: 0,
+		theme: defaultOverlayTheme(),
+	};
+	expect(nextVisibleGoal(data)).toBeUndefined();
 });
 
 test("subsFromEvent counts subs + gifts, ignores bits/points/manual", () => {
