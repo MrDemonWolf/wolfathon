@@ -8,6 +8,7 @@ import { type SettingsDoc, defaultSettingsDoc } from "./settings";
 import {
 	applyEvent,
 	defaultTimerDoc,
+	reconcileRewardId,
 	type TimerDoc,
 	type TimerEvent,
 	withTimerConfigDefaults,
@@ -285,10 +286,14 @@ export async function applyTimerEventAndBumpSubs(
 	now: number,
 	preview = false,
 ): Promise<{ timer: TimerDoc; subsBefore: number; subsAfter: number }> {
-	const timer = await mutateTimer(db, (doc) => ({
-		...doc,
-		state: applyEvent(doc.config, doc.state, event, now, preview).state,
-	}));
+	const timer = await mutateTimer(db, (doc) => {
+		// Self-heal a channel-point rule whose stored reward id went stale (the reward
+		// was deleted and recreated on Twitch). Folded into the apply that already
+		// runs, so it costs no extra read or write. Skipped on a preview so the test
+		// button can never rewrite stored ids.
+		const config = preview ? doc.config : reconcileRewardId(doc.config, event);
+		return { ...doc, config, state: applyEvent(config, doc.state, event, now, preview).state };
+	});
 	// Sub/gift events also advance the reward goals' running sub count — but a
 	// preview (test button) must not move that either.
 	const subs = preview ? 0 : subsFromEvent(event);

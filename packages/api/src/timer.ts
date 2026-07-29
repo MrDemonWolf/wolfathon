@@ -39,9 +39,14 @@ export {
 export type SubTier = "t1" | "t2" | "t3" | "prime";
 
 export type ChannelPointRule = {
-	/** Twitch reward id (preferred match). Filled once a redemption is seen. */
+	/**
+	 * Twitch reward id (preferred match). Set when the panel creates the reward, and
+	 * re-pointed by {@link reconcileRewardId} when a redemption proves it went stale
+	 * — deleting the reward on Twitch and recreating it keeps the title but mints a
+	 * new id, so an id-only match would silently add nothing.
+	 */
 	rewardId?: string;
-	/** Human label shown in the panel; also used to match if no id yet. */
+	/** Human label shown in the panel; also the fallback match key. */
 	rewardTitle: string;
 	minutes: number;
 };
@@ -68,6 +73,12 @@ export type TimerConfig = {
 	bitsPer100Minutes: number;
 	/** Up to {@link MAX_CHANNEL_POINT_RULES} reward → minutes rules (managed on Twitch). */
 	channelPoints: ChannelPointRule[];
+	/**
+	 * Master switch for the channel-point → timer integration. Off = redemptions add
+	 * no time and stale ids are left alone. The rewards stay on the Twitch channel
+	 * and remain redeemable — this only stops them moving the clock.
+	 */
+	channelPointsEnabled: boolean;
 	/** Emoji that drift behind the overlay + burst when time is added. */
 	emojis: string[];
 	/** How many emotes flood the bar on each time-add (0 = none). */
@@ -231,6 +242,7 @@ export function defaultTimerConfig(): TimerConfig {
 		giftSubMinutes: 5,
 		bitsPer100Minutes: 1,
 		channelPoints: [],
+		channelPointsEnabled: true,
 		emojis: [...DEFAULT_TIMER_EMOJIS],
 		emoteCount: DEFAULT_EMOTE_COUNT,
 		emoteScale: DEFAULT_EMOTE_SCALE,
@@ -371,6 +383,86 @@ export function reset(config: TimerConfig): TimerState {
 	return defaultTimerState(config);
 }
 
+/**
+ * Resolve a redemption to its rule: exact `rewardId` first, then a case-insensitive
+ * title match.
+ *
+ * The title fallback is what survives a delete-and-recreate on Twitch. The operator
+ * removes the reward in Twitch's own editor and makes a new one with the same name;
+ * it keeps the title but gets a fresh id, so matching on the stored id alone finds
+ * nothing and the redemption silently adds zero minutes. Titles are unique per
+ * channel (Helix rejects a duplicate title on create), so title is a safe second key.
+ *
+ * Order matters: an id hit must beat a title hit, so a rule that was renamed on
+ * Twitch still resolves to itself rather than to a same-named sibling.
+ */
+export function findChannelPointRule(
+	rules: ChannelPointRule[],
+	event: { rewardId?: string; rewardTitle?: string },
+): ChannelPointRule | undefined {
+	if (event.rewardId) {
+		const byId = rules.find((r) => r.rewardId === event.rewardId);
+		if (byId) return byId;
+	}
+	const title = event.rewardTitle?.trim().toLowerCase();
+	if (!title) return undefined;
+	return rules.find((r) => r.rewardTitle.trim().toLowerCase() === title);
+}
+
+/**
+ * Re-point a rule's stale `rewardId` after a title match, so every later redemption
+ * matches by id again (and a rename on Twitch can't strand it). Self-healing: the
+ * first redemption of a recreated reward both adds time AND repairs the rule.
+ *
+ * Returns `config` by reference when nothing moved, so callers can rely on identity.
+ */
+export function reconcileRewardId(config: TimerConfig, event: TimerEvent): TimerConfig {
+	if (!config.channelPointsEnabled) return config;
+	if (event.kind !== "points" || !event.rewardId) return config;
+	const rule = findChannelPointRule(config.channelPoints, event);
+	if (!rule || rule.rewardId === event.rewardId) return config;
+	const rewardId = event.rewardId;
+	return {
+		...config,
+		channelPoints: config.channelPoints.map((r) => (r === rule ? { ...r, rewardId } : r)),
+	};
+}
+
+/**
+ * Does this payload explicitly carry a `channelPoints` key? Distinguishes "omitted →
+ * preserve what's stored" from "explicit `[]` → clear". Unwraps a full export
+ * (`{ config, state }`) the same way {@link validateTimerConfig} does.
+ */
+export function hasChannelPointsKey(input: unknown): boolean {
+	if (!isPlainObject(input)) return false;
+	const raw = input.config ?? input;
+	return isPlainObject(raw) && "channelPoints" in raw;
+}
+
+/**
+ * Merge a validated incoming config over the stored one.
+ *
+ * `channelPoints` is SERVER-OWNED: it is written only by `createChannelReward` /
+ * `removeChannelReward`, which also create/delete the real reward on Twitch. A
+ * config save therefore must not carry the client's snapshot of it — an operator
+ * who deleted a reward on Twitch and made a new one would otherwise have the new
+ * rule's title and minutes overwritten by whatever the panel loaded at page open.
+ *
+ * Omitting the key preserves it — the same "present → applied, absent → preserved"
+ * rule `state.replace` already uses for `theme`. A restore that genuinely carries
+ * rules (Settings → Backup) passes `replaceChannelPoints` and still replaces them.
+ */
+export function mergeTimerConfig(
+	prev: TimerConfig,
+	incoming: TimerConfig,
+	opts: { replaceChannelPoints: boolean },
+): TimerConfig {
+	return {
+		...incoming,
+		channelPoints: opts.replaceChannelPoints ? incoming.channelPoints : prev.channelPoints,
+	};
+}
+
 /** Minutes a given event is worth under the current config. */
 export function eventMinutes(config: TimerConfig, event: TimerEvent): number {
 	switch (event.kind) {
@@ -381,12 +473,8 @@ export function eventMinutes(config: TimerConfig, event: TimerEvent): number {
 		case "bits":
 			return (Math.max(0, event.bits) / 100) * config.bitsPer100Minutes;
 		case "points": {
-			const rule = config.channelPoints.find((r) =>
-				event.rewardId && r.rewardId
-					? r.rewardId === event.rewardId
-					: r.rewardTitle.toLowerCase() === (event.rewardTitle ?? "").toLowerCase(),
-			);
-			return rule?.minutes ?? 0;
+			if (!config.channelPointsEnabled) return 0;
+			return findChannelPointRule(config.channelPoints, event)?.minutes ?? 0;
 		}
 		case "tip":
 			return config.tipMinutesPerDollar * Math.max(0, event.amount);
@@ -552,6 +640,9 @@ export function validateTimerConfig(input: unknown): TimerConfigResult {
 		giftSubMinutes: num(errors, "giftSubMinutes", r.giftSubMinutes),
 		bitsPer100Minutes: num(errors, "bitsPer100Minutes", r.bitsPer100Minutes),
 		channelPoints: [],
+		// Optional; absent → on (lenient, like showEventSource).
+		channelPointsEnabled:
+			typeof r.channelPointsEnabled === "boolean" ? r.channelPointsEnabled : true,
 		emojis: [...DEFAULT_TIMER_EMOJIS],
 		// Optional on older import docs; absent → the default burst size.
 		emoteCount:
