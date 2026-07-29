@@ -397,10 +397,18 @@ function SlotRow({
 					if (Number.isFinite(weight) && weight !== slot.weight) onWeight(weight);
 				}}
 			/>
+			{/* Commit on blur, not on change. React maps onChange to the DOM `input`
+			    event, so dragging the picker fired one `upsertSlot` per pointer move —
+			    hundreds of D1 writes for one colour pick, each of which also clears a
+			    pending spin and so could kill an armed wheel mid-animation. Matches the
+			    label/weight fields above. */}
 			<input
 				type="color"
-				value={slotColor(slot, index)}
-				onChange={(e) => onColor(e.target.value)}
+				defaultValue={slotColor(slot, index)}
+				key={slotColor(slot, index)}
+				onBlur={(e) => {
+					if (e.target.value !== slotColor(slot, index)) onColor(e.target.value);
+				}}
 				aria-label={`Colour for ${slot.label}`}
 				className="size-8 cursor-pointer rounded-[0.6rem] border border-input bg-transparent"
 			/>

@@ -468,9 +468,13 @@ async function flushGiftBatch(db: Db, twitch: TwitchDoc): Promise<void> {
 /**
  * A valid bot user token, refreshing (and persisting the rotated tokens) when
  * within a minute of expiry. Null if refresh fails — the caller skips the reply
- * rather than send with a dead token. ponytail: a thundering herd of refreshes
- * right at expiry would leave all-but-one failing; rare given the cooldown + low
- * command volume, and the next command reads the persisted fresh token.
+ * rather than send with a dead token.
+ *
+ * Concurrent `waitUntil` sends share one `bot` snapshot and so refresh with the
+ * SAME refresh token. Twitch rotates it on use, so all but one get a 4xx: those
+ * are lost races, not dead grants, and must not raise `tokenInvalid` (see below).
+ * The losers return null and skip that one reply; the next command reads the
+ * freshly persisted token.
  */
 async function ensureBotToken(db: Db, bot: NonNullable<TwitchDoc["bot"]>): Promise<string | null> {
 	if (tokenFresh(bot.expiresAt)) return bot.accessToken;
@@ -492,7 +496,14 @@ async function ensureBotToken(db: Db, bot: NonNullable<TwitchDoc["bot"]>): Promi
 		// so the next command just retries.
 		const status = err instanceof TwitchAuthError ? err.status : 0;
 		if (status >= 400 && status < 500) {
-			await mutateTwitch(db, (d) => (d.bot ? { ...d, bot: { ...d.bot, tokenInvalid: true } } : d));
+			await mutateTwitch(db, (d) => {
+				// Only flag if the STORED refresh token is still the one we just tried. If
+				// it has moved, a concurrent refresh already succeeded and rotated it —
+				// our 4xx is that race, not a revoked grant. Flagging here would show
+				// "Bot token expired — reconnect" for a bot that is working fine.
+				if (!d.bot || d.bot.refreshToken !== bot.refreshToken) return d;
+				return { ...d, bot: { ...d.bot, tokenInvalid: true } };
+			});
 		}
 		return null;
 	}
