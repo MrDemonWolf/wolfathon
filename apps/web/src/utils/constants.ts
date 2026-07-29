@@ -21,6 +21,16 @@ export const TIMER_POLL_MS = 5000;
 export const REWARDS_POLL_MS = 10_000;
 
 /**
+ * Operator-panel docs. Slower than every overlay: the panel has one human in front
+ * of it, and this poll exists only so an open draft can't silently rot against a
+ * Twitch write (a counted sub, a channel-point reward created from another tab).
+ * A stale draft is what {@link Draft.stale} warns about — without a poll there is
+ * nothing to detect it with. Background refetch is off; a hidden tab has no draft
+ * anyone is looking at.
+ */
+export const CONTROL_POLL_MS = 15_000;
+
+/**
  * Overlay OBS source dimensions — the operator-facing size string on each
  * Overlays card AND the literal aspect-ratio class the in-panel preview frame
  * uses, kept in ONE place so they can't drift (they did once: a stale 760×380 in
@@ -33,5 +43,3 @@ export const OVERLAY_SIZES = {
 	rewards: { size: "760×540", aspect: "aspect-[38/27]" },
 	wheel: { size: "1080×1080", aspect: "aspect-square" },
 } as const;
-
-export type OverlayId = keyof typeof OVERLAY_SIZES;

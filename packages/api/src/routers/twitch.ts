@@ -2,11 +2,12 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import { protectedProcedure, router } from "../index";
-import { mutateTwitch, readTwitch, writeTwitch } from "../store";
+import { mutateTwitch, readTwitch } from "../store";
 import {
 	buildAuthorizeUrl,
 	type ChannelEmote,
 	deleteSubscriptions,
+	disconnectedDoc,
 	getAppToken,
 	getChannelEmotes,
 	sendTestNotification,
@@ -105,22 +106,10 @@ export const twitchRouter = router({
 				unsubscribed = false;
 			}
 		}
-		// Clean unsubscribe → fully reset. If the Twitch-side delete failed, keep the
-		// subscription ids + webhook secret so the still-live subs keep verifying
-		// (no orphans) and the next connect/disconnect can reconcile them.
-		await writeTwitch(
-			ctx.db,
-			unsubscribed
-				? {}
-				: {
-						broadcasterId: doc.broadcasterId,
-						broadcasterLogin: doc.broadcasterLogin,
-						webhookSecret: doc.webhookSecret,
-						subscriptionIds: doc.subscriptionIds,
-					},
-		);
-		return toStatus(await readTwitch(ctx.db), hasCreds);
+		// CAS, not a blind write: `getAppToken` + `deleteSubscriptions` above open a
+		// network window in which the webhook can append `recentEventIds` or the bot
+		// can persist a refreshed token. See `disconnectedDoc` for what survives.
+		const next = await mutateTwitch(ctx.db, (cur) => disconnectedDoc(cur, unsubscribed));
+		return toStatus(next, hasCreds);
 	}),
 });
-
-export type TwitchRouter = typeof twitchRouter;

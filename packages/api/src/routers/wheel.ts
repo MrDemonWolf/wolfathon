@@ -95,5 +95,3 @@ export const wheelRouter = router({
 			return out;
 		}),
 });
-
-export type WheelRouter = typeof wheelRouter;

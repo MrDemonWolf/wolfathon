@@ -40,6 +40,7 @@ import {
 } from "@wolfathon/api/twitch";
 import {
 	applyTimerEventAndBumpSubs,
+	claimEventId,
 	mutateBot,
 	mutateGiveaway,
 	mutateTimer,
@@ -50,6 +51,8 @@ import {
 	readTimer,
 	readWheel,
 	readTwitch,
+	seenInLegacyRing,
+	sweepSeenEventIds,
 } from "@wolfathon/api/store";
 import { createDb, type Db } from "@wolfathon/db";
 import { env } from "@wolfathon/env/server";
@@ -66,10 +69,28 @@ import { logger } from "hono/logger";
  */
 const app = new Hono();
 
+/**
+ * The EventSub webhook secret, cached for the life of the isolate.
+ *
+ * Twitch delivers every chat message to this endpoint, so reading the twitch doc
+ * from D1 before the signature check made the entire chat firehose cost one D1 read
+ * per message — and made an unsigned-POST flood cost the same. With the secret
+ * cached, an ordinary chat line costs zero reads unless it turns out to be
+ * actionable. Fail-closed is unchanged: a failed verify re-reads once before the
+ * 403, so rotating the secret self-heals rather than blackholing deliveries.
+ */
+let cachedWebhookSecret: string | undefined;
+
 // Redact the overlay token (`?t=...`) from request logs — the public Worker logs
 // every path, and the token is the overlays' only credential (see sec audit).
-app.use(
-	logger((message, ...rest) => console.log(message.replace(/\?\S+/, "?[redacted]"), ...rest)),
+const redactedLogger = logger((message, ...rest) =>
+	console.log(message.replace(/\?\S+/, "?[redacted]"), ...rest),
+);
+app.use((c, next) =>
+	// Twitch delivers EVERY chat message to the webhook, so at raid volume logging it
+	// is thousands of lines a minute for deliveries that do nothing and 204. The
+	// handler logs what actually matters itself.
+	c.req.path === "/twitch/eventsub" ? next() : redactedLogger(c, next),
 );
 app.use(
 	"/*",
@@ -100,12 +121,23 @@ app.use(
 app.post("/twitch/eventsub", async (c) => {
 	const raw = await c.req.text();
 	const db = createDb(env.DB);
-	const twitch = await readTwitch(db);
 
-	// No secret = not connected; reject so nothing can be spoofed in.
-	if (!twitch.webhookSecret) return c.text("not configured", 404);
+	// The twitch doc, read at most once per delivery — and not at all for the chat
+	// firehose, which never gets past the pre-filter below.
+	let twitchDoc: Awaited<ReturnType<typeof readTwitch>> | undefined;
+	const loadTwitch = async () => (twitchDoc ??= await readTwitch(db));
 
-	const valid = await verifyEventsubSignature(c.req.raw.headers, raw, twitch.webhookSecret);
+	let secret = cachedWebhookSecret;
+	let valid = secret ? await verifyEventsubSignature(c.req.raw.headers, raw, secret) : false;
+	if (!valid) {
+		// Cache miss, or the secret rotated out from under this isolate — re-read once
+		// and retry, so a rotation self-heals instead of hard-failing every delivery.
+		secret = (await loadTwitch()).webhookSecret;
+		// No secret = not connected; reject so nothing can be spoofed in.
+		if (!secret) return c.text("not configured", 404);
+		cachedWebhookSecret = secret;
+		valid = await verifyEventsubSignature(c.req.raw.headers, raw, secret);
+	}
 	if (!valid) return c.text("invalid signature", 403);
 
 	const messageType = c.req.header("twitch-eventsub-message-type");
@@ -149,24 +181,27 @@ app.post("/twitch/eventsub", async (c) => {
 		// Nothing actionable → skip dedup write + all giveaway/timer reads.
 		if (!timerEvent && !maybeGiveaway && !isStreamState) return c.body(null, 204);
 
-		const recent = twitch.recentEventIds ?? [];
-		if (messageId && recent.includes(messageId)) return c.body(null, 204); // already processed
+		// Actionable — now the twitch doc is genuinely needed (the bot's and
+		// gift-announcement's credentials). Ordinary chat never reaches here.
+		const twitch = await loadTwitch();
 
-		// Idempotency: record the message id BEFORE applying side effects, so a
-		// retried delivery short-circuits the dedup check above. Trade-off: if the
-		// handler crashes mid-apply, the event is dropped (lost time) rather than
-		// double-counted on retry — the safer failure mode, since over-counting
-		// silently inflates the timer and is unrecoverable, and Twitch's
-		// at-least-once delivery already tolerates the occasional loss. mutateTwitch
-		// is compare-and-swap, so concurrent deliveries can't clobber each other's ids.
-		if (messageId) {
-			await mutateTwitch(db, (doc) => ({
-				...doc,
-				recentEventIds: [messageId, ...(doc.recentEventIds ?? [])].slice(0, 50),
-			}));
-		}
-
+		// Idempotency: claim the message id BEFORE applying side effects, so a retried
+		// delivery short-circuits here. Trade-off: if the handler crashes mid-apply the
+		// event is dropped (lost time) rather than double-counted on retry — the safer
+		// failure mode, since over-counting silently inflates the timer and is
+		// unrecoverable, and Twitch's at-least-once delivery already tolerates the
+		// occasional loss. The claim is an INSERT on a primary key, so concurrent
+		// deliveries can't both win and distinct ids never contend.
 		const now = Date.now();
+		if (messageId) {
+			// One-release shim: ids written by the previous deploy live in the twitch
+			// doc's old ring buffer, so a retry spanning the deploy is still recognised.
+			if (seenInLegacyRing(twitch, messageId)) return c.body(null, 204);
+			if (!(await claimEventId(db, messageId))) return c.body(null, 204); // already processed
+			// Housekeeping, off the response path and only occasionally — the table is
+			// correct whether or not this ever runs.
+			if (Math.random() < 0.01) c.executionCtx.waitUntil(sweepSeenEventIds(db, now));
+		}
 		if (isStreamState) {
 			// Stream went down / came back — auto-pause so an outage doesn't burn
 			// Wolfathon time, then auto-resume on return. Opt-in (default on); resume
@@ -433,9 +468,13 @@ async function flushGiftBatch(db: Db, twitch: TwitchDoc): Promise<void> {
 /**
  * A valid bot user token, refreshing (and persisting the rotated tokens) when
  * within a minute of expiry. Null if refresh fails — the caller skips the reply
- * rather than send with a dead token. ponytail: a thundering herd of refreshes
- * right at expiry would leave all-but-one failing; rare given the cooldown + low
- * command volume, and the next command reads the persisted fresh token.
+ * rather than send with a dead token.
+ *
+ * Concurrent `waitUntil` sends share one `bot` snapshot and so refresh with the
+ * SAME refresh token. Twitch rotates it on use, so all but one get a 4xx: those
+ * are lost races, not dead grants, and must not raise `tokenInvalid` (see below).
+ * The losers return null and skip that one reply; the next command reads the
+ * freshly persisted token.
  */
 async function ensureBotToken(db: Db, bot: NonNullable<TwitchDoc["bot"]>): Promise<string | null> {
 	if (tokenFresh(bot.expiresAt)) return bot.accessToken;
@@ -457,7 +496,14 @@ async function ensureBotToken(db: Db, bot: NonNullable<TwitchDoc["bot"]>): Promi
 		// so the next command just retries.
 		const status = err instanceof TwitchAuthError ? err.status : 0;
 		if (status >= 400 && status < 500) {
-			await mutateTwitch(db, (d) => (d.bot ? { ...d, bot: { ...d.bot, tokenInvalid: true } } : d));
+			await mutateTwitch(db, (d) => {
+				// Only flag if the STORED refresh token is still the one we just tried. If
+				// it has moved, a concurrent refresh already succeeded and rotated it —
+				// our 4xx is that race, not a revoked grant. Flagging here would show
+				// "Bot token expired — reconnect" for a bot that is working fine.
+				if (!d.bot || d.bot.refreshToken !== bot.refreshToken) return d;
+				return { ...d, bot: { ...d.bot, tokenInvalid: true } };
+			});
 		}
 		return null;
 	}

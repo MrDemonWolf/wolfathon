@@ -19,7 +19,7 @@
  */
 
 import { CLAIM_WINDOW_MS, type GiveawayDoc } from "./giveaway";
-import type { Data } from "./state";
+import { type Data, nextVisibleGoal } from "./state";
 import { currentRemainingMs, splitDuration, type TimerDoc } from "./timer";
 import { firstToken } from "./util";
 import type { WheelDoc } from "./wheel";
@@ -347,9 +347,12 @@ export function timerValue(timer: TimerDoc, now: number): string {
 /**
  * The next reward + its progress. Only the NEXT goal's target is revealed (never
  * future ceilings — mirrors the public overlay projection in state.ts).
+ *
+ * Chat is public, so this resolves the goal through {@link nextVisibleGoal}: hidden
+ * goals must never be named here, not even as the upcoming "next".
  */
 export function goalsValue(data: Data): string {
-	const next = data.goals[data.currentIndex];
+	const next = nextVisibleGoal(data);
 	if (!next) return "all rewards unlocked!";
 	if (next.target == null) return next.reward;
 	return `${next.reward} at ${next.target} subs (${data.currentSubs}/${next.target})`;
@@ -440,7 +443,9 @@ function wolfathonSegment(key: WolfathonPartKey, timer: TimerDoc, data: Data, no
 			return `${n} ${n === 1 ? "sub" : "subs"} so far`;
 		}
 		case "goal":
-			return data.goals[data.currentIndex]
+			// Hidden goals are operator-only — resolve through the public projection,
+			// not the raw `currentIndex`, or a secret reward gets announced in chat.
+			return nextVisibleGoal(data)
 				? `🎯 Next reward: ${goalsValue(data)}`
 				: "🎯 All rewards unlocked!";
 	}

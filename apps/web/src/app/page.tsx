@@ -46,7 +46,7 @@ const FEATURES = [
 	{
 		icon: Disc3,
 		title: "Wheel of dares",
-		body: "Spin Howlwheel on stream for a random dare — on demand, or auto-spun every few subs. Hidden until it lands so nobody sees it coming.",
+		body: "Spin Howlwheel on stream for a random dare. Hidden until it lands so nobody sees it coming.",
 	},
 	{
 		icon: Ticket,

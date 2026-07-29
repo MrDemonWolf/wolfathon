@@ -1,0 +1,7 @@
+{
+	"extends": "@wolfathon/config/tsconfig.base.json",
+	"compilerOptions": {
+		"noEmit": true
+	},
+	"include": ["alchemy.run.ts"]
+}

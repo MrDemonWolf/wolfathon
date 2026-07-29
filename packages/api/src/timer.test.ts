@@ -15,8 +15,11 @@ import {
 	eventLabel,
 	eventMs,
 	eventMinutes,
+	hasChannelPointsKey,
 	MAX_CHANNEL_POINT_RULES,
+	mergeTimerConfig,
 	pause,
+	reconcileRewardId,
 	resolveThemeGradient,
 	start,
 	TIMER_THEME_PRESETS,
@@ -374,4 +377,117 @@ test("toPublicTimer sources the eyebrow label from the THEME, not the timer conf
 	expect(pub.label).toBe("MARATHON");
 	expect(pub.showEventSource).toBe(true);
 	expect(pub.lastEvent).toBeNull();
+});
+
+// ---- channel-point rules: recreate-on-Twitch survival + master switch ---------
+
+/** One rule created from the panel: real Twitch id, operator's title + minutes. */
+function pointsConfig() {
+	return {
+		...defaultTimerConfig(),
+		channelPoints: [{ rewardId: "old-id", rewardTitle: "Add 5 minutes", minutes: 5 }],
+	};
+}
+
+test("eventMinutes matches a reward recreated on Twitch by title when the stored id is stale", () => {
+	// The operator deleted the reward in Twitch's editor and made a new one with the
+	// same name: same title, brand-new id. Matching on the stored id alone found
+	// nothing and the redemption silently added zero minutes.
+	const redemption = { kind: "points" as const, rewardId: "new-id", rewardTitle: "Add 5 minutes" };
+	expect(eventMinutes(pointsConfig(), redemption)).toBe(5);
+});
+
+test("eventMinutes prefers an exact rewardId over a same-title rule", () => {
+	const config = {
+		...defaultTimerConfig(),
+		channelPoints: [
+			{ rewardTitle: "Add time", minutes: 1 },
+			{ rewardId: "exact", rewardTitle: "Add time", minutes: 99 },
+		],
+	};
+	expect(eventMinutes(config, { kind: "points", rewardId: "exact", rewardTitle: "Add time" })).toBe(
+		99,
+	);
+});
+
+test("eventMinutes adds nothing while channel-point rewards are disabled", () => {
+	const off = { ...pointsConfig(), channelPointsEnabled: false };
+	expect(eventMinutes(off, { kind: "points", rewardId: "old-id" })).toBe(0);
+	// Other event kinds are untouched by the switch.
+	expect(eventMinutes(off, { kind: "sub", tier: "t1" })).toBe(off.sub.t1);
+});
+
+test("withTimerConfigDefaults backfills channelPointsEnabled on a pre-flag row", () => {
+	const { channelPointsEnabled: _absent, ...legacy } = defaultTimerConfig();
+	const doc = withTimerConfigDefaults({
+		config: legacy as typeof legacy & { channelPointsEnabled: boolean },
+		state: defaultTimerState(),
+	});
+	expect(doc.config.channelPointsEnabled).toBe(true);
+});
+
+test("validateTimerConfig defaults channelPointsEnabled to true and round-trips an explicit false", () => {
+	const absent = validateTimerConfig(defaultTimerConfig());
+	expect(absent.ok && absent.config.channelPointsEnabled).toBe(true);
+	const off = validateTimerConfig({ ...defaultTimerConfig(), channelPointsEnabled: false });
+	expect(off.ok && off.config.channelPointsEnabled).toBe(false);
+});
+
+test("reconcileRewardId re-points a stale id after a title match", () => {
+	const next = reconcileRewardId(pointsConfig(), {
+		kind: "points",
+		rewardId: "new-id",
+		rewardTitle: "Add 5 minutes",
+	});
+	expect(next.channelPoints[0]?.rewardId).toBe("new-id");
+	// Everything else about the rule is left exactly as the operator set it.
+	expect(next.channelPoints[0]?.rewardTitle).toBe("Add 5 minutes");
+	expect(next.channelPoints[0]?.minutes).toBe(5);
+});
+
+test("reconcileRewardId returns the config by reference when nothing moved", () => {
+	const config = pointsConfig();
+	// Exact id match — no repair needed.
+	expect(reconcileRewardId(config, { kind: "points", rewardId: "old-id" })).toBe(config);
+	// Unknown reward — nothing to re-point.
+	expect(reconcileRewardId(config, { kind: "points", rewardId: "x", rewardTitle: "y" })).toBe(
+		config,
+	);
+	// Not a redemption at all.
+	expect(reconcileRewardId(config, { kind: "sub", tier: "t1" })).toBe(config);
+});
+
+test("reconcileRewardId leaves ids alone while the integration is disabled", () => {
+	const off = { ...pointsConfig(), channelPointsEnabled: false };
+	expect(
+		reconcileRewardId(off, { kind: "points", rewardId: "new-id", rewardTitle: "Add 5 minutes" }),
+	).toBe(off);
+});
+
+test("hasChannelPointsKey distinguishes an omitted channelPoints from an explicit empty list", () => {
+	expect(hasChannelPointsKey({ channelPoints: [] })).toBe(true);
+	expect(hasChannelPointsKey({ config: { channelPoints: [] } })).toBe(true);
+	expect(hasChannelPointsKey({ startMinutes: 60 })).toBe(false);
+	expect(hasChannelPointsKey({ config: { startMinutes: 60 } })).toBe(false);
+	expect(hasChannelPointsKey({})).toBe(false);
+	expect(hasChannelPointsKey(null)).toBe(false);
+});
+
+test("mergeTimerConfig preserves the stored channelPoints when the payload omits them", () => {
+	// The panel's Save omits the key, so a reward created since page load survives.
+	const stored = pointsConfig();
+	const incoming = { ...defaultTimerConfig(), startMinutes: 120, channelPoints: [] };
+	const merged = mergeTimerConfig(stored, incoming, { replaceChannelPoints: false });
+	expect(merged.channelPoints).toEqual(stored.channelPoints);
+	expect(merged.startMinutes).toBe(120);
+});
+
+test("mergeTimerConfig replaces channelPoints when a restore explicitly carries them", () => {
+	const restored = [{ rewardTitle: "From backup", minutes: 3 }];
+	const merged = mergeTimerConfig(
+		pointsConfig(),
+		{ ...defaultTimerConfig(), channelPoints: restored },
+		{ replaceChannelPoints: true },
+	);
+	expect(merged.channelPoints).toEqual(restored);
 });

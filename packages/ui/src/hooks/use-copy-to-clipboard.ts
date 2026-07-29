@@ -27,7 +27,15 @@ export function useCopyToClipboard(resetMs = 1500): {
 	const copy = useCallback(
 		async (value: string, successMessage?: string) => {
 			if (!value) return;
-			await navigator.clipboard.writeText(value);
+			try {
+				await navigator.clipboard.writeText(value);
+			} catch {
+				// Denied permission or a non-secure context. Every call site is
+				// fire-and-forget, so without this the flash silently never fires AND the
+				// rejection goes unhandled — the operator is left thinking they copied.
+				toast.error("Couldn't copy — copy it manually.");
+				return;
+			}
 			setCopied(true);
 			if (successMessage) toast.success(successMessage);
 			if (timer.current) clearTimeout(timer.current);

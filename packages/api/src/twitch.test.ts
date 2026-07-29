@@ -3,6 +3,7 @@ import { expect, test } from "bun:test";
 import {
 	buildAuthorizeUrl,
 	deleteSubscriptions,
+	disconnectedDoc,
 	isTestEvent,
 	parseEvent,
 	sendTestNotification,
@@ -10,6 +11,7 @@ import {
 	TEST_EVENT_USER_LOGIN,
 	TwitchAuthError,
 	TWITCH_SCOPES,
+	type TwitchDoc,
 	verifyEventsubSignature,
 } from "./twitch";
 
@@ -199,4 +201,58 @@ test("the authorize URL carries the code flow params, scopes, and state", () => 
 	expect(url.searchParams.get("redirect_uri")).toBe("https://x.dev/api/twitch/callback");
 	expect(url.searchParams.get("state")).toBe("s123");
 	expect(url.searchParams.get("scope")).toBe(TWITCH_SCOPES.join(" "));
+});
+
+/** A fully-populated row: broadcaster grant + a separately-connected chat bot. */
+function connectedDoc(): TwitchDoc {
+	return {
+		broadcasterId: "123",
+		broadcasterLogin: "mrdemonwolf",
+		accessToken: "user-token",
+		refreshToken: "refresh-token",
+		expiresAt: 999,
+		webhookSecret: "hookhookhook",
+		subscriptionIds: ["s1", "s2"],
+		recentEventIds: ["m1"],
+		oauthState: "state123",
+		connected: true,
+		bot: { login: "wolfbot", accessToken: "bot-token", refreshToken: "bot-refresh" },
+	};
+}
+
+test("disconnectedDoc keeps the chat bot — it's a separate account with its own grant", () => {
+	const clean = disconnectedDoc(connectedDoc(), true);
+	expect(clean.bot).toEqual(connectedDoc().bot);
+	const failed = disconnectedDoc(connectedDoc(), false);
+	expect(failed.bot).toEqual(connectedDoc().bot);
+});
+
+test("disconnectedDoc drops every broadcaster credential on a clean unsubscribe", () => {
+	const doc = disconnectedDoc(connectedDoc(), true);
+	expect(doc.accessToken).toBeUndefined();
+	expect(doc.refreshToken).toBeUndefined();
+	expect(doc.broadcasterId).toBeUndefined();
+	expect(doc.webhookSecret).toBeUndefined();
+	expect(doc.subscriptionIds).toBeUndefined();
+	expect(doc.oauthState).toBeUndefined();
+	expect(doc.connected).toBeFalsy();
+});
+
+test("disconnectedDoc keeps the webhook secret + sub ids when the Twitch delete failed", () => {
+	// The subs are still live on Twitch, so they must keep verifying (no orphans)
+	// and the next connect needs the broadcaster identity to reconcile them.
+	const doc = disconnectedDoc(connectedDoc(), false);
+	expect(doc.webhookSecret).toBe("hookhookhook");
+	expect(doc.subscriptionIds).toEqual(["s1", "s2"]);
+	expect(doc.recentEventIds).toEqual(["m1"]);
+	expect(doc.broadcasterLogin).toBe("mrdemonwolf");
+	// …but the broadcaster's own tokens still go.
+	expect(doc.accessToken).toBeUndefined();
+	expect(doc.refreshToken).toBeUndefined();
+	expect(doc.connected).toBeFalsy();
+});
+
+test("disconnectedDoc on a row with no bot leaves no stray bot key", () => {
+	const { bot: _bot, ...noBot } = connectedDoc();
+	expect("bot" in disconnectedDoc(noBot, true)).toBe(false);
 });

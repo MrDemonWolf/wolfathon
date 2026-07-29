@@ -4,6 +4,8 @@ import {
 	bumpPassedGoals,
 	type Data,
 	type Goal,
+	nextGoalIndex,
+	nextVisibleGoal,
 	recompute,
 	sampleData,
 	stripNotes,
@@ -11,7 +13,7 @@ import {
 	validateImport,
 	withThemeDefaults,
 } from "./state";
-import { defaultOverlayTheme, type OverlayTheme } from "./theme";
+import { defaultOverlayTheme, NEXT_REWARDS_SHOWN, type OverlayTheme } from "./theme";
 
 test("recompute backfills a missing theme (pre-theme rows can't crash the editor)", () => {
 	const legacy = { goals: [], currentIndex: 0, currentSubs: 0 } as unknown as Data;
@@ -119,6 +121,40 @@ test("stripNotes drops hidden goals and recomputes the next pointer past them", 
 	expect(JSON.stringify(pub)).not.toContain("Secret");
 });
 
+test("nextGoalIndex points past the end once every goal is unlocked", () => {
+	expect(nextGoalIndex([])).toBe(0);
+	expect(nextGoalIndex([{ unlocked: true }, { unlocked: false }])).toBe(1);
+	expect(nextGoalIndex([{ unlocked: true }, { unlocked: true }])).toBe(2);
+});
+
+test("nextVisibleGoal skips a hidden next goal (chat must never name a secret reward)", () => {
+	const data: Data = {
+		goals: [
+			{ id: "a", reward: "Q&A", unlocked: true, target: 5 },
+			{ id: "b", reward: "Secret", unlocked: false, target: 8, hidden: true },
+			{ id: "c", reward: "Onesie", unlocked: false, target: 10 },
+		],
+		currentIndex: 1, // raw pointer lands ON the hidden goal — that's the trap
+		currentSubs: 7,
+		theme: defaultOverlayTheme(),
+	};
+	expect(data.goals[data.currentIndex]?.reward).toBe("Secret");
+	expect(nextVisibleGoal(data)?.reward).toBe("Onesie");
+});
+
+test("nextVisibleGoal is undefined when every visible goal is unlocked", () => {
+	const data: Data = {
+		goals: [
+			{ id: "a", reward: "Q&A", unlocked: true },
+			{ id: "b", reward: "Secret", unlocked: false, hidden: true },
+		],
+		currentIndex: 1,
+		currentSubs: 0,
+		theme: defaultOverlayTheme(),
+	};
+	expect(nextVisibleGoal(data)).toBeUndefined();
+});
+
 test("subsFromEvent counts subs + gifts, ignores bits/points/manual", () => {
 	expect(subsFromEvent({ kind: "sub", tier: "t1" })).toBe(1);
 	expect(subsFromEvent({ kind: "gift", tier: "t1", count: 5 })).toBe(5);
@@ -133,7 +169,9 @@ test("bumpPassedGoals raises passed targets above current, keeps ascending order
 		{ id: "c", reward: "C", unlocked: false, target: 40 },
 		{ id: "d", reward: "D", unlocked: false }, // no target, untouched
 	];
-	const { goals: out, bumped } = bumpPassedGoals(goals, 12);
+	// Freezing off — the legacy raise-everything behaviour, pinned so the flag stays
+	// a real switch rather than a one-way removal.
+	const { goals: out, bumped } = bumpPassedGoals(goals, 12, false);
 	expect(bumped).toBe(2); // 5 and 8 were ≤ 12
 	expect(out[0]!.target!).toBeGreaterThan(12);
 	expect(out[1]!.target!).toBeGreaterThan(out[0]!.target!);
@@ -147,11 +185,80 @@ test("bumpPassedGoals leaves unlocked (past) goals untouched", () => {
 		{ id: "b", reward: "B", unlocked: true, target: 10 }, // done, below count — stays
 		{ id: "c", reward: "C", unlocked: false, target: 8 }, // upcoming, below count — raised
 	];
-	const { goals: out, bumped } = bumpPassedGoals(goals, 12);
+	const { goals: out, bumped } = bumpPassedGoals(goals, 12, false);
 	expect(bumped).toBe(1); // only the upcoming goal moves
 	expect(out[0]!.target).toBe(5);
 	expect(out[1]!.target).toBe(10);
 	expect(out[2]!.target!).toBeGreaterThan(12);
+});
+
+test("bumpPassedGoals leaves a met-but-locked target exactly as typed by default", () => {
+	// The count passed goal B's target but the operator hasn't unlocked it yet —
+	// that's the goal they're working ON. Its number must not move under them.
+	const goals: Goal[] = [
+		{ id: "a", reward: "A", unlocked: true, target: 5 },
+		{ id: "b", reward: "B", unlocked: false, target: 10 },
+	];
+	const { goals: out, bumped } = bumpPassedGoals(goals, 12);
+	expect(bumped).toBe(0);
+	expect(out[1]!.target).toBe(10);
+});
+
+test("bumpPassedGoals no longer cascades into later goals from a frozen met goal", () => {
+	// The reported case: working on goal #4 must not rewrite #2 and #3. Under the
+	// old floor cascade, raising B to ~14 pushed C and D above it too.
+	const goals: Goal[] = [
+		{ id: "a", reward: "A", unlocked: false, target: 10 }, // met — frozen
+		{ id: "b", reward: "B", unlocked: false, target: 11 }, // met — frozen
+		{ id: "c", reward: "C", unlocked: false, target: 20 }, // ahead — untouched
+		{ id: "d", reward: "D", unlocked: false, target: 30 }, // ahead — untouched
+	];
+	const { goals: out, bumped } = bumpPassedGoals(goals, 12);
+	expect(bumped).toBe(0);
+	expect(out.map((g) => g.target)).toEqual([10, 11, 20, 30]);
+});
+
+test("bumpPassedGoals still repairs a target sitting below an already-unlocked goal", () => {
+	// Genuinely out of order: C is awarded at 30, but D would unlock at 20. That's
+	// the case the raise still exists for, and freezing must not mask it.
+	const goals: Goal[] = [
+		{ id: "c", reward: "C", unlocked: true, target: 30 },
+		{ id: "d", reward: "D", unlocked: false, target: 20 },
+	];
+	const { goals: out, bumped } = bumpPassedGoals(goals, 5);
+	expect(bumped).toBe(1);
+	expect(out[1]!.target!).toBeGreaterThan(30);
+});
+
+test("bumpPassedGoals reports zero raises once every goal is unlocked", () => {
+	const goals: Goal[] = [
+		{ id: "a", reward: "A", unlocked: true, target: 5 },
+		{ id: "b", reward: "B", unlocked: true, target: 10 },
+	];
+	expect(bumpPassedGoals(goals, 999).bumped).toBe(0);
+	expect(bumpPassedGoals(goals, 999, false).bumped).toBe(0);
+});
+
+test("recompute backfills freezeMetTargets on a pre-flag row (and never drops it)", () => {
+	const legacy = {
+		goals: [{ id: "a", reward: "A", unlocked: false }],
+		currentIndex: 0,
+		currentSubs: 0,
+		theme: defaultOverlayTheme(),
+	} as Data;
+	expect(recompute(legacy).freezeMetTargets).toBe(true);
+	// recompute runs on both sides of every mutateState — an explicit false has to
+	// survive the round trip or the operator's choice is erased on the next write.
+	expect(recompute({ ...legacy, freezeMetTargets: false }).freezeMetTargets).toBe(false);
+});
+
+test("validateImport defaults freezeMetTargets to true and round-trips an explicit false", () => {
+	const absent = validateImport({ goals: [{ reward: "Q&A" }] });
+	expect(absent.ok && absent.data.freezeMetTargets).toBe(true);
+	const off = validateImport({ goals: [{ reward: "Q&A" }], freezeMetTargets: false });
+	expect(off.ok && off.data.freezeMetTargets).toBe(false);
+	const bad = validateImport({ goals: [{ reward: "Q&A" }], freezeMetTargets: "yes" });
+	expect(bad.ok).toBe(false);
 });
 
 test("validateImport round-trips an embedded theme and rejects a bad one", () => {
@@ -204,4 +311,89 @@ test("recompute backfills every optional key dropped from an old row", () => {
 
 test("recompute preserves all Data keys (no field silently dropped)", () => {
 	expect(Object.keys(recompute(sampleData())).sort()).toEqual(Object.keys(sampleData()).sort());
+});
+
+// ---- the payload must not carry rewards the overlay never draws --------------
+
+/** `n` locked goals after two unlocked ones, so `currentIndex` is 2. */
+function ladder(future: number): Data {
+	const goals: Goal[] = [
+		{ id: "u1", reward: "Q&A", unlocked: true },
+		{ id: "u2", reward: "Phasmophobia", unlocked: true },
+		{ id: "cur", reward: "Onesie reveal", unlocked: false, target: 10 },
+		...Array.from({ length: future }, (_, i) => ({
+			id: `f${i}`,
+			reward: `Future ${i}`,
+			unlocked: false,
+			target: 100 + i,
+		})),
+	];
+	return {
+		goals,
+		currentIndex: 2,
+		currentSubs: 7,
+		theme: defaultOverlayTheme(),
+		freezeMetTargets: true,
+		goalsRev: 0,
+	};
+}
+
+test("stripNotes never ships a future reward the overlay can't draw", () => {
+	// 12 upcoming but only NEXT_REWARDS_SHOWN are ever rendered — the rest used to
+	// ride along in the payload, readable by anyone with the ?t= URL.
+	const pub = stripNotes(ladder(12));
+	expect(pub.goals).toHaveLength(2 + 1 + NEXT_REWARDS_SHOWN);
+	expect(JSON.stringify(pub)).not.toContain(`Future ${NEXT_REWARDS_SHOWN}`);
+	expect(JSON.stringify(pub)).not.toContain("Future 11");
+});
+
+test("stripNotes ships NO upcoming rewards when the Next rewards toggle is off", () => {
+	// The toggle used to gate rendering only, so turning it off looked like it hid
+	// them and didn't.
+	const data = ladder(12);
+	const pub = stripNotes({ ...data, theme: { ...data.theme, showNext: false } });
+	expect(pub.goals.map((g) => g.reward)).toEqual(["Q&A", "Phasmophobia", "Onesie reveal"]);
+	expect(JSON.stringify(pub)).not.toContain("Future");
+});
+
+test("stripNotes keeps currentIndex valid and every unlocked goal in the slice", () => {
+	// The overlay indexes `goals[currentIndex]` for the current reward, and its
+	// unlock-celebration tracker needs each goal present the moment it flips.
+	const pub = stripNotes(ladder(12));
+	expect(pub.goals[pub.currentIndex]?.reward).toBe("Onesie reveal");
+	expect(pub.goals.filter((g) => g.unlocked).map((g) => g.id)).toEqual(["u1", "u2"]);
+	expect(pub.nextTarget).toBe(10);
+});
+
+test("stripNotes handles fewer upcoming goals than the window, and an all-unlocked list", () => {
+	const few = stripNotes(ladder(2));
+	expect(few.goals.map((g) => g.reward)).toEqual([
+		"Q&A",
+		"Phasmophobia",
+		"Onesie reveal",
+		"Future 0",
+		"Future 1",
+	]);
+	const done = stripNotes({
+		goals: [
+			{ id: "a", reward: "Q&A", unlocked: true },
+			{ id: "b", reward: "Onesie", unlocked: true },
+		],
+		currentIndex: 2,
+		currentSubs: 9,
+		theme: defaultOverlayTheme(),
+		freezeMetTargets: true,
+		goalsRev: 0,
+	});
+	expect(done.goals).toHaveLength(2);
+	expect(done.currentIndex).toBe(2);
+	expect(done.nextTarget).toBeNull();
+});
+
+test("a hidden goal is still dropped even when it sits inside the shown window", () => {
+	const data = ladder(3);
+	data.goals[3]!.hidden = true; // "Future 0" — a surprise reward
+	const pub = stripNotes(data);
+	expect(JSON.stringify(pub)).not.toContain("Future 0");
+	expect(pub.goals.map((g) => g.reward)).toContain("Future 1");
 });

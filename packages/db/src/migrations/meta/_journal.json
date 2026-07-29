@@ -8,6 +8,13 @@
 			"when": 1781014188362,
 			"tag": "0000_glorious_spiral",
 			"breakpoints": true
+		},
+		{
+			"idx": 1,
+			"version": "6",
+			"when": 1785337522297,
+			"tag": "0001_flashy_red_ghost",
+			"breakpoints": true
 		}
 	]
 }

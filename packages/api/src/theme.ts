@@ -35,7 +35,13 @@ export type OverlayTheme = {
 	showUnits: boolean;
 	/** Show the rewards-card progress bar toward the next goal. */
 	showProgressBar: boolean;
-	/** Show the rewards-card "Coming up" row of the next few upcoming rewards. */
+	/**
+	 * Show the rewards-card "Coming up" row of the next few upcoming rewards.
+	 *
+	 * This is a PRIVACY toggle, not just a display one: `stripNotes` slices the
+	 * public payload to what the overlay can draw, so turning this off also stops
+	 * those reward names being sent to the browser at all.
+	 */
 	showNext: boolean;
 	/**
 	 * Keep the wheel-of-dares overlay on screen while idle. Default off: the wheel

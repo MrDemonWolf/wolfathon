@@ -38,6 +38,15 @@ const WEB_URL = process.env.WEB_URL ?? "https://wolfathon.mrdemonwolf.workers.de
 // in production it defaults to the deployed web app.
 const CORS_ORIGIN = process.env.CORS_ORIGIN ?? WEB_URL;
 
+/**
+ * Pin the Workers runtime explicitly. Alchemy's default is whatever the INSTALLED
+ * miniflare reports as its supported date, so leaving it unset means a routine
+ * `bun update` can silently change production runtime semantics. This value is the
+ * default as of the pinned Alchemy version, so setting it changes nothing today —
+ * it just makes future moves deliberate. Bump it on purpose, not by accident.
+ */
+const COMPATIBILITY_DATE = "2026-03-10";
+
 const db = await D1Database("database", {
 	migrationsDir: "../../packages/db/src/migrations",
 	// Adopt existing resources by name so CI/CD can deploy without sharing the
@@ -53,6 +62,13 @@ export const server = await Worker("wolfathon-api", {
 	cwd: "../../apps/server",
 	entrypoint: "src/index.ts",
 	compatibility: "node",
+	compatibilityDate: COMPATIBILITY_DATE,
+	// This Worker is D1-bound, not client-bound: an overlay poll is one D1 wave and
+	// a gift delivery several, while the responses are tiny. Smart Placement moves it
+	// next to the D1 primary, trading a slightly longer client hop for much shorter
+	// database round-trips. Deliberately NOT enabled on the web Worker, which is
+	// interactive and Access-gated.
+	placement: { mode: "smart" },
 	url: true,
 	bindings: {
 		DB: db,
@@ -73,6 +89,7 @@ export const web = await Nextjs("wolfathon", {
 	name: "wolfathon",
 	adopt: true,
 	cwd: "../../apps/web",
+	compatibilityDate: COMPATIBILITY_DATE,
 	bindings: {
 		NEXT_PUBLIC_SERVER_URL: server.url!,
 		DB: db,
