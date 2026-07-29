@@ -13,7 +13,7 @@ import {
 	validateImport,
 	withThemeDefaults,
 } from "./state";
-import { defaultOverlayTheme, type OverlayTheme } from "./theme";
+import { defaultOverlayTheme, NEXT_REWARDS_SHOWN, type OverlayTheme } from "./theme";
 
 test("recompute backfills a missing theme (pre-theme rows can't crash the editor)", () => {
 	const legacy = { goals: [], currentIndex: 0, currentSubs: 0 } as unknown as Data;
@@ -311,4 +311,89 @@ test("recompute backfills every optional key dropped from an old row", () => {
 
 test("recompute preserves all Data keys (no field silently dropped)", () => {
 	expect(Object.keys(recompute(sampleData())).sort()).toEqual(Object.keys(sampleData()).sort());
+});
+
+// ---- the payload must not carry rewards the overlay never draws --------------
+
+/** `n` locked goals after two unlocked ones, so `currentIndex` is 2. */
+function ladder(future: number): Data {
+	const goals: Goal[] = [
+		{ id: "u1", reward: "Q&A", unlocked: true },
+		{ id: "u2", reward: "Phasmophobia", unlocked: true },
+		{ id: "cur", reward: "Onesie reveal", unlocked: false, target: 10 },
+		...Array.from({ length: future }, (_, i) => ({
+			id: `f${i}`,
+			reward: `Future ${i}`,
+			unlocked: false,
+			target: 100 + i,
+		})),
+	];
+	return {
+		goals,
+		currentIndex: 2,
+		currentSubs: 7,
+		theme: defaultOverlayTheme(),
+		freezeMetTargets: true,
+		goalsRev: 0,
+	};
+}
+
+test("stripNotes never ships a future reward the overlay can't draw", () => {
+	// 12 upcoming but only NEXT_REWARDS_SHOWN are ever rendered — the rest used to
+	// ride along in the payload, readable by anyone with the ?t= URL.
+	const pub = stripNotes(ladder(12));
+	expect(pub.goals).toHaveLength(2 + 1 + NEXT_REWARDS_SHOWN);
+	expect(JSON.stringify(pub)).not.toContain(`Future ${NEXT_REWARDS_SHOWN}`);
+	expect(JSON.stringify(pub)).not.toContain("Future 11");
+});
+
+test("stripNotes ships NO upcoming rewards when the Next rewards toggle is off", () => {
+	// The toggle used to gate rendering only, so turning it off looked like it hid
+	// them and didn't.
+	const data = ladder(12);
+	const pub = stripNotes({ ...data, theme: { ...data.theme, showNext: false } });
+	expect(pub.goals.map((g) => g.reward)).toEqual(["Q&A", "Phasmophobia", "Onesie reveal"]);
+	expect(JSON.stringify(pub)).not.toContain("Future");
+});
+
+test("stripNotes keeps currentIndex valid and every unlocked goal in the slice", () => {
+	// The overlay indexes `goals[currentIndex]` for the current reward, and its
+	// unlock-celebration tracker needs each goal present the moment it flips.
+	const pub = stripNotes(ladder(12));
+	expect(pub.goals[pub.currentIndex]?.reward).toBe("Onesie reveal");
+	expect(pub.goals.filter((g) => g.unlocked).map((g) => g.id)).toEqual(["u1", "u2"]);
+	expect(pub.nextTarget).toBe(10);
+});
+
+test("stripNotes handles fewer upcoming goals than the window, and an all-unlocked list", () => {
+	const few = stripNotes(ladder(2));
+	expect(few.goals.map((g) => g.reward)).toEqual([
+		"Q&A",
+		"Phasmophobia",
+		"Onesie reveal",
+		"Future 0",
+		"Future 1",
+	]);
+	const done = stripNotes({
+		goals: [
+			{ id: "a", reward: "Q&A", unlocked: true },
+			{ id: "b", reward: "Onesie", unlocked: true },
+		],
+		currentIndex: 2,
+		currentSubs: 9,
+		theme: defaultOverlayTheme(),
+		freezeMetTargets: true,
+		goalsRev: 0,
+	});
+	expect(done.goals).toHaveLength(2);
+	expect(done.currentIndex).toBe(2);
+	expect(done.nextTarget).toBeNull();
+});
+
+test("a hidden goal is still dropped even when it sits inside the shown window", () => {
+	const data = ladder(3);
+	data.goals[3]!.hidden = true; // "Future 0" — a surprise reward
+	const pub = stripNotes(data);
+	expect(JSON.stringify(pub)).not.toContain("Future 0");
+	expect(pub.goals.map((g) => g.reward)).toContain("Future 1");
 });

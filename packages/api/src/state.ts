@@ -8,6 +8,7 @@
 
 import {
 	defaultOverlayTheme,
+	NEXT_REWARDS_SHOWN,
 	type OverlayTheme,
 	resolveThemeGradient,
 	type ThemeCorners,
@@ -274,11 +275,25 @@ export function stripNotes(data: Data): PublicData {
 	// Only the NEXT goal's target is exposed — never future ones (a big gifter
 	// must not see the final ceiling).
 	const nextTarget = visible[currentIndex]?.target ?? null;
+	// Ship only what the overlay can actually DRAW: everything up to and including
+	// the current goal, plus the "Coming up" window when that's switched on.
+	//
+	// `showNext` used to gate rendering only, so every upcoming reward name still
+	// arrived in the payload — readable by anyone holding the `?t=` URL, or from the
+	// OBS browser source's own devtools. Turning "Next rewards" off looked like it
+	// hid them and didn't. Slicing here is what actually makes a surprise reward a
+	// surprise; `hidden` remains the way to keep one out of the payload entirely,
+	// even when it is the next goal.
+	//
+	// The kept prefix always contains every unlocked goal (they unlock top-to-bottom),
+	// so `currentIndex` still indexes correctly and the overlay's unlock-celebration
+	// tracker still sees each goal the moment it flips.
+	const shown = visible.slice(0, currentIndex + 1 + (theme.showNext ? NEXT_REWARDS_SHOWN : 0));
 	return {
 		currentIndex,
 		currentSubs: Math.max(0, data.currentSubs ?? 0),
 		nextTarget,
-		goals: visible.map(({ id, reward, unlocked }) => ({ id, reward, unlocked })),
+		goals: shown.map(({ id, reward, unlocked }) => ({ id, reward, unlocked })),
 		gradient: resolveThemeGradient(theme),
 		textColor: theme.textColor,
 		font: theme.font,

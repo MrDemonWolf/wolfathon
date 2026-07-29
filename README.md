@@ -272,9 +272,17 @@ The timer half:
 | ----------------- | ------------------------------------------------------------- |
 | Current reward    | The next locked goal's `reward` name, prominently             |
 | Coming up         | The next few upcoming `reward` names, if "Next rewards" is on |
+| Further-off goals | Never shown, and never sent to the browser                    |
 | Hidden goals      | Never shown, and never sent to the browser                    |
 | Numbers / amounts | Only the next goal's target (for the progress bar)            |
 | `note` field      | Never sent to the browser                                     |
+
+The overlay is only ever sent what it can draw: everything up to the current
+reward, plus the "Coming up" window when that toggle is on. Turning **Next
+rewards** off removes those names from the payload as well as the screen, so a
+reward further down the list can't be read out of the OBS source. To keep a
+reward secret even when it's the very next one, use the **eye** toggle — a
+hidden goal never reaches the browser at all.
 
 ### Wheel of dares
 
