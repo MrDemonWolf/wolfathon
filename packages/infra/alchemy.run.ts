@@ -69,6 +69,11 @@ export const server = await Worker("wolfathon-api", {
 	// database round-trips. Deliberately NOT enabled on the web Worker, which is
 	// interactive and Access-gated.
 	placement: { mode: "smart" },
+	// Explicitly empty, not omitted: Alchemy skips the schedules API call when `crons`
+	// is undefined, so the StreamElements-era `* * * * *` trigger survived its removal
+	// (2026-06-26) and kept erroring "Handler does not export a scheduled() function".
+	// Passing [] clears it. Keep this line — deleting it re-orphans any future trigger.
+	crons: [],
 	url: true,
 	bindings: {
 		DB: db,
