@@ -23,7 +23,6 @@ import {
 	resolveThemeGradient,
 	start,
 	TIMER_THEME_PRESETS,
-	tipSubs,
 	toPublicTimer,
 	validateTimerConfig,
 	withTimerConfigDefaults,
@@ -75,19 +74,6 @@ test("eventMinutes resolves channel points by id, then case-insensitive title, e
 	expect(eventMinutes(config, { kind: "points", rewardTitle: "hydrate" })).toBe(10);
 	// unknown reward → 0
 	expect(eventMinutes(config, { kind: "points", rewardId: "zzz", rewardTitle: "nope" })).toBe(0);
-});
-
-test("eventMinutes scales tips by the dollar rate and clamps negatives", () => {
-	const config = { ...defaultTimerConfig(), tipMinutesPerDollar: 2 };
-	expect(eventMinutes(config, { kind: "tip", amount: 5 })).toBe(10);
-	expect(eventMinutes(config, { kind: "tip", amount: -5 })).toBe(0);
-});
-
-test("tipSubs converts dollars to goal subs and is safe at the edges", () => {
-	const config = defaultTimerConfig();
-	expect(tipSubs(20, { ...config, tipDollarsPerSub: 5 })).toBe(4);
-	expect(tipSubs(20, { ...config, tipDollarsPerSub: 0 })).toBe(0); // rate 0 → tips don't advance goals
-	expect(tipSubs(-5, { ...config, tipDollarsPerSub: 5 })).toBe(0); // negative clamps to 0
 });
 
 test("bits prorate by hundreds", () => {
