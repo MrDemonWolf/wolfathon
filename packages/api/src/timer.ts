@@ -95,10 +95,6 @@ export type TimerConfig = {
 	 * `stream.online` EventSub. Default on.
 	 */
 	autoPauseOnOffline: boolean;
-	/** Minutes added per $1 of a tip (Ko-fi integration TBD; rate is pre-configurable). */
-	tipMinutesPerDollar: number;
-	/** Dollars of tips that count as one sub toward the reward goals (0 = tips don't advance goals). */
-	tipDollarsPerSub: number;
 };
 
 export type TimerState = {
@@ -175,7 +171,6 @@ export type TimerEvent =
 	| { kind: "gift"; tier: SubTier; count: number; who?: string }
 	| { kind: "bits"; bits: number; who?: string }
 	| { kind: "points"; rewardId?: string; rewardTitle?: string; who?: string }
-	| { kind: "tip"; amount: number; who?: string }
 	| { kind: "manualMinutes"; minutes: number };
 
 /** The most recent time-add, recorded for the overlay's "+Xm" alert. */
@@ -259,15 +254,7 @@ export function defaultTimerConfig(): TimerConfig {
 		emoteDirection: DEFAULT_EMOTE_DIRECTION,
 		showEventSource: true,
 		autoPauseOnOffline: true,
-		tipMinutesPerDollar: 1,
-		tipDollarsPerSub: 5,
 	};
-}
-
-/** Subs a tip is worth toward the reward goals (0 if tips don't advance goals). */
-export function tipSubs(amount: number, config: TimerConfig): number {
-	const per = config.tipDollarsPerSub;
-	return per > 0 ? Math.max(0, amount) / per : 0;
 }
 
 export function defaultTimerState(config: TimerConfig = defaultTimerConfig()): TimerState {
@@ -486,8 +473,6 @@ export function eventMinutes(config: TimerConfig, event: TimerEvent): number {
 			if (!config.channelPointsEnabled) return 0;
 			return findChannelPointRule(config.channelPoints, event)?.minutes ?? 0;
 		}
-		case "tip":
-			return config.tipMinutesPerDollar * Math.max(0, event.amount);
 		case "manualMinutes":
 			return event.minutes;
 	}
@@ -528,8 +513,6 @@ export function eventLabel(event: TimerEvent): string {
 			return tag(`${Math.max(0, event.bits)} bits`);
 		case "points":
 			return tag(event.rewardTitle?.trim() || "Channel points");
-		case "tip":
-			return tag(`$${event.amount} tip`);
 		case "manualMinutes":
 			return "";
 	}
@@ -674,15 +657,6 @@ export function validateTimerConfig(input: unknown): TimerConfigResult {
 		showEventSource: typeof r.showEventSource === "boolean" ? r.showEventSource : true,
 		// Optional; absent → on (auto-pause/resume around stream offline).
 		autoPauseOnOffline: typeof r.autoPauseOnOffline === "boolean" ? r.autoPauseOnOffline : true,
-		// Tip rates are optional; absent → defaults.
-		tipMinutesPerDollar:
-			r.tipMinutesPerDollar === undefined
-				? 1
-				: num(errors, "tipMinutesPerDollar", r.tipMinutesPerDollar, { min: 0, max: 1000 }),
-		tipDollarsPerSub:
-			r.tipDollarsPerSub === undefined
-				? 5
-				: num(errors, "tipDollarsPerSub", r.tipDollarsPerSub, { min: 0, max: 100000 }),
 	};
 
 	// Emoji are optional; absent → keep the wolf default set.
