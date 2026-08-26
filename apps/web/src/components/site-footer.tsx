@@ -20,7 +20,7 @@ const LINKS = {
 /** Wolfathon is an independent tool — keep the affiliation disclaimer honest.
  *  Exported so the landing page can show the same wording near its CTA. */
 export const DISCLAIMER =
-	"Wolfathon is an independent, fan-made tool for MrDemonWolf's stream. Not affiliated with, endorsed by, or sponsored by Twitch, Amazon, or Ko-fi.";
+	"Wolfathon is an independent, fan-made tool for MrDemonWolf's stream. Not affiliated with, endorsed by, or sponsored by Twitch or Amazon.";
 
 export function SiteFooter() {
 	const sha = process.env.NEXT_PUBLIC_COMMIT_SHA;

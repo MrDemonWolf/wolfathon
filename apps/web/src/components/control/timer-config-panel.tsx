@@ -434,35 +434,6 @@ export function TimerConfigPanel({
 							Requires Twitch connected. A manual pause is never overridden.
 						</p>
 					</div>
-
-					{/* Tips (Ko-fi integration is not wired up yet — fields are disabled + dimmed so the
-					    operator can't mistake these pre-set rates for a live, configured feature). */}
-					<div className="mt-5 opacity-60">
-						<div className="flex items-center gap-2">
-							<div className="text-sm font-medium">Tips</div>
-							<span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
-								Coming soon
-							</span>
-						</div>
-						<p className="mt-1 text-xs text-muted-foreground">
-							Tip integration (Ko-fi) is coming soon. These rates control how much time a tip adds
-							and how it advances the reward goals once it’s connected.
-						</p>
-						<div className="mt-2 grid grid-cols-2 gap-3 sm:max-w-md">
-							<Field
-								label="Minutes per $1"
-								value={config.tipMinutesPerDollar}
-								onChange={(v) => onChange({ ...config, tipMinutesPerDollar: n(v) })}
-								disabled
-							/>
-							<Field
-								label="$ per goal sub (0 = off)"
-								value={config.tipDollarsPerSub}
-								onChange={(v) => onChange({ ...config, tipDollarsPerSub: n(v) })}
-								disabled
-							/>
-						</div>
-					</div>
 				</div>
 			)}
 		</div>
@@ -884,12 +855,10 @@ function Field({
 	label,
 	value,
 	onChange,
-	disabled,
 }: {
 	label: string;
 	value: number;
 	onChange: (v: string) => void;
-	disabled?: boolean;
 }) {
 	return (
 		<label className="flex flex-col gap-1 text-xs text-muted-foreground">
@@ -899,7 +868,6 @@ function Field({
 				type="number"
 				value={String(value)}
 				onChange={(e) => onChange(e.target.value)}
-				disabled={disabled}
 			/>
 		</label>
 	);

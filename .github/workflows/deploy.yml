@@ -69,8 +69,6 @@ jobs:
           # Twitch app credentials for the OAuth redirect flow.
           TWITCH_CLIENT_ID: ${{ secrets.TWITCH_CLIENT_ID }}
           TWITCH_CLIENT_SECRET: ${{ secrets.TWITCH_CLIENT_SECRET }}
-          # StreamElements tip listener auth now lives in D1 (set from the control
-          # panel); no SE secrets needed at deploy time.
 
       - name: Smoke test API
         run: |
