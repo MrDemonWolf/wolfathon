@@ -5,6 +5,7 @@ import { Button } from "@wolfathon/ui/components/button";
 import { Checkbox } from "@wolfathon/ui/components/checkbox";
 import { Input } from "@wolfathon/ui/components/input";
 import { NumberStepper } from "@wolfathon/ui/components/number-stepper";
+import { cn } from "@wolfathon/ui/lib/utils";
 import {
 	ArrowDown,
 	ArrowUp,
@@ -252,7 +253,7 @@ export function GoalEditor({
 										: "border-border bg-background/40"
 							}`}
 						>
-							<div className="flex items-center gap-2">
+							<div className="flex flex-wrap items-center gap-2">
 								<button
 									type="button"
 									title={g.unlocked ? "Unlocked — click to re-lock" : "Locked — click to unlock"}
@@ -267,9 +268,11 @@ export function GoalEditor({
 									{g.unlocked ? <LockOpen className="size-4" /> : <Lock className="size-4" />}
 								</button>
 								<Input
-									className={`h-9 flex-1 rounded-lg ${g.unlocked ? "text-muted-foreground" : ""} ${
-										g.reward.trim() ? "" : "ring-1 ring-destructive/60"
-									}`}
+									className={cn(
+										"h-9 min-w-0 flex-1 basis-36 rounded-lg",
+										g.unlocked && "text-muted-foreground",
+										!g.reward.trim() && "ring-1 ring-destructive/60",
+									)}
 									aria-invalid={!g.reward.trim()}
 									aria-label={`Goal ${i + 1} reward`}
 									placeholder="Reward (shown on stream)"

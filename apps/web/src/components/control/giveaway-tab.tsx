@@ -1,11 +1,13 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
 	CLAIM_WINDOW_MS,
 	type Entrant,
 	qualifyingGifters,
+	type RaffleDrawRecord,
 	type Winner,
+	verifyRaffleDrawProof,
 	winnersText,
 } from "@wolfathon/api/giveaway";
 import { pad2 } from "@wolfathon/api/timer";
@@ -36,6 +38,7 @@ import {
 	Loader2,
 	Plus,
 	Search,
+	ShieldCheck,
 	Trash2,
 	Users,
 } from "lucide-react";
@@ -112,6 +115,63 @@ function Stat({ label, value, accent }: { label: string; value: number; accent?:
 	);
 }
 
+function RaffleProofDetails({ record }: { record: RaffleDrawRecord }) {
+	const [verified, setVerified] = useState<boolean | null>(null);
+	const [checking, setChecking] = useState(false);
+	const verify = async () => {
+		setChecking(true);
+		try {
+			setVerified(await verifyRaffleDrawProof(record.drawId, record.winnerLogin, record.proof));
+		} catch {
+			setVerified(false);
+		} finally {
+			setChecking(false);
+		}
+	};
+	return (
+		<details className="mt-2 rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs">
+			<summary className="cursor-pointer font-medium">
+				SHA-256 proof · {record.kind === "reroll" ? "reroll" : "draw"} for @{record.winnerLogin}
+			</summary>
+			<div className="mt-3 grid gap-2">
+				<div>
+					<div className="text-muted-foreground">Commitment</div>
+					<code className="block break-all">{record.proof.commitmentHash}</code>
+				</div>
+				<div>
+					<div className="text-muted-foreground">Revealed seed</div>
+					<code className="block break-all">{record.proof.serverSeed}</code>
+				</div>
+				<div>
+					<div className="text-muted-foreground">Draw hash · index</div>
+					<code className="block break-all">
+						{record.proof.drawHash} · {record.proof.targetIndex + 1}/{record.proof.pool.length}
+					</code>
+				</div>
+				<details className="rounded-md border border-border px-2 py-1.5">
+					<summary className="cursor-pointer text-muted-foreground">
+						Eligible pool ({record.proof.pool.length})
+					</summary>
+					<pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap break-all font-mono text-[0.65rem]">
+						{record.proof.pool.join("\n")}
+					</pre>
+				</details>
+				<div className="flex flex-wrap items-center gap-2">
+					<Button size="sm" variant="outline" onClick={verify} disabled={checking}>
+						<ShieldCheck className="size-3.5" aria-hidden />
+						{checking ? "Verifying…" : "Verify proof"}
+					</Button>
+					{verified !== null && (
+						<span role="status" className={verified ? "text-primary" : "text-destructive"}>
+							{verified ? "Verified: hash and winner match." : "Verification failed."}
+						</span>
+					)}
+				</div>
+			</div>
+		</details>
+	);
+}
+
 export function GiveawayTab() {
 	const { data, isError, refetch, invalidate } = useControlDoc(
 		controlTrpc.giveaway.getRaw.queryOptions(undefined, {
@@ -135,11 +195,19 @@ export function GiveawayTab() {
 			onError,
 		}),
 	);
+	const revealRequested = useRef<string | null>(null);
+	const [revealFailed, setRevealFailed] = useState(false);
+	const [proofHistoryOpen, setProofHistoryOpen] = useState(false);
+	const pendingRaffleDraw = data?.pendingRaffleDraw;
+	const proofHistory = useQuery(
+		controlTrpc.giveaway.history.queryOptions(undefined, { enabled: proofHistoryOpen }),
+	);
 	const draw = useMutation(
 		controlTrpc.giveaway.drawRaffle.mutationOptions({
-			onSuccess: (r) => {
-				if (r.winner) toast.success(`Raffle winner: ${r.winner.name}`);
-				else toast.error("No entrants left to draw");
+			onSuccess: () => {
+				revealRequested.current = null;
+				setRevealFailed(false);
+				toast.success("Raffle hash published — the result will reveal shortly.");
 				invalidate();
 			},
 			onError,
@@ -156,14 +224,50 @@ export function GiveawayTab() {
 	);
 	const reroll = useMutation(
 		controlTrpc.giveaway.reroll.mutationOptions({
-			onSuccess: (r) => {
-				if (r.winner) toast.success(`Rerolled: ${r.winner.name}`);
-				else toast.error("No one left to reroll to");
+			onSuccess: () => {
+				revealRequested.current = null;
+				setRevealFailed(false);
+				toast.success("Reroll hash published — the result will reveal shortly.");
 				invalidate();
 			},
 			onError,
 		}),
 	);
+	const { mutate: revealRaffleDraw, isPending: revealPending } = useMutation(
+		controlTrpc.giveaway.revealRaffleDraw.mutationOptions({
+			onSuccess: (record) => {
+				toast.success(
+					record.kind === "reroll"
+						? `Rerolled: ${record.winnerName}`
+						: `Raffle winner: ${record.winnerName}`,
+				);
+				setRevealFailed(false);
+				invalidate();
+				if (proofHistoryOpen) void proofHistory.refetch();
+			},
+			onError: (error) => {
+				setRevealFailed(true);
+				onError(error);
+			},
+		}),
+	);
+	useEffect(() => {
+		if (!pendingRaffleDraw) {
+			revealRequested.current = null;
+			setRevealFailed(false);
+			return;
+		}
+		if (revealFailed || revealPending || revealRequested.current === pendingRaffleDraw.drawId)
+			return;
+		const timeout = setTimeout(
+			() => {
+				revealRequested.current = pendingRaffleDraw.drawId;
+				revealRaffleDraw({ drawId: pendingRaffleDraw.drawId });
+			},
+			Math.max(0, pendingRaffleDraw.revealAt - Date.now()),
+		);
+		return () => clearTimeout(timeout);
+	}, [pendingRaffleDraw, revealFailed, revealPending, revealRaffleDraw]);
 	const addEntrant = useMutation(
 		controlTrpc.giveaway.addEntrant.mutationOptions({ onSuccess: invalidate, onError }),
 	);
@@ -363,7 +467,7 @@ export function GiveawayTab() {
 						variant="outline"
 						size="sm"
 						onClick={() => reroll.mutate({ id: w.id })}
-						disabled={reroll.isPending}
+						disabled={reroll.isPending || revealPending || pendingRaffleDraw != null}
 						aria-label={`Reroll ${w.name}`}
 					>
 						<Dice5 className="size-3.5" /> Reroll
@@ -373,7 +477,7 @@ export function GiveawayTab() {
 					variant="ghost"
 					size="sm"
 					onClick={() => removeWinner.mutate({ id: w.id })}
-					disabled={removeWinner.isPending}
+					disabled={removeWinner.isPending || pendingRaffleDraw != null}
 					aria-label={`Remove ${w.name}`}
 				>
 					<Trash2 className="size-4" />
@@ -424,7 +528,7 @@ export function GiveawayTab() {
 							size="lg"
 							variant={cfg.open ? "destructive" : "default"}
 							onClick={() => setConfig.mutate({ open: !cfg.open })}
-							disabled={setConfig.isPending}
+							disabled={setConfig.isPending || pendingRaffleDraw != null}
 						>
 							{cfg.open ? (
 								<>
@@ -653,7 +757,7 @@ export function GiveawayTab() {
 										size="sm"
 										variant="secondary"
 										onClick={() => addGift.mutate({ login: g.login })}
-										disabled={addGift.isPending}
+										disabled={addGift.isPending || pendingRaffleDraw != null}
 									>
 										<Crown className="size-3.5" /> Make winner
 									</Button>
@@ -683,7 +787,9 @@ export function GiveawayTab() {
 									<Button
 										variant="outline"
 										size="sm"
-										disabled={resetPool.isPending || data.entrants.length === 0}
+										disabled={
+											resetPool.isPending || data.entrants.length === 0 || pendingRaffleDraw != null
+										}
 									>
 										<Trash2 className="size-3.5" aria-hidden /> Clear pool
 									</Button>
@@ -707,22 +813,64 @@ export function GiveawayTab() {
 						</AlertDialog>
 						<Button
 							onClick={() => draw.mutate()}
-							disabled={draw.isPending || remainingEntrants === 0}
-							aria-busy={draw.isPending}
+							disabled={
+								draw.isPending ||
+								revealPending ||
+								pendingRaffleDraw != null ||
+								remainingEntrants === 0
+							}
+							aria-busy={draw.isPending || revealPending}
 							title={raffleFull ? "All planned raffle slots are filled" : undefined}
 						>
-							{draw.isPending ? (
+							{draw.isPending || revealPending ? (
 								<Loader2 className="size-4 animate-spin" aria-hidden />
 							) : (
 								<Dice5 className="size-4" aria-hidden />
 							)}
-							{raffleFull ? "Draw extra winner" : "Draw winner"}
+							{pendingRaffleDraw
+								? "Revealing draw…"
+								: raffleFull
+									? "Draw extra winner"
+									: "Draw winner"}
 						</Button>
 					</div>
 				</div>
+				{pendingRaffleDraw && (
+					<div role="status" className="mt-3 rounded-lg border border-primary/25 bg-primary/5 p-3">
+						<p className="text-xs font-medium">
+							SHA-256 commitment published for {pendingRaffleDraw.poolSize} eligible{" "}
+							{pendingRaffleDraw.poolSize === 1 ? "entry" : "entries"}. The seed and winner reveal
+							automatically.
+						</p>
+						<code className="mt-1 block break-all text-[0.65rem] text-muted-foreground">
+							{pendingRaffleDraw.commitmentHash}
+						</code>
+						<p className="mt-1 text-xs text-muted-foreground">
+							{pendingRaffleDraw.queuedCount > 0
+								? `${pendingRaffleDraw.queuedCount} new chat entr${pendingRaffleDraw.queuedCount === 1 ? "y is" : "ies are"} queued for the next draw.`
+								: "New chat entries will queue for the next draw."}
+							This committed pool stays unchanged.
+						</p>
+						{revealFailed && (
+							<Button
+								size="sm"
+								variant="outline"
+								className="mt-2"
+								onClick={() => {
+									revealRequested.current = pendingRaffleDraw.drawId;
+									setRevealFailed(false);
+									revealRaffleDraw({ drawId: pendingRaffleDraw.drawId });
+								}}
+							>
+								Retry result reveal
+							</Button>
+						)}
+					</div>
+				)}
 				<p className="mt-1 text-xs text-muted-foreground">
-					{remainingEntrants} eligible {remainingEntrants === 1 ? "entry" : "entries"} ·{" "}
-					{data.entrants.length} entered total.
+					{pendingRaffleDraw
+						? "The eligible pool is locked until the result is revealed."
+						: `${remainingEntrants} eligible ${remainingEntrants === 1 ? "entry" : "entries"} · ${data.entrants.length} entered total.`}
 				</p>
 				{/* Concise spoken summary so the 3s-polled pool growth is announced once
 				    per change instead of row-by-row spam. */}
@@ -778,7 +926,7 @@ export function GiveawayTab() {
 							size="sm"
 							variant={claimLapsed ? "default" : "outline"}
 							onClick={() => reroll.mutate({ id: pending.winnerId })}
-							disabled={reroll.isPending}
+							disabled={reroll.isPending || revealPending || pendingRaffleDraw != null}
 							aria-label={`Redraw — replace ${pending.name}`}
 						>
 							<Dice5 className="size-3.5" aria-hidden /> Redraw
@@ -830,6 +978,7 @@ export function GiveawayTab() {
 					<Input
 						className="w-44"
 						value={manual}
+						disabled={pendingRaffleDraw != null}
 						onChange={(e) => setManual(e.target.value)}
 						placeholder="add entrant login"
 						aria-label="Entrant Twitch login"
@@ -846,11 +995,15 @@ export function GiveawayTab() {
 							if (!login) return;
 							addEntrant.mutate({ login }, { onSuccess: () => setManual("") });
 						}}
-						disabled={addEntrant.isPending || !manual.trim()}
+						disabled={addEntrant.isPending || !manual.trim() || pendingRaffleDraw != null}
 					>
 						Add
 					</Button>
-					<span className="text-xs text-muted-foreground">Manual add for testing / fallback.</span>
+					<span className="text-xs text-muted-foreground">
+						{pendingRaffleDraw
+							? "Manual entries pause while the published pool is revealed."
+							: "Manual add for testing / fallback."}
+					</span>
 				</div>
 			</div>
 
@@ -873,7 +1026,11 @@ export function GiveawayTab() {
 						<AlertDialog>
 							<AlertDialogTrigger
 								render={
-									<Button variant="destructive" size="sm" disabled={resetRound.isPending}>
+									<Button
+										variant="destructive"
+										size="sm"
+										disabled={resetRound.isPending || pendingRaffleDraw != null}
+									>
 										Reset round
 									</Button>
 								}
@@ -888,7 +1045,11 @@ export function GiveawayTab() {
 									<AlertDialogClose render={<Button variant="outline">Cancel</Button>} />
 									<AlertDialogClose
 										onClick={() => resetRound.mutate()}
-										render={<Button variant="destructive">Reset round</Button>}
+										render={
+											<Button variant="destructive" disabled={pendingRaffleDraw != null}>
+												Reset round
+											</Button>
+										}
 									/>
 								</AlertDialogFooter>
 							</AlertDialogContent>
@@ -945,7 +1106,7 @@ export function GiveawayTab() {
 					</div>
 					<Button
 						onClick={submitManualWinner}
-						disabled={addManualWinner.isPending || !winLogin.trim()}
+						disabled={addManualWinner.isPending || !winLogin.trim() || pendingRaffleDraw != null}
 					>
 						<Plus className="size-4" /> Add winner
 					</Button>
@@ -989,6 +1150,32 @@ export function GiveawayTab() {
 								</ul>
 							)}
 						</div>
+					</div>
+				)}
+				{data.raffleHistory.length > 0 && (
+					<div className="mt-5 border-t border-border pt-4">
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => {
+								const open = !proofHistoryOpen;
+								setProofHistoryOpen(open);
+								if (open) void proofHistory.refetch();
+							}}
+						>
+							{proofHistoryOpen ? "Hide" : "View"} recent raffle proofs ({data.raffleHistory.length}
+							)
+						</Button>
+						{proofHistoryOpen && (
+							<div className="mt-2 flex flex-col gap-2">
+								{proofHistory.isFetching && (
+									<p className="text-xs text-muted-foreground">Loading proofs…</p>
+								)}
+								{proofHistory.data?.map((record) => (
+									<RaffleProofDetails key={record.drawId} record={record} />
+								))}
+							</div>
+						)}
 					</div>
 				)}
 			</div>

@@ -30,16 +30,61 @@ export type WheelSlot = {
 	enabled: boolean;
 };
 
+export type WheelProofSlot = { label: string; weight: number };
+
+export type WheelSpinProof = {
+	algorithm: "sha256-commit-reveal-v1";
+	commitmentHash: string;
+	serverSeed: string;
+	drawHash: string;
+	drawCounter: number;
+	pool: WheelProofSlot[];
+	targetIndex: number;
+};
+
 /** A spin history entry (newest first; capped to {@link MAX_HISTORY}). */
-export type WheelSpin = { id: string; label: string; at: number };
+export type WheelSpin = { id: string; label: string; at: number; proof?: WheelSpinProof };
+
+/** Private, one-use commitment. `serverSeed` is never included in public projections. */
+export type WheelRandomCommitment = {
+	spinId: string;
+	commitmentHash: string;
+	serverSeed: string;
+	pool: WheelProofSlot[];
+	createdAt: number;
+	revealAt: number;
+};
+
+/** Public portion shown before a random spin starts. */
+export type PublicWheelCommitment = {
+	spinId: string;
+	commitmentHash: string;
+	createdAt: number;
+	revealAt: number;
+};
 
 /** The overlay's live spin channel. Cleared on any structural slot change. */
-export type PendingSpin = { spinId: string; targetIndex: number; at: number } | null;
+export type PendingSpin = {
+	spinId: string;
+	targetIndex: number;
+	at: number;
+	commitmentHash?: string;
+	proof?: WheelSpinProof;
+} | null;
+
+/** Minimal spin channel used by the visual overlay; cryptographic proof stays in the control panel. */
+export type OverlayPendingSpin = { spinId: string; targetIndex: number; at: number } | null;
 
 export type WheelDoc = {
 	slots: WheelSlot[];
 	history: WheelSpin[];
 	pendingSpin: PendingSpin;
+	pendingCommitment: WheelRandomCommitment | null;
+};
+
+/** Authenticated dashboard view with unrevealed server entropy removed. */
+export type WheelControlDoc = Omit<WheelDoc, "pendingCommitment"> & {
+	pendingCommitment: PublicWheelCommitment | null;
 };
 
 /** One slot as sent to the overlay — render-only fields, no id, never the token. */
@@ -61,6 +106,8 @@ export const MAX_WEIGHT = 1000;
 export const MAX_HISTORY = 25;
 /** Forward spin always sweeps at least this many whole turns before landing. */
 export const DEFAULT_MIN_TURNS = 5;
+/** Three-second overlay poll + six-second spin + six-second result reveal. */
+export const WHEEL_SPIN_LOCK_MS = 15_000;
 /**
  * How long a spin stays live on the public channel. `pendingSpin` is kept in the
  * doc indefinitely (it only clears on a structural slot edit), so without a bound
@@ -70,11 +117,53 @@ export const DEFAULT_MIN_TURNS = 5;
  * mid-spin still catches it.
  */
 export const WHEEL_SPIN_TTL_MS = 30_000;
+/** Keep the commitment visible for longer than one public overlay poll interval. */
+export const WHEEL_RANDOM_COMMIT_DELAY_MS = 4_000;
+/** Reveal the seed to the public overlay after its six-second spin animation. */
+export const WHEEL_PROOF_REVEAL_DELAY_MS = 6_000;
 
 /** The `pendingSpin` only while it's still fresh (see {@link WHEEL_SPIN_TTL_MS}); else null. */
 export function freshPendingSpin(doc: WheelDoc, now: number): PendingSpin {
 	const p = doc.pendingSpin;
-	return p && now - p.at < WHEEL_SPIN_TTL_MS ? p : null;
+	if (!p || now - p.at >= WHEEL_SPIN_TTL_MS) return null;
+	const spin = doc.history.find((entry) => entry.id === p.spinId);
+	const proof = spin?.proof;
+	return {
+		...p,
+		...(proof?.commitmentHash ? { commitmentHash: proof.commitmentHash } : {}),
+		...(proof && now - p.at >= WHEEL_PROOF_REVEAL_DELAY_MS ? { proof } : {}),
+	};
+}
+
+/** Strip proof details before a spin reaches the public wheel overlay. */
+export function freshOverlaySpin(doc: WheelDoc, now: number): OverlayPendingSpin {
+	const spin = freshPendingSpin(doc, now);
+	return spin ? { spinId: spin.spinId, targetIndex: spin.targetIndex, at: spin.at } : null;
+}
+
+/** Remove the private seed and pool from a pending commitment before public use. */
+export function publicWheelCommitment(doc: WheelDoc): PublicWheelCommitment | null {
+	const commitment = doc.pendingCommitment;
+	if (!commitment) return null;
+	return {
+		spinId: commitment.spinId,
+		commitmentHash: commitment.commitmentHash,
+		createdAt: commitment.createdAt,
+		revealAt: commitment.revealAt,
+	};
+}
+
+/** Dashboard projection: never return a server seed before its spin is revealed. */
+export function toWheelControl(doc: WheelDoc): WheelControlDoc {
+	return { ...doc, pendingCommitment: publicWheelCommitment(doc) };
+}
+
+/** Whether the current spin still owns the shared wheel across all dashboards. */
+export function isWheelSpinLocked(doc: WheelDoc, now: number): boolean {
+	return (
+		doc.pendingCommitment != null ||
+		(doc.pendingSpin !== null && now - doc.pendingSpin.at < WHEEL_SPIN_LOCK_MS)
+	);
 }
 
 /**
@@ -135,6 +224,7 @@ export function defaultWheelDoc(): WheelDoc {
 		})),
 		history: [],
 		pendingSpin: null,
+		pendingCommitment: null,
 	};
 }
 
@@ -149,6 +239,7 @@ export function withWheelDefaults(doc: WheelDoc): WheelDoc {
 		slots: Array.isArray(doc.slots) ? doc.slots.map(normalizeSlot) : [],
 		history: Array.isArray(doc.history) ? doc.history : [],
 		pendingSpin: doc.pendingSpin ?? null,
+		pendingCommitment: doc.pendingCommitment ?? null,
 	};
 }
 
@@ -170,8 +261,143 @@ function normalizeSlot(raw: WheelSlot): WheelSlot {
 }
 
 /** Enabled slots in array order — the render set, and the set indices name. */
-export function enabledSlots(doc: WheelDoc): WheelSlot[] {
+export function enabledSlots(doc: Pick<WheelDoc, "slots">): WheelSlot[] {
 	return doc.slots.filter((s) => s.enabled);
+}
+
+/** Create a 256-bit seed using the platform CSPRNG. */
+export function newWheelServerSeed(): string {
+	const bytes = crypto.getRandomValues(new Uint8Array(32));
+	return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/** SHA-256 of UTF-8 text, returned as lowercase hexadecimal. */
+export async function sha256Hex(value: string): Promise<string> {
+	const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+	return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * Commit to the secret seed, spin nonce, and exact ordered weighted pool. Array
+ * pairs make the serialized input canonical and independent of object key order.
+ */
+export async function wheelCommitmentHash(
+	serverSeed: string,
+	spinId: string,
+	pool: WheelProofSlot[],
+): Promise<string> {
+	return sha256Hex(
+		JSON.stringify({
+			algorithm: "sha256-commit-reveal-v1",
+			spinId,
+			serverSeed,
+			pool: pool.map((slot) => [slot.label, slot.weight]),
+		}),
+	);
+}
+
+/**
+ * Derive an unbiased integer in [0, totalWeight) from the committed seed. The
+ * rejection step removes modulo bias; a new counter is hashed only if needed.
+ */
+export async function wheelDraw(
+	serverSeed: string,
+	spinId: string,
+	totalWeight: number,
+): Promise<{ drawHash: string; drawCounter: number; bucket: number }> {
+	if (!Number.isSafeInteger(totalWeight) || totalWeight < 1) {
+		throw new RangeError("Wheel draw requires a positive safe total weight.");
+	}
+	// 52 hash bits are exactly representable as a JavaScript number. Rejection
+	// sampling avoids modulo bias without requiring a newer BigInt target.
+	const range = 2 ** 52;
+	const limit = range - (range % totalWeight);
+	for (let drawCounter = 0; drawCounter < 100; drawCounter++) {
+		const drawHash = await sha256Hex(`${serverSeed}:${spinId}:${drawCounter}`);
+		const draw = Number.parseInt(drawHash.slice(0, 13), 16);
+		if (draw < limit) return { drawHash, drawCounter, bucket: draw % totalWeight };
+	}
+	throw new Error("Could not derive an unbiased wheel draw.");
+}
+
+export function wheelWeightedIndexAt(pool: WheelProofSlot[], bucket: number): number {
+	let remaining = bucket;
+	for (let index = 0; index < pool.length; index++) {
+		remaining -= clampWeight(pool[index]?.weight);
+		if (remaining < 0) return index;
+	}
+	return -1;
+}
+
+/** Apply a previously committed draw to the unchanged enabled-slot pool. */
+export function resolveCommittedRandomSpin(
+	doc: WheelDoc,
+	opts: { spinId: string; now: number; drawHash: string; drawCounter: number },
+): { doc: WheelDoc; winner: WheelSlot; targetIndex: number; proof: WheelSpinProof } {
+	const commitment = doc.pendingCommitment;
+	if (!commitment || commitment.spinId !== opts.spinId) {
+		throw new Error("The random spin commitment is no longer available.");
+	}
+	const enabled = enabledSlots(doc);
+	const currentPool = enabled.map(({ label, weight }) => ({ label, weight: clampWeight(weight) }));
+	if (JSON.stringify(currentPool) !== JSON.stringify(commitment.pool)) {
+		throw new Error("The weighted dare pool changed after its hash was published.");
+	}
+	const totalWeight = commitment.pool.reduce((total, slot) => total + clampWeight(slot.weight), 0);
+	const draw = Number.parseInt(opts.drawHash.slice(0, 13), 16);
+	const range = 2 ** 52;
+	const limit = range - (range % totalWeight);
+	if (draw >= limit) throw new Error("The committed draw hash is outside the unbiased range.");
+	const targetIndex = wheelWeightedIndexAt(commitment.pool, draw % totalWeight);
+	const winner = enabled[targetIndex];
+	if (!winner) throw new Error("The committed wheel draw did not select an enabled dare.");
+	const proof: WheelSpinProof = {
+		algorithm: "sha256-commit-reveal-v1",
+		commitmentHash: commitment.commitmentHash,
+		serverSeed: commitment.serverSeed,
+		drawHash: opts.drawHash,
+		drawCounter: opts.drawCounter,
+		pool: commitment.pool.map((slot) => ({ ...slot })),
+		targetIndex,
+	};
+	const result = resolveSpin(doc, { slotId: winner.id, spinId: opts.spinId, now: opts.now });
+	const spin = result.doc.history[0];
+	const pendingSpin = result.doc.pendingSpin;
+	if (!spin || !pendingSpin) throw new Error("The committed wheel draw could not be recorded.");
+	return {
+		doc: {
+			...result.doc,
+			history: [{ ...spin, proof }, ...result.doc.history.slice(1)],
+			pendingSpin: { ...pendingSpin, commitmentHash: proof.commitmentHash },
+			pendingCommitment: null,
+		},
+		winner,
+		targetIndex,
+		proof,
+	};
+}
+
+/** Independently verify the commitment, draw, weighted pool, and winner label. */
+export async function verifyWheelSpinProof(spin: WheelSpin): Promise<boolean> {
+	const proof = spin.proof;
+	if (!proof || proof.algorithm !== "sha256-commit-reveal-v1" || proof.pool.length === 0)
+		return false;
+	if (proof.pool.some((slot) => !Number.isSafeInteger(slot.weight) || slot.weight < 1))
+		return false;
+	if ((await wheelCommitmentHash(proof.serverSeed, spin.id, proof.pool)) !== proof.commitmentHash)
+		return false;
+	const totalWeight = proof.pool.reduce((total, slot) => total + slot.weight, 0);
+	if (!Number.isSafeInteger(totalWeight) || totalWeight < 1) return false;
+	let expected: Awaited<ReturnType<typeof wheelDraw>>;
+	try {
+		expected = await wheelDraw(proof.serverSeed, spin.id, totalWeight);
+	} catch {
+		return false;
+	}
+	if (expected.drawHash !== proof.drawHash || expected.drawCounter !== proof.drawCounter)
+		return false;
+	const selected = wheelWeightedIndexAt(proof.pool, expected.bucket);
+	return selected === proof.targetIndex && proof.pool[selected]?.label === spin.label;
 }
 
 /** Resolve a slot's display colour (explicit hex or the palette fallback). */
@@ -180,7 +406,7 @@ export function slotColor(slot: { color?: string }, index: number): string {
 }
 
 /** Project the doc into the overlay payload — enabled slots, render-only fields. */
-export function toPublicWheel(doc: WheelDoc): PublicWheel {
+export function toPublicWheel(doc: Pick<WheelDoc, "slots">): PublicWheel {
 	return {
 		slots: enabledSlots(doc).map((s, index) => ({
 			index,

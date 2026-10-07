@@ -3,9 +3,14 @@ import { type Db, eventsubSeen, trackerState } from "@wolfathon/db";
 import { and, eq, lt } from "drizzle-orm";
 
 import { type BotDoc, defaultBotDoc, withBotDefaults } from "./bot";
-import { type GiveawayDoc, defaultGiveawayDoc } from "./giveaway";
+import { type GiveawayDoc, defaultGiveawayDoc, withGiveawayDefaults } from "./giveaway";
 import { type Data, recompute, sampleData, subsFromEvent } from "./state";
-import { type SettingsDoc, defaultSettingsDoc } from "./settings";
+import {
+	type OverlaySoundAsset,
+	type SettingsDoc,
+	defaultSettingsDoc,
+	withSettingsDefaults,
+} from "./settings";
 import {
 	applyEvent,
 	defaultTimerDoc,
@@ -35,6 +40,7 @@ const SETTINGS_ID = "settings";
 const GIVEAWAY_ID = "giveaway";
 const WHEEL_ID = "wheel";
 const BOT_ID = "bot";
+const OVERLAY_SOUND_PREFIX = "overlay-sound:";
 
 /**
  * Generic doc read with lazy seeding. Returns the parsed JSON, or seeds (and
@@ -273,20 +279,52 @@ export function mutateTwitch(db: Db, fn: (doc: TwitchDoc) => TwitchDoc): Promise
 	return mutateDoc(db, TWITCH_ID, defaultTwitchDoc, fn);
 }
 
-// ---- settings (overlay token) ---------------------------------------------
+// ---- settings + overlay sound ---------------------------------------------
 
 export async function readSettings(db: Db): Promise<SettingsDoc> {
-	return readDoc(db, SETTINGS_ID, defaultSettingsDoc);
+	return withSettingsDefaults(await readDoc(db, SETTINGS_ID, defaultSettingsDoc));
 }
 
 export async function writeSettings(db: Db, doc: SettingsDoc): Promise<SettingsDoc> {
-	return writeDoc(db, SETTINGS_ID, doc);
+	return writeDoc(db, SETTINGS_ID, withSettingsDefaults(doc));
+}
+
+/** Concurrency-safe settings update (token rotation and sound preferences). */
+export function mutateSettings(
+	db: Db,
+	fn: (doc: SettingsDoc) => SettingsDoc,
+): Promise<SettingsDoc> {
+	return mutateDoc(db, SETTINGS_ID, defaultSettingsDoc, (raw) => fn(withSettingsDefaults(raw)));
+}
+
+/** Each custom sound version gets its own row; overlay polls read only tiny settings metadata. */
+export async function readOverlaySound(db: Db, id: string): Promise<OverlaySoundAsset | null> {
+	const row = await db
+		.select()
+		.from(trackerState)
+		.where(eq(trackerState.id, `${OVERLAY_SOUND_PREFIX}${id}`))
+		.get();
+	return row ? (JSON.parse(row.data) as OverlaySoundAsset) : null;
+}
+
+export async function writeOverlaySound(
+	db: Db,
+	asset: OverlaySoundAsset,
+): Promise<OverlaySoundAsset> {
+	return writeDoc(db, `${OVERLAY_SOUND_PREFIX}${asset.id}`, asset);
+}
+
+export async function deleteOverlaySound(db: Db, id: string): Promise<void> {
+	await db
+		.delete(trackerState)
+		.where(eq(trackerState.id, `${OVERLAY_SOUND_PREFIX}${id}`))
+		.run();
 }
 
 // ---- giveaway -------------------------------------------------------------
 
 export async function readGiveaway(db: Db): Promise<GiveawayDoc> {
-	return readDoc(db, GIVEAWAY_ID, defaultGiveawayDoc);
+	return withGiveawayDefaults(await readDoc(db, GIVEAWAY_ID, defaultGiveawayDoc));
 }
 
 /** Concurrency-safe giveaway mutation (gifters / entrants / winners). */
@@ -294,7 +332,7 @@ export function mutateGiveaway(
 	db: Db,
 	fn: (doc: GiveawayDoc) => GiveawayDoc,
 ): Promise<GiveawayDoc> {
-	return mutateDoc(db, GIVEAWAY_ID, defaultGiveawayDoc, fn);
+	return mutateDoc(db, GIVEAWAY_ID, defaultGiveawayDoc, (doc) => fn(withGiveawayDefaults(doc)));
 }
 
 // ---- wheel of dares -------------------------------------------------------

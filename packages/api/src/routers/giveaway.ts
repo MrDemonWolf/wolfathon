@@ -1,21 +1,26 @@
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import {
 	addWinner,
 	applyConfig,
 	applyGiveawayEvent,
-	drawRaffle,
-	type Entrant,
+	eligibleRaffleLogins,
+	newRaffleServerSeed,
 	removeWinner,
-	rerollRaffle,
+	raffleCommitmentHash,
+	RAFFLE_PROOF_REVEAL_DELAY_MS,
+	resolveCommittedRaffleDraw,
 	resetPool,
 	resetRound,
 	setShipped,
 	setWinnerNote,
 	startGiveaway,
+	toGiveawayControl,
 } from "../giveaway";
 import { protectedProcedure, router } from "../index";
 import { mutateGiveaway, readGiveaway } from "../store";
+import { wheelDraw } from "../wheel";
 
 const loginSchema = z
 	.string()
@@ -24,12 +29,80 @@ const loginSchema = z
 	.max(50)
 	.transform((s) => s.toLowerCase());
 
+function assertNoPendingRaffleDraw(doc: Awaited<ReturnType<typeof readGiveaway>>) {
+	if (doc.pendingRaffleDraw) {
+		throw new TRPCError({
+			code: "CONFLICT",
+			message:
+				"The raffle hash is published. Wait for the result to reveal before changing winners or the pool.",
+		});
+	}
+}
+
+async function prepareRaffleDraw(db: Parameters<typeof readGiveaway>[0], targetWinnerId?: string) {
+	const now = Date.now();
+	const before = await readGiveaway(db);
+	assertNoPendingRaffleDraw(before);
+	if (targetWinnerId) {
+		const target = before.winners.find((winner) => winner.id === targetWinnerId);
+		if (!target || target.source !== "raffle") {
+			throw new TRPCError({
+				code: "NOT_FOUND",
+				message: "That raffle winner can no longer be rerolled.",
+			});
+		}
+	}
+	const pool = eligibleRaffleLogins(before, targetWinnerId);
+	if (pool.length === 0) {
+		throw new TRPCError({
+			code: "BAD_REQUEST",
+			message: targetWinnerId
+				? "No eligible entrants are left to reroll to."
+				: "No entrants left to draw.",
+		});
+	}
+	const drawId = crypto.randomUUID();
+	const serverSeed = newRaffleServerSeed();
+	const commitmentHash = await raffleCommitmentHash(serverSeed, drawId, pool);
+	const revealAt = now + RAFFLE_PROOF_REVEAL_DELAY_MS;
+	await mutateGiveaway(db, (doc) => {
+		assertNoPendingRaffleDraw(doc);
+		if (JSON.stringify(eligibleRaffleLogins(doc, targetWinnerId)) !== JSON.stringify(pool)) {
+			throw new TRPCError({
+				code: "CONFLICT",
+				message: "The raffle pool changed. Publish a new draw hash.",
+			});
+		}
+		return {
+			...doc,
+			pendingRaffleDraw: {
+				drawId,
+				kind: targetWinnerId ? "reroll" : "draw",
+				...(targetWinnerId ? { targetWinnerId } : {}),
+				commitmentHash,
+				serverSeed,
+				pool,
+				queuedEntrants: [],
+				createdAt: now,
+				revealAt,
+			},
+		};
+	});
+	return { drawId, commitmentHash, revealAt, poolSize: pool.length };
+}
+
 /**
  * Operator-only giveaway control. The raw doc (gifters / entrants / winners,
- * including private winner notes) is operator-only; nothing here is public.
+ * including private notes and revealed proof seeds) is operator-only. The live
+ * commitment seed is stripped until its reveal.
  */
 export const giveawayRouter = router({
-	getRaw: protectedProcedure.query(async ({ ctx }) => readGiveaway(ctx.db)),
+	getRaw: protectedProcedure.query(async ({ ctx }) =>
+		toGiveawayControl(await readGiveaway(ctx.db)),
+	),
+
+	/** Full proof pools load only when the operator opens the proof history. */
+	history: protectedProcedure.query(async ({ ctx }) => (await readGiveaway(ctx.db)).raffleHistory),
 
 	setConfig: protectedProcedure
 		.input(
@@ -43,7 +116,12 @@ export const giveawayRouter = router({
 				tosUrl: z.string().max(400).optional(),
 			}),
 		)
-		.mutation(async ({ ctx, input }) => mutateGiveaway(ctx.db, (doc) => applyConfig(doc, input))),
+		.mutation(async ({ ctx, input }) =>
+			mutateGiveaway(ctx.db, (doc) => {
+				assertNoPendingRaffleDraw(doc);
+				return applyConfig(doc, input);
+			}),
+		),
 
 	/** Start the round so gift events begin counting (gifts before this are ignored). */
 	start: protectedProcedure.mutation(async ({ ctx }) =>
@@ -55,6 +133,7 @@ export const giveawayRouter = router({
 		.input(z.object({ login: loginSchema }))
 		.mutation(async ({ ctx, input }) =>
 			mutateGiveaway(ctx.db, (doc) => {
+				assertNoPendingRaffleDraw(doc);
 				const gifter = doc.gifters.find((g) => g.login === input.login);
 				const name = gifter?.name ?? input.login;
 				return addWinner(doc, { login: input.login, name, source: "gift" }, Date.now());
@@ -75,43 +154,99 @@ export const giveawayRouter = router({
 			}),
 		)
 		.mutation(async ({ ctx, input }) =>
-			mutateGiveaway(ctx.db, (doc) =>
-				addWinner(
+			mutateGiveaway(ctx.db, (doc) => {
+				assertNoPendingRaffleDraw(doc);
+				return addWinner(
 					doc,
 					{ login: input.login, name: input.name?.trim() || input.login, source: input.source },
 					Date.now(),
-				),
-			),
+				);
+			}),
 		),
 
 	/**
-	 * Draw one raffle winner from the open pool. Arms a pending `!claim`; the
-	 * public Worker announces it and handles the claim/timeout IN CHAT — this
-	 * mutation only mutates the doc and never sends chat directly. The winner is
-	 * captured from inside the CAS apply, so a retry re-draws and the returned
-	 * winner always matches the persisted doc.
+	 * Publish the commitment hash and freeze the eligible pool. The matching seed
+	 * stays private until revealRaffleDraw after the short publication delay.
 	 */
-	drawRaffle: protectedProcedure.mutation(async ({ ctx }) => {
-		const out: { winner: Entrant | null } = { winner: null };
-		await mutateGiveaway(ctx.db, (doc) => {
-			const result = drawRaffle(doc, Date.now());
-			out.winner = result.winner;
-			return result.doc;
-		});
-		return out;
-	}),
+	drawRaffle: protectedProcedure.mutation(async ({ ctx }) => prepareRaffleDraw(ctx.db)),
 
-	/** Swap a raffle winner for a fresh draw (excludes the person rerolled out). */
+	/** Start a committed reroll, excluding the replaced winner from its pool. */
 	reroll: protectedProcedure
 		.input(z.object({ id: z.string() }))
+		.mutation(async ({ ctx, input }) => prepareRaffleDraw(ctx.db, input.id)),
+
+	/** Reveal the published seed and record the auditable winner and pool snapshot. */
+	revealRaffleDraw: protectedProcedure
+		.input(z.object({ drawId: z.string().uuid() }))
 		.mutation(async ({ ctx, input }) => {
-			const out: { winner: Entrant | null } = { winner: null };
+			const before = await readGiveaway(ctx.db);
+			const commitment = before.pendingRaffleDraw;
+			if (!commitment) {
+				const previous = before.raffleHistory.find((record) => record.drawId === input.drawId);
+				if (previous) return previous;
+				throw new TRPCError({ code: "NOT_FOUND", message: "The raffle draw hash has expired." });
+			}
+			if (commitment.drawId !== input.drawId) {
+				throw new TRPCError({ code: "CONFLICT", message: "This raffle hash is no longer active." });
+			}
+			if (Date.now() < commitment.revealAt) {
+				throw new TRPCError({
+					code: "CONFLICT",
+					message: "The raffle hash is still being published.",
+				});
+			}
+			const draw = await wheelDraw(
+				commitment.serverSeed,
+				commitment.drawId,
+				commitment.pool.length,
+			);
+			const out: { result: ReturnType<typeof resolveCommittedRaffleDraw> | null } = {
+				result: null,
+			};
 			await mutateGiveaway(ctx.db, (doc) => {
-				const result = rerollRaffle(doc, input.id, Date.now());
-				out.winner = result.winner;
-				return result.doc;
+				const current = doc.pendingRaffleDraw;
+				if (!current) {
+					const previous = doc.raffleHistory.find((record) => record.drawId === input.drawId);
+					if (previous) return doc;
+					throw new TRPCError({ code: "NOT_FOUND", message: "The raffle draw hash has expired." });
+				}
+				if (current.drawId !== input.drawId || current.serverSeed !== commitment.serverSeed) {
+					throw new TRPCError({
+						code: "CONFLICT",
+						message: "This raffle hash is no longer active.",
+					});
+				}
+				if (Date.now() < current.revealAt) {
+					throw new TRPCError({
+						code: "CONFLICT",
+						message: "The raffle hash is still being published.",
+					});
+				}
+				try {
+					out.result = resolveCommittedRaffleDraw(doc, {
+						drawId: input.drawId,
+						drawHash: draw.drawHash,
+						drawCounter: draw.drawCounter,
+						bucket: draw.bucket,
+						now: Date.now(),
+					});
+					return out.result.doc;
+				} catch (error) {
+					throw new TRPCError({
+						code: "CONFLICT",
+						message: error instanceof Error ? error.message : "Could not reveal the raffle draw.",
+					});
+				}
 			});
-			return out;
+			if (out.result) return out.result.record;
+			const previous = (await readGiveaway(ctx.db)).raffleHistory.find(
+				(record) => record.drawId === input.drawId,
+			);
+			if (previous) return previous;
+			throw new TRPCError({
+				code: "INTERNAL_SERVER_ERROR",
+				message: "The raffle draw did not resolve.",
+			});
 		}),
 
 	/**
@@ -122,6 +257,7 @@ export const giveawayRouter = router({
 		.input(z.object({ login: loginSchema, name: z.string().trim().max(50).optional() }))
 		.mutation(async ({ ctx, input }) =>
 			mutateGiveaway(ctx.db, (doc) => {
+				assertNoPendingRaffleDraw(doc);
 				const next = applyGiveawayEvent(
 					{ ...doc, config: { ...doc.config, open: true } },
 					{ kind: "entry", login: input.login, name: input.name?.trim() || input.login },
@@ -147,7 +283,10 @@ export const giveawayRouter = router({
 	removeWinner: protectedProcedure
 		.input(z.object({ id: z.string() }))
 		.mutation(async ({ ctx, input }) =>
-			mutateGiveaway(ctx.db, (doc) => removeWinner(doc, input.id)),
+			mutateGiveaway(ctx.db, (doc) => {
+				assertNoPendingRaffleDraw(doc);
+				return removeWinner(doc, input.id);
+			}),
 		),
 
 	/**
@@ -155,11 +294,17 @@ export const giveawayRouter = router({
 	 * round or clearing gift winners — for reopening `!enter` for a fresh wave.
 	 */
 	resetPool: protectedProcedure.mutation(async ({ ctx }) =>
-		mutateGiveaway(ctx.db, (doc) => resetPool(doc)),
+		mutateGiveaway(ctx.db, (doc) => {
+			assertNoPendingRaffleDraw(doc);
+			return resetPool(doc);
+		}),
 	),
 
 	/** Clear gifters, entrants, and winners for a fresh round (keeps config). */
 	resetRound: protectedProcedure.mutation(async ({ ctx }) =>
-		mutateGiveaway(ctx.db, (doc) => resetRound(doc)),
+		mutateGiveaway(ctx.db, (doc) => {
+			assertNoPendingRaffleDraw(doc);
+			return resetRound(doc);
+		}),
 	),
 });

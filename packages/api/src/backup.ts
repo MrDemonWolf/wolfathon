@@ -112,7 +112,7 @@ export function humanDuration(ms: number): string {
 export function buildRecapMarkdown(
 	rewards: Data,
 	timer: TimerDoc,
-	giveaway: GiveawayDoc | undefined,
+	giveaway: Pick<GiveawayDoc, "winners"> | undefined,
 	now: number = Date.now(),
 ): string {
 	const lines: string[] = [`# Wolfathon recap — ${new Date(now).toLocaleString()}`, ""];

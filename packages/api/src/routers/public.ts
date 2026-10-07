@@ -2,10 +2,11 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import { publicProcedure, router } from "../index";
+import { publicOverlaySoundConfig } from "../settings";
 import { stripNotes } from "../state";
-import { readSettings, readState, readTimer, readWheel } from "../store";
+import { readOverlaySound, readSettings, readState, readTimer, readWheel } from "../store";
 import { toPublicTimer } from "../timer";
-import { freshPendingSpin, toPublicWheel } from "../wheel";
+import { freshOverlaySpin, toPublicWheel } from "../wheel";
 
 /**
  * The only API surface exposed to the public overlays. Every response is
@@ -40,38 +41,44 @@ function assertToken(stored: string, given: string): void {
 	}
 }
 
-/**
- * Every overlay poll needs the settings doc (for the token) AND its own docs. Read
- * them in ONE wave instead of awaiting the token check first: the gate still runs
- * before anything is returned, but three OBS sources polling all day stop paying
- * two sequential D1 round-trips each time. A rejected token costs one extra read,
- * which is cheaper than the latency this saves on every legitimate poll.
- */
-async function gated<T>(
+/** Same gate with settings included in the projection, still parallel with the main document read. */
+async function gatedWithSettings<T, R>(
 	db: Parameters<typeof readSettings>[0],
 	token: string,
 	load: () => Promise<T>,
-): Promise<T> {
+	project: (settings: Awaited<ReturnType<typeof readSettings>>, loaded: T) => R,
+): Promise<R> {
 	const [settings, loaded] = await Promise.all([readSettings(db), load()]);
 	assertToken(settings.overlayToken, token);
-	return loaded;
+	return project(settings, loaded);
 }
 
 export const publicRouter = router({
 	state: router({
-		getPublic: publicProcedure
-			.input(tokenInput)
-			.query(({ ctx, input }) =>
-				gated(ctx.db, input.token, async () => stripNotes(await readState(ctx.db))),
+		getPublic: publicProcedure.input(tokenInput).query(({ ctx, input }) =>
+			gatedWithSettings(
+				ctx.db,
+				input.token,
+				() => readState(ctx.db),
+				(settings, state) => ({
+					...stripNotes(state),
+					sound: publicOverlaySoundConfig(settings, "reward"),
+				}),
 			),
+		),
 	}),
 	timer: router({
 		getPublic: publicProcedure.input(tokenInput).query(({ ctx, input }) =>
-			gated(ctx.db, input.token, async () => {
-				const [doc, state] = await Promise.all([readTimer(ctx.db), readState(ctx.db)]);
-				// Theme is shared with the rewards card and lives in the rewards doc.
-				return toPublicTimer(doc, Date.now(), state.theme);
-			}),
+			gatedWithSettings(
+				ctx.db,
+				input.token,
+				async () => {
+					const [doc, state] = await Promise.all([readTimer(ctx.db), readState(ctx.db)]);
+					// Theme is shared with the rewards card and lives in the rewards doc.
+					return toPublicTimer(doc, Date.now(), state.theme);
+				},
+				(settings, timer) => ({ ...timer, sound: publicOverlaySoundConfig(settings, "timer") }),
+			),
 		),
 	}),
 	wheel: router({
@@ -83,18 +90,35 @@ export const publicRouter = router({
 		 * `spinId`; a structural slot edit clears it server-side.
 		 */
 		getPublic: publicProcedure.input(tokenInput).query(({ ctx, input }) =>
-			gated(ctx.db, input.token, async () => {
-				const [wheel, state] = await Promise.all([readWheel(ctx.db), readState(ctx.db)]);
-				// Theme is shared with the timer + rewards card and lives in the state doc.
-				// `pending` is bounded by a TTL so a stale parked spin never re-whirls a
-				// freshly loaded overlay (the doc keeps pendingSpin indefinitely).
-				return {
+			gatedWithSettings(
+				ctx.db,
+				input.token,
+				async () => {
+					const [wheel, state] = await Promise.all([readWheel(ctx.db), readState(ctx.db)]);
+					return { wheel, state };
+				},
+				(settings, { wheel, state }) => ({
 					...toPublicWheel(wheel),
+					// Theme is shared with the timer + rewards card and lives in the state doc.
 					theme: state.theme,
-					pending: freshPendingSpin(wheel, Date.now()),
-				};
-			}),
+					pending: freshOverlaySpin(wheel, Date.now()),
+					sound: publicOverlaySoundConfig(settings, "wheel"),
+				}),
+			),
 		),
+	}),
+	sound: router({
+		/** Audio bytes are fetched only once per custom sound version, never on each overlay poll. */
+		getAsset: publicProcedure
+			.input(tokenInput.extend({ id: z.string().uuid() }))
+			.query(async ({ ctx, input }) => {
+				const settings = await readSettings(ctx.db);
+				assertToken(settings.overlayToken, input.token);
+				if (settings.overlaySounds.customSound?.id !== input.id) return null;
+				const asset = await readOverlaySound(ctx.db, input.id);
+				if (!asset || asset.id !== input.id) return null;
+				return { id: asset.id, mimeType: asset.mimeType, base64: asset.base64 };
+			}),
 	}),
 });
 

@@ -39,7 +39,7 @@ export const CONTROL_POLL_MS = 15_000;
  * be assembled from the numbers at runtime.
  */
 export const OVERLAY_SIZES = {
-	timer: { size: "1310×200", aspect: "aspect-[131/20]" },
-	rewards: { size: "760×540", aspect: "aspect-[38/27]" },
+	timer: { size: "1310×200", compactSize: "1000×160", aspect: "aspect-[131/20]" },
+	rewards: { size: "760×540", compactSize: "760×180", aspect: "aspect-[38/27]" },
 	wheel: { size: "1080×1080", aspect: "aspect-square" },
 } as const;

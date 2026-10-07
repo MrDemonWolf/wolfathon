@@ -5,20 +5,32 @@ import {
 	defaultWheelDoc,
 	enabledSlots,
 	finalRotation,
+	freshOverlaySpin,
 	freshPendingSpin,
+	isWheelSpinLocked,
 	MAX_SLOTS,
+	newWheelServerSeed,
+	publicWheelCommitment,
 	type PendingSpin,
 	pickWeighted,
 	removeSlot,
 	reorderSlots,
+	resolveCommittedRandomSpin,
 	resolveSpin,
+	sha256Hex,
 	slotColor,
 	slotIndexAtPointer,
 	toPublicWheel,
+	toWheelControl,
 	upsertSlot,
 	type WheelDoc,
 	type WheelSlot,
+	verifyWheelSpinProof,
+	wheelCommitmentHash,
+	wheelDraw,
 	WHEEL_SPIN_TTL_MS,
+	WHEEL_SPIN_LOCK_MS,
+	WHEEL_PROOF_REVEAL_DELAY_MS,
 	withWheelDefaults,
 } from "./wheel";
 
@@ -142,6 +154,62 @@ test("history is newest-first and capped at 25", () => {
 	expect(doc.history[0]!.id).toBe("s29"); // newest first
 });
 
+test("SHA-256 commitment reveals a deterministic, weighted, verifiable random spin", async () => {
+	const doc = defaultWheelDoc();
+	const pool = enabledSlots(doc).map(({ label, weight }) => ({ label, weight }));
+	const spinId = "30000000-0000-4000-8000-000000000001";
+	const serverSeed = "5a".repeat(32);
+	const commitmentHash = await wheelCommitmentHash(serverSeed, spinId, pool);
+	const commitment = {
+		spinId,
+		commitmentHash,
+		serverSeed,
+		pool,
+		createdAt: 1_000,
+		revealAt: 5_000,
+	};
+	const prepared = { ...doc, pendingCommitment: commitment };
+	const publicCommitment = publicWheelCommitment(prepared);
+	expect(publicCommitment?.commitmentHash).toBe(commitmentHash);
+	expect(publicCommitment).not.toHaveProperty("serverSeed");
+	expect(toWheelControl(prepared).pendingCommitment).not.toHaveProperty("serverSeed");
+	expect(isWheelSpinLocked(prepared, 1_001)).toBe(true);
+
+	const totalWeight = pool.reduce((total, slot) => total + slot.weight, 0);
+	const draw = await wheelDraw(serverSeed, spinId, totalWeight);
+	const resolved = resolveCommittedRandomSpin(prepared, {
+		spinId,
+		now: 5_000,
+		drawHash: draw.drawHash,
+		drawCounter: draw.drawCounter,
+	});
+	const spin = resolved.doc.history[0];
+	if (!spin) throw new Error("The committed spin was not added to history.");
+	const proof = spin.proof;
+	if (!proof) throw new Error("The committed spin proof was not recorded.");
+	expect(spin.label).toBe(resolved.winner.label);
+	expect(proof.targetIndex).toBe(resolved.targetIndex);
+	expect(resolved.doc.pendingCommitment).toBeNull();
+	expect(await verifyWheelSpinProof(spin)).toBe(true);
+	expect(
+		await verifyWheelSpinProof({
+			...spin,
+			proof: { ...proof, commitmentHash: "0".repeat(64) },
+		}),
+	).toBe(false);
+	expect(await sha256Hex(serverSeed)).toHaveLength(64);
+	expect(newWheelServerSeed()).toMatch(/^[a-f0-9]{64}$/);
+	expect(
+		freshPendingSpin(resolved.doc, 5_000 + WHEEL_PROOF_REVEAL_DELAY_MS - 1)?.proof,
+	).toBeUndefined();
+	expect(freshPendingSpin(resolved.doc, 5_000 + WHEEL_PROOF_REVEAL_DELAY_MS)?.proof).toEqual(proof);
+	expect(freshOverlaySpin(resolved.doc, 5_000 + WHEEL_PROOF_REVEAL_DELAY_MS)).toEqual({
+		spinId,
+		targetIndex: resolved.targetIndex,
+		at: 5_000,
+	});
+});
+
 test("any structural slot change clears a stale pendingSpin", () => {
 	const armed = resolveSpin(defaultWheelDoc(), { spinId: "s", now: 1, rand: () => 0 }).doc;
 	expect(armed.pendingSpin).not.toBeNull();
@@ -164,6 +232,14 @@ test("freshPendingSpin hides a parked spin past the TTL (no replay on a fresh ov
 	expect(freshPendingSpin(armed, 1000 + 60_000)).toBeNull();
 	// No parked spin at all → null.
 	expect(freshPendingSpin(defaultWheelDoc(), 1000)).toBeNull();
+});
+
+test("wheel spin lock is shared until the animation and result reveal finish", () => {
+	const armed = resolveSpin(defaultWheelDoc(), { spinId: "s", now: 1000, rand: () => 0 }).doc;
+	expect(isWheelSpinLocked(armed, 1000)).toBe(true);
+	expect(isWheelSpinLocked(armed, 1000 + WHEEL_SPIN_LOCK_MS - 1)).toBe(true);
+	expect(isWheelSpinLocked(armed, 1000 + WHEEL_SPIN_LOCK_MS)).toBe(false);
+	expect(isWheelSpinLocked(defaultWheelDoc(), 1000)).toBe(false);
 });
 
 test("reorderSlots rejects a duplicate-id list (no slot dropped or cloned)", () => {
@@ -254,6 +330,7 @@ test("withWheelDefaults backfills a legacy/partial row without throwing", () => 
 		slots: [],
 		history: [],
 		pendingSpin: null,
+		pendingCommitment: null,
 	});
 });
 

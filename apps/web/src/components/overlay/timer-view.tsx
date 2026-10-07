@@ -11,6 +11,8 @@ import { type EmoteDirection, pad2, type PublicTimer, splitDuration } from "@wol
 import { Flag, Pause, Play } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { playOverlaySound, type PlayableOverlaySound } from "@/utils/overlay-sound";
+
 /**
  * Capsule corner radius per style. cqw = % of the OUTER source width (a capsule
  * element isn't its own query container, so cqh would resolve against the source
@@ -38,10 +40,21 @@ const CORNER_RADII: Record<ThemeCorners, string> = {
  * When remaining time jumps up (a sub/gift/bits added time) the operator's
  * chosen emotes well up and flood the inside of the capsule with a rising "+Xm".
  */
-export function TimerView({ data }: { data: PublicTimer | undefined }) {
+export function TimerView({
+	data,
+	minimal = false,
+	sound,
+}: {
+	data: PublicTimer | undefined;
+	minimal?: boolean;
+	sound?: PlayableOverlaySound | null;
+}) {
 	const offsetRef = useRef(0); // serverNow - browserNow, captured per fetch
 	const targetRef = useRef<number | null>(null);
 	const lastEventAtRef = useRef<number | null>(null);
+	const previousTimerRef = useRef<{ remaining: number; running: boolean } | null>(null);
+	const timerCycleEndRef = useRef<number | null>(null);
+	const endCuePlayedRef = useRef(false);
 	const [now, setNow] = useState(() => Date.now());
 	const [flash, setFlash] = useState<{ id: number; minutes: number; label: string } | null>(null);
 
@@ -85,13 +98,36 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 	}, [flash]);
 
 	const emojis = data?.emojis?.length ? data.emojis : ["🐺"];
+	const remaining = data
+		? data.running && data.endsAt != null
+			? Math.max(0, data.endsAt - (now + offsetRef.current))
+			: Math.max(0, data.remainingMs)
+		: 0;
+
+	// Remember the last live countdown so the alarm fires once at the zero edge,
+	// including when the next server poll arrives just after the timer has ended.
+	useEffect(() => {
+		if (!data) return;
+		if (data.endsAt !== null && timerCycleEndRef.current !== data.endsAt) {
+			timerCycleEndRef.current = data.endsAt;
+			endCuePlayedRef.current = false;
+		}
+		const previous = previousTimerRef.current;
+		if (previous?.running && previous.remaining > 30_000 && remaining > 0 && remaining <= 30_000) {
+			playOverlaySound(sound, "timer-warning");
+		}
+		if (previous?.running && previous.remaining > 0 && remaining <= 0 && !endCuePlayedRef.current) {
+			endCuePlayedRef.current = true;
+			playOverlaySound(sound, "timer");
+		}
+		if (!data.running && data.endsAt === null && remaining > 0) {
+			timerCycleEndRef.current = null;
+			endCuePlayedRef.current = false;
+		}
+		previousTimerRef.current = { remaining, running: data.running || data.endsAt !== null };
+	}, [data, remaining, sound]);
 
 	if (!data) return null;
-
-	const remaining =
-		data.running && data.endsAt != null
-			? Math.max(0, data.endsAt - (now + offsetRef.current))
-			: Math.max(0, data.remainingMs);
 	const { d, h, m, s } = format(remaining);
 	const live = data.running && remaining > 0;
 	const ended = !live && remaining <= 0;
@@ -123,7 +159,10 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 			className="pointer-events-none absolute inset-0 flex select-none items-center justify-center"
 			style={{ fontFamily }}
 		>
-			<div className="relative" style={{ width: "86cqw", maxWidth: "1560px" }}>
+			<div
+				className="relative"
+				style={{ width: minimal ? "72cqw" : "86cqw", maxWidth: minimal ? "1100px" : "1560px" }}
+			>
 				{/* the capsule — its OWN container, fixed aspect, clips the emote flood.
 				    Glow is a box-shadow (no second rounded element → no double border). */}
 				<div
@@ -131,7 +170,7 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 					style={{ backgroundImage: capsule, borderRadius: radius, boxShadow }}
 				>
 					{/* slow sheen sweep — life without a busy animation */}
-					{live && (
+					{live && !minimal && (
 						<div
 							className="pointer-events-none absolute inset-0 overflow-hidden"
 							style={{ borderRadius: radius }}
@@ -157,7 +196,7 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 
 					{/* status chip pinned left — a play (running) / pause (stopped) icon
 					    on its own dark plate, so it reads on any gradient */}
-					{data.showStatus && (
+					{data.showStatus && !minimal && (
 						<div
 							className="absolute top-1/2 left-[3cqw] grid aspect-square h-[58%] -translate-y-1/2 place-items-center rounded-full bg-black/50 text-white backdrop-blur-md"
 							role="img"
@@ -190,24 +229,28 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 						</div>
 					)}
 
-					{/* "+Xm" badge — inside the bar (top-right) so it's never clipped by a
-					    tightly-cropped source; pops in on a time-add event. Shows the
-					    source ("Name · Sub") when the operator enabled it. */}
+					{/* Keep the added-time amount prominent and cap the source label so the
+					    callout stays readable inside both standard and compact bars. */}
 					{flash && (
 						<div
 							key={`label-${flash.id}`}
-							className="animate-wolf-rise absolute top-[10%] right-[2.5cqw] z-10 flex items-baseline gap-[0.8cqw] rounded-full bg-black/45 px-[4.5cqw] py-[1.3cqw] font-extrabold whitespace-nowrap text-white backdrop-blur-md"
+							data-testid="time-added-badge"
+							className="animate-wolf-rise absolute top-[8%] right-[1.5%] z-10 flex max-w-[48%] min-w-0 items-center gap-[0.8cqw] overflow-hidden rounded-full border border-white/20 bg-black/65 px-[2cqw] py-[0.55cqw] font-extrabold whitespace-nowrap text-white backdrop-blur-md"
 							style={{ boxShadow: `0 0 2cqw ${glow}` }}
 						>
 							{flash.label && (
-								<span className="text-[1.9cqw] font-semibold opacity-90">{flash.label}</span>
+								<span className="min-w-0 max-w-[25cqw] truncate text-[clamp(0.6rem,1.5cqw,1rem)] font-semibold opacity-90">
+									{flash.label}
+								</span>
 							)}
-							<span className="text-[2.6cqw]">+{flash.minutes}m</span>
+							<span className="shrink-0 text-[clamp(0.75rem,2.3cqw,1.65rem)] leading-none tabular-nums">
+								+{flash.minutes}m
+							</span>
 						</div>
 					)}
 
 					{/* eyebrow above the countdown, top-centre */}
-					{data.showLabel && (
+					{data.showLabel && !minimal && (
 						<span
 							className="absolute top-[1.6cqh] left-1/2 -translate-x-1/2 text-[1.7cqw] leading-none font-bold tracking-[0.5em] uppercase opacity-70"
 							style={{ color: ink }}
@@ -221,7 +264,15 @@ export function TimerView({ data }: { data: PublicTimer | undefined }) {
 						className="absolute inset-0 grid place-items-center font-extrabold tabular-nums"
 						style={{ color: ink }}
 					>
-						<div className="mt-[1cqh] flex items-baseline gap-[2.4cqw] [text-shadow:0_0.2cqh_0.7cqw_rgba(0,0,0,0.3)]">
+						<div
+							data-testid="timer-countdown"
+							className="mt-[1cqh] flex items-baseline gap-[2.4cqw] [text-shadow:0_0.2cqh_0.7cqw_rgba(0,0,0,0.3)]"
+							style={{
+								transform: flash ? "translate(-5cqw, 2cqw) scale(0.68)" : undefined,
+								transformOrigin: "center",
+								transition: "transform 240ms ease",
+							}}
+						>
 							{Number(d) > 0 && <Segment value={d} unit="D" showUnit={data.showUnits} />}
 							{Number(d) > 0 || Number(h) > 0 ? (
 								<Segment value={h} unit="H" showUnit={data.showUnits} />

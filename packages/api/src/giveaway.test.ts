@@ -8,19 +8,27 @@ import {
 	claimPending,
 	defaultGiveawayDoc,
 	drawRaffle,
+	eligibleRaffleLogins,
 	expirePending,
+	newRaffleServerSeed,
 	parseGiveawayEvent,
 	qualifyingGifters,
 	removeWinner,
 	rerollRaffle,
+	raffleCommitmentHash,
+	resolveCommittedRaffleDraw,
+	verifyRaffleDrawProof,
+	withGiveawayDefaults,
 	resetPool,
 	resetRound,
 	setShipped,
 	setWinnerNote,
 	startGiveaway,
+	toGiveawayControl,
 	type Winner,
 	winnersText,
 } from "./giveaway";
+import { wheelDraw } from "./wheel";
 
 /** A 3-entrant, open, started doc — the common fixture for the raffle/claim tests. */
 function poolOf(logins: string[]) {
@@ -30,6 +38,29 @@ function poolOf(logins: string[]) {
 		doc = applyGiveawayEvent(doc, { kind: "entry", login, name: login }, 0);
 	}
 	return doc;
+}
+
+async function makeCommitment(doc: ReturnType<typeof poolOf>, targetWinnerId?: string) {
+	const drawId = crypto.randomUUID();
+	const serverSeed = newRaffleServerSeed();
+	const pool = eligibleRaffleLogins(doc, targetWinnerId);
+	const commitmentHash = await raffleCommitmentHash(serverSeed, drawId, pool);
+	const pending = {
+		...doc,
+		pendingRaffleDraw: {
+			drawId,
+			kind: targetWinnerId ? ("reroll" as const) : ("draw" as const),
+			...(targetWinnerId ? { targetWinnerId } : {}),
+			commitmentHash,
+			serverSeed,
+			pool,
+			queuedEntrants: [],
+			createdAt: 100,
+			revealAt: 4_100,
+		},
+	};
+	const draw = await wheelDraw(serverSeed, drawId, pool.length);
+	return { pending, drawId, draw, pool };
 }
 
 test("gifts are ignored until the round is started", () => {
@@ -271,6 +302,87 @@ test("rerollRaffle re-arms the pending claim for the new winner", () => {
 	expect(re.winner!.login).toBe("b");
 	expect(re.doc.pendingClaim).toMatchObject({ login: "b", drawnAt: 200, announced: false });
 	expect(re.doc.pendingClaim!.winnerId).toBe(re.doc.winners.find((w) => w.login === "b")!.id);
+});
+
+test("raffle commit-reveal records a verifiable winner and exact eligible pool", async () => {
+	const { pending, drawId, draw, pool } = await makeCommitment(poolOf(["alice", "bob", "cara"]));
+	const resolved = resolveCommittedRaffleDraw(pending, {
+		drawId,
+		drawHash: draw.drawHash,
+		drawCounter: draw.drawCounter,
+		bucket: draw.bucket,
+		now: 5_000,
+	});
+	expect(resolved.doc.pendingRaffleDraw).toBeNull();
+	expect(resolved.record.proof.pool).toEqual(pool);
+	expect(resolved.record.winnerLogin).toBe(pool[draw.bucket]);
+	expect(await verifyRaffleDrawProof(drawId, resolved.winner.login, resolved.record.proof)).toBe(
+		true,
+	);
+	expect(
+		await verifyRaffleDrawProof(drawId, resolved.winner.login, {
+			...resolved.record.proof,
+			pool: [...resolved.record.proof.pool].reverse(),
+		}),
+	).toBe(false);
+});
+
+test("entries during a committed draw queue for the next pool", async () => {
+	const { pending, pool, drawId, draw } = await makeCommitment(poolOf(["alice", "bob"]));
+	const next = applyGiveawayEvent(pending, { kind: "entry", login: "cara", name: "Cara" }, 500);
+	expect(next.pendingRaffleDraw?.queuedEntrants.map((entrant) => entrant.login)).toEqual(["cara"]);
+	expect(eligibleRaffleLogins(next)).toEqual(pool);
+	const revealed = resolveCommittedRaffleDraw(next, {
+		drawId,
+		drawHash: draw.drawHash,
+		drawCounter: draw.drawCounter,
+		bucket: draw.bucket,
+		now: 5_000,
+	});
+	expect(revealed.record.proof.pool).toEqual(pool);
+	expect(revealed.doc.entrants.some((entrant) => entrant.login === "cara")).toBe(true);
+});
+
+test("control polling hides an unrevealed seed and uses lightweight proof summaries", async () => {
+	const { pending } = await makeCommitment(poolOf(["alice", "bob"]));
+	const control = toGiveawayControl(pending);
+	expect(control.pendingRaffleDraw?.commitmentHash).toBe(pending.pendingRaffleDraw?.commitmentHash);
+	expect("pool" in (control.pendingRaffleDraw ?? {})).toBe(false);
+	const serverSeed = pending.pendingRaffleDraw?.serverSeed;
+	expect(serverSeed).toBeDefined();
+	if (!serverSeed) throw new Error("The test commitment should keep a private server seed.");
+	expect(JSON.stringify(control)).not.toContain(serverSeed);
+});
+
+test("committed reroll excludes the old winner and retains its proof history", async () => {
+	const first = drawRaffle(poolOf(["alice", "bob", "cara"]), 100, () => 0);
+	const oldWinner = first.doc.winners.find((winner) => winner.source === "raffle");
+	if (!oldWinner) throw new Error("The test should draw one raffle winner before rerolling.");
+	const { pending, drawId, draw, pool } = await makeCommitment(first.doc, oldWinner.id);
+	expect(pool).toEqual(["bob", "cara"]);
+	const rerolled = resolveCommittedRaffleDraw(pending, {
+		drawId,
+		drawHash: draw.drawHash,
+		drawCounter: draw.drawCounter,
+		bucket: draw.bucket,
+		now: 200,
+	});
+	expect(rerolled.doc.winners.some((winner) => winner.login === oldWinner.login)).toBe(false);
+	expect(rerolled.doc.winners.some((winner) => winner.login === rerolled.winner.login)).toBe(true);
+	expect(rerolled.record.kind).toBe("reroll");
+	expect(rerolled.doc.raffleHistory[0]).toEqual(rerolled.record);
+	expect(await verifyRaffleDrawProof(drawId, rerolled.winner.login, rerolled.record.proof)).toBe(
+		true,
+	);
+});
+
+test("legacy giveaway docs receive an empty raffle proof history", () => {
+	const legacy = defaultGiveawayDoc() as Partial<ReturnType<typeof defaultGiveawayDoc>>;
+	delete legacy.pendingRaffleDraw;
+	delete legacy.raffleHistory;
+	expect(
+		withGiveawayDefaults(legacy as ReturnType<typeof defaultGiveawayDoc>).raffleHistory,
+	).toEqual([]);
 });
 
 test("claimPending marks claimed for the matching login within the window", () => {
