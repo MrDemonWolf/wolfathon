@@ -1,12 +1,14 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
 
 import { OverlayShell } from "@/components/overlay/overlay-shell";
 import { OverlayView } from "@/components/overlay/overlay-view";
+import { usePlayableOverlaySound } from "@/components/overlay/use-playable-overlay-sound";
+import { useOverlayDisplayOptions } from "@/components/overlay/use-overlay-display-options";
 import { useOverlayToken } from "@/components/overlay/use-overlay-token";
 import { REWARDS_POLL_MS } from "@/utils/constants";
+import { demoRewardsData } from "@/utils/demo-data";
 import { publicTrpc } from "@/utils/trpc";
 
 /**
@@ -16,21 +18,30 @@ import { publicTrpc } from "@/utils/trpc";
  */
 export default function RewardsOverlayPage() {
 	const token = useOverlayToken();
-	// `?side=right` mirrors the card to hug the right edge (default left).
-	const [align, setAlign] = useState<"left" | "right">("left");
-	useEffect(() => {
-		if (new URLSearchParams(window.location.search).get("side") === "right") setAlign("right");
-	}, []);
+	const { ready, demo, minimal, align } = useOverlayDisplayOptions();
 	const { data, error } = useQuery({
 		...publicTrpc.state.getPublic.queryOptions({ token: token ?? "" }),
-		enabled: token !== null,
+		enabled: ready && !demo && token !== null,
 		refetchInterval: REWARDS_POLL_MS,
 		refetchIntervalInBackground: true,
 	});
+	const sound = usePlayableOverlaySound(data?.sound, token, ready && !demo);
+
+	if (!ready) return null;
+	if (demo) {
+		return (
+			<div
+				className="@container fixed inset-0 overflow-hidden bg-transparent"
+				data-testid="overlay-demo-rewards"
+			>
+				<OverlayView data={demoRewardsData()} align={align} minimal={minimal} />
+			</div>
+		);
+	}
 
 	return (
 		<OverlayShell token={token} error={error}>
-			<OverlayView data={data} align={align} />
+			<OverlayView data={data} align={align} minimal={minimal} sound={sound} />
 		</OverlayShell>
 	);
 }

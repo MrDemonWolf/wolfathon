@@ -1,5 +1,6 @@
 "use client";
 
+import { rewardUnlockSoundEvent } from "@wolfathon/api/settings";
 import type { PublicData } from "@wolfathon/api/state";
 import {
 	BRAND_ACCENT,
@@ -11,7 +12,10 @@ import {
 	NEXT_REWARDS_SHOWN,
 	type ThemeCorners,
 } from "@wolfathon/api/theme";
+import { cn } from "@wolfathon/ui/lib/utils";
 import { useEffect, useRef, useState } from "react";
+
+import { playOverlaySound, type PlayableOverlaySound } from "@/utils/overlay-sound";
 
 /** Card corner radius per style (cqw = % of the source width). */
 const CARD_RADII: Record<ThemeCorners, string> = {
@@ -28,8 +32,8 @@ const CARD_RADII: Record<ThemeCorners, string> = {
  *  - Renders the current reward + a short "Coming up" peek at the next few
  *    upcoming reward NAMES (targets stay hidden — a gifter sees names, not the
  *    numbers behind them).
- *  - On a new unlock, celebrates "Unlocked: <reward>" (glow + scale, no audio),
- *    then settles onto the next reward.
+ *  - On a new unlock, celebrates "Unlocked: <reward>" (glow + scale and an
+ *    optional sound cue), then settles onto the next reward.
  *
  * The card FILLS its OBS source (recommended 760×540) instead of floating in a
  * corner of a full-screen canvas, so the operator drops a compact browser source
@@ -39,13 +43,20 @@ const CARD_RADII: Record<ThemeCorners, string> = {
 export function OverlayView({
 	data,
 	align = "left",
+	minimal = false,
+	sound,
 }: {
 	data: PublicData | undefined;
 	/** Which edge the card's rail + text hug. URL `?side=right` mirrors it. */
 	align?: "left" | "right";
+	/** Smaller card for a compact OBS source. URL `?minimal=1` enables it. */
+	minimal?: boolean;
+	/** Sound option from the token-gated overlay settings. */
+	sound?: PlayableOverlaySound | null;
 }) {
 	const end = align === "right";
 	const seen = useRef<Set<string> | null>(null);
+	const allRewardsWereUnlocked = useRef(false);
 	const celebrateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	// Keyed by goal id (not reward text): two goals sharing a name unlocking within
 	// the celebrate window must each remount the animation — a primitive-equal
@@ -78,30 +89,39 @@ export function OverlayView({
 		window.addEventListener("resize", measure);
 		return () => window.removeEventListener("resize", measure);
 		// `celebrate` re-fits: the unlock swaps the card's content (and height).
-	}, [data, celebrate]);
+	}, [data, celebrate, minimal]);
 
 	useEffect(() => {
 		if (!data) return;
 		const unlockedIds = data.goals.filter((g) => g.unlocked).map((g) => g.id);
+		const allUnlocked = data.goals.length > 0 && unlockedIds.length === data.goals.length;
 
 		// First snapshot: remember what's already unlocked, don't celebrate it.
 		if (seen.current === null) {
 			seen.current = new Set(unlockedIds);
+			allRewardsWereUnlocked.current = allUnlocked;
 			return;
 		}
 
+		const wasAllUnlocked = allRewardsWereUnlocked.current;
 		const fresh = data.goals.find((g) => g.unlocked && !seen.current!.has(g.id));
+		data.goals.forEach((goal) => {
+			if (!goal.unlocked) seen.current!.delete(goal.id);
+		});
 		unlockedIds.forEach((id) => seen.current!.add(id));
+		allRewardsWereUnlocked.current = allUnlocked;
 		if (!fresh) return;
 
 		setCelebrate({ id: fresh.id, reward: fresh.reward });
+		const soundEvent = rewardUnlockSoundEvent(sound, allUnlocked && !wasAllUnlocked);
+		if (soundEvent) playOverlaySound(sound, soundEvent);
 		// Held in a ref, NOT returned as the effect cleanup: the effect re-runs on
 		// every `data` change, so a poll landing inside the 3.2s window would clear
 		// the timeout and then early-return above without scheduling a replacement —
 		// leaving "Unlocked: X" stuck on the OBS source until the next unlock.
 		if (celebrateTimer.current) clearTimeout(celebrateTimer.current);
 		celebrateTimer.current = setTimeout(() => setCelebrate(null), 3200);
-	}, [data]);
+	}, [data, sound]);
 
 	// Only on unmount — never on a data change (see above).
 	useEffect(
@@ -173,25 +193,43 @@ export function OverlayView({
 						/>
 
 						<div
-							className={`relative p-[4.4cqw] ${end ? "pr-[5.2cqw] text-right" : "pl-[5.2cqw]"}`}
+							className={cn(
+								"relative",
+								minimal ? "p-[2.4cqw]" : "p-[4.4cqw]",
+								end
+									? minimal
+										? "pr-[3.1cqw] text-right"
+										: "pr-[5.2cqw] text-right"
+									: minimal
+										? "pl-[3.1cqw]"
+										: "pl-[5.2cqw]",
+							)}
 						>
 							{celebrate ? (
 								/* Unlock celebration, in-card: fades in, holds, fades out (CSS),
 								   then the next reward rises in when `celebrate` clears. */
 								<div key={celebrate.id} className="animate-wolf-unlock">
 									<span
-										className="block text-[3cqw] font-semibold tracking-[0.3em] uppercase"
+										className={cn(
+											"block font-semibold tracking-[0.3em] uppercase",
+											minimal ? "text-[2.5cqw]" : "text-[3cqw]",
+										)}
 										style={{ color: accent }}
 									>
 										Unlocked
 									</span>
-									<div className="wolf-glow mt-[2cqw] text-[10cqw] leading-[1.04] font-extrabold text-white line-clamp-2">
+									<div
+										className={cn(
+											"wolf-glow leading-[1.04] font-extrabold text-white line-clamp-2",
+											minimal ? "mt-[1.2cqw] text-[8.6cqw]" : "mt-[2cqw] text-[10cqw]",
+										)}
+									>
 										{celebrate.reward}
 									</div>
 								</div>
 							) : (
 								<>
-									{(data.showRewardsLabel || (current && data.showLiveDot)) && (
+									{!minimal && (data.showRewardsLabel || (current && data.showLiveDot)) && (
 										<div className={`flex items-center gap-[2cqw] ${end ? "justify-end" : ""}`}>
 											<span
 												className="flex items-center gap-[1.4cqw] text-[3cqw] font-semibold tracking-[0.28em] uppercase"
@@ -219,12 +257,15 @@ export function OverlayView({
 										<>
 											<div
 												key={current.id}
-												className="animate-wolf-rise mt-[2.8cqw] text-[10cqw] leading-[1.04] font-extrabold line-clamp-2 [text-shadow:0_0_4.8cqw_rgba(0,0,0,0.45)]"
+												className={cn(
+													"animate-wolf-rise leading-[1.04] font-extrabold line-clamp-2 [text-shadow:0_0_4.8cqw_rgba(0,0,0,0.45)]",
+													minimal ? "mt-[1.2cqw] text-[8.6cqw]" : "mt-[2.8cqw] text-[10cqw]",
+												)}
 												style={{ color: ink }}
 											>
 												{current.reward}
 											</div>
-											{showProgress && (
+											{!minimal && showProgress && (
 												<div className="mt-[2.8cqw]">
 													<div className="h-[1.8cqw] w-full overflow-hidden rounded-full bg-white/10">
 														<div
@@ -242,14 +283,17 @@ export function OverlayView({
 										</>
 									) : (
 										<div
-											className="mt-[2.8cqw] text-[6.8cqw] leading-tight font-bold"
+											className={cn(
+												"leading-tight font-bold",
+												minimal ? "mt-[1.2cqw] text-[5.6cqw]" : "mt-[2.8cqw] text-[6.8cqw]",
+											)}
 											style={{ color: accent }}
 										>
 											Thank you 🐺
 										</div>
 									)}
 
-									{data.showNext && next.length > 0 && (
+									{!minimal && data.showNext && next.length > 0 && (
 										<>
 											<div
 												className="mt-[3.6cqw] flex items-center gap-[1.4cqw] text-[2.4cqw] font-semibold tracking-[0.18em] uppercase"

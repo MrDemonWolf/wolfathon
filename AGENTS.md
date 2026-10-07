@@ -1,4 +1,4 @@
-# CLAUDE.md — Wolfathon
+# AGENTS.md — Wolfathon
 
 Guidance for AI agents working in this repo. Full setup/usage lives in
 [`README.md`](README.md); operator onboarding in [`SETUP.md`](SETUP.md). This

@@ -10,10 +10,17 @@ import {
 import {
 	computeArcs,
 	finalRotation,
-	type PendingSpin,
+	type OverlayPendingSpin,
 	type PublicWheelSlot,
+	WHEEL_PROOF_REVEAL_DELAY_MS,
 } from "@wolfathon/api/wheel";
 import { type CSSProperties, useEffect, useRef, useState } from "react";
+
+import {
+	playOverlaySound,
+	playWheelTickSequence,
+	type PlayableOverlaySound,
+} from "@/utils/overlay-sound";
 
 /**
  * Wheel-of-dares overlay ("Howlwheel"). Renders an SVG wheel of weighted slices
@@ -45,10 +52,12 @@ const LABEL_OUTER = R - 3.5;
 /** Centre logo hub — 25% smaller than the old r=8/6.9 so the slices read bigger. */
 const HUB_R = 6;
 const LOGO_R = 5.2;
-const SPIN_SECONDS = 6;
+const SPIN_SECONDS = WHEEL_PROOF_REVEAL_DELAY_MS / 1000;
 /** Whole turns the wheel sweeps before landing — more = a longer, weightier spin. */
 const SPIN_TURNS = 8;
-const RESULT_MS = 6000;
+/** Small rim pegs create a fine, even detent track around the wheel. */
+const DETENT_COUNT = 36;
+const RESULT_MS = WHEEL_PROOF_REVEAL_DELAY_MS;
 
 type Phase = "idle" | "spinning" | "result";
 
@@ -56,10 +65,15 @@ export function WheelView({
 	slots,
 	theme,
 	pending,
+	sound,
+	showWhileIdle = false,
 }: {
 	slots: PublicWheelSlot[] | undefined;
 	theme: OverlayTheme | undefined;
-	pending: PendingSpin;
+	pending: OverlayPendingSpin;
+	sound?: PlayableOverlaySound | null;
+	/** Keep a static wheel visible in editor previews when the live overlay hides it while idle. */
+	showWhileIdle?: boolean;
 }) {
 	// Chrome colours + font follow the shared overlay theme; slice fills keep
 	// their own per-slot colours. Aliased to the old NAVY/CYAN/MOON names so the
@@ -82,6 +96,7 @@ export function WheelView({
 	const [frozen, setFrozen] = useState<PublicWheelSlot[] | null>(null);
 
 	const lastSpinId = useRef<string | null>(null);
+	const landTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	// A freshly mounted overlay must NOT replay the spin still parked in the doc:
 	// the server keeps `pendingSpin` around (it never clears on read), so every OBS
 	// scene switch / refresh / restart would otherwise re-whirl the last spin. On
@@ -106,24 +121,40 @@ export function WheelView({
 
 		const snapshot = slots;
 		const dest = finalRotation(snapshot, pending.targetIndex, rotation, SPIN_TURNS);
+		if (landTimer.current) clearTimeout(landTimer.current);
 		setFrozen(snapshot);
 		setResultLabel(target.label);
 
 		if (reduced) {
 			// No whirl — land immediately and announce.
 			setRotation(dest);
+			playOverlaySound(sound, "wheel-pick");
 			setPhase("result");
 			return;
 		}
+		playWheelTickSequence(sound, SPIN_SECONDS, SPIN_TURNS * DETENT_COUNT);
 		setSpin((s) => ({ from: rotation, to: dest, key: s.key + 1 }));
 		setRotation(dest); // rest angle once the animation finishes (forwards holds it)
 		setPhase("spinning");
-		const land = setTimeout(() => setPhase("result"), SPIN_SECONDS * 1000);
-		return () => clearTimeout(land);
+		landTimer.current = setTimeout(() => {
+			landTimer.current = null;
+			playOverlaySound(sound, "wheel-pick");
+			setPhase("result");
+		}, SPIN_SECONDS * 1000);
 		// `rotation` is intentionally NOT a dependency: it's read once at spin start
 		// as the from-angle; depending on it would re-fire this effect mid-spin and
 		// restart the animation. The dedupe on `spinId` is what gates re-runs.
-	}, [pending, slots, reduced]);
+	}, [pending, slots, reduced, sound]);
+
+	// Slot edits clear the server's pending-spin record, but the visible wheel is
+	// still animating against its frozen snapshot. Keep that landing timer alive
+	// across polls and slot updates; only dispose it when the overlay unmounts.
+	useEffect(
+		() => () => {
+			if (landTimer.current) clearTimeout(landTimer.current);
+		},
+		[],
+	);
 
 	// Auto-clear the result banner back to idle a few seconds after landing.
 	useEffect(() => {
@@ -147,7 +178,7 @@ export function WheelView({
 	const pulse = !reduced && phase === "idle" ? "wheel-pulse" : "";
 	// Hidden-until-spin: by default the wheel only appears for the reveal (spin +
 	// result), then fades back out. `showWheelIdle` parks it on screen permanently.
-	const visible = t.showWheelIdle || phase !== "idle";
+	const visible = showWhileIdle || t.showWheelIdle || phase !== "idle";
 	// Size of the wheel within its (square) OBS source, tuned for 1080p.
 	// Kept smaller than the old 84cqmin so the result banner below the rim
 	// still fits inside a strictly square (1080x1080) source without clipping.
@@ -157,6 +188,9 @@ export function WheelView({
 
 	return (
 		<div
+			data-testid="wheel-view"
+			data-phase={phase}
+			data-visible={visible ? "true" : "false"}
 			className="pointer-events-none absolute inset-0 grid select-none place-items-center"
 			style={{ opacity: visible ? 1 : 0, transition: reduced ? undefined : "opacity 0.45s ease" }}
 		>
@@ -168,6 +202,17 @@ export function WheelView({
 							@keyframes howlRim  { 0%,100% { stroke-opacity:.45 } 50% { stroke-opacity:.9 } }
 							.wheel-pulse.halo { animation: howlHalo 3.6s ease-in-out infinite; }
 							.wheel-pulse.rim  { animation: howlRim  3.6s ease-in-out infinite; }
+							@keyframes wheelPointerTap {
+								0%,100% { transform: rotate(0deg); }
+								28% { transform: rotate(-14deg); }
+								58% { transform: rotate(4deg); }
+								78% { transform: rotate(-2deg); }
+							}
+							.wheel-pointer-tapping {
+								animation: wheelPointerTap 0.16s ease-in-out infinite;
+								transform-box: view-box;
+								transform-origin: 50px -2.5px;
+							}
 							/* Spin: a fast whip that decelerates over a long tail, nudges 6°
 							   past the landing notch, then settles back — like a real detented
 							   wheel. The from/to angles come from inline --spin-from/--spin-to. */
@@ -214,6 +259,12 @@ export function WheelView({
 							<stop offset="45%" stopColor={CYAN} />
 							<stop offset="100%" stopColor={CYAN} />
 						</linearGradient>
+						<radialGradient id="wheel-pin-metal" cx="30%" cy="24%" r="76%">
+							<stop offset="0%" stopColor="#ffffff" />
+							<stop offset="42%" stopColor="#e3e8ef" />
+							<stop offset="78%" stopColor="#9ca8b9" />
+							<stop offset="100%" stopColor="#536176" />
+						</radialGradient>
 						{/* Round mask for the centre logo hub (rotation-invariant: centred). */}
 						<clipPath id="hub-clip">
 							<circle cx={CX} cy={CY} r={LOGO_R} />
@@ -272,21 +323,32 @@ export function WheelView({
 						<circle cx={CX} cy={CY} r={R} fill="url(#disc-shade)" />
 						<circle cx={CX} cy={CY} r={R} fill="url(#disc-sheen)" />
 
-						{/* rivet studs at each slice boundary — skipped for a single full slice */}
-						{arcs.length > 1 &&
-							arcs.map((arc) => {
-								const p = polar(arc.start, R - 1.4);
-								return (
+						{/* Evenly spaced, small metal pegs make the wheel's detents visible. */}
+						{Array.from({ length: DETENT_COUNT }, (_, index) => {
+							const angle = (index * 360) / DETENT_COUNT;
+							const p = polar(angle, R - 0.48);
+							return (
+								<g key={`pin-${index}`} data-testid="wheel-detent-pin">
 									<circle
-										key={`stud-${arc.index}`}
 										cx={p.x}
 										cy={p.y}
-										r={0.55}
-										fill={MOON}
-										fillOpacity={0.55}
+										r={0.38}
+										fill="url(#wheel-pin-metal)"
+										stroke={NAVY_DEEP}
+										strokeWidth={0.16}
+										filter="url(#wheel-shadow)"
 									/>
-								);
-							})}
+									<circle
+										cx={p.x - 0.1}
+										cy={p.y - 0.11}
+										r={0.085}
+										fill="#ffffff"
+										fillOpacity={0.9}
+										pointerEvents="none"
+									/>
+								</g>
+							);
+						})}
 
 						{arcs.map((arc) => {
 							const slot = render[arc.index]!;
@@ -387,7 +449,11 @@ export function WheelView({
 					/>
 
 					{/* fixed fang pointer at top, tip biting down into the wheel */}
-					<g filter="url(#wheel-shadow)">
+					<g
+						data-testid="wheel-clacker"
+						className={spinning && !reduced ? "wheel-pointer-tapping" : undefined}
+						filter="url(#wheel-shadow)"
+					>
 						<path
 							d={`M${CX - 3.6} ${CY - R - 4.5}
 							    Q${CX} ${CY - R - 6.5} ${CX + 3.6} ${CY - R - 4.5}

@@ -3,9 +3,12 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { OverlayShell } from "@/components/overlay/overlay-shell";
+import { usePlayableOverlaySound } from "@/components/overlay/use-playable-overlay-sound";
+import { useOverlayDisplayOptions } from "@/components/overlay/use-overlay-display-options";
 import { useOverlayToken } from "@/components/overlay/use-overlay-token";
 import { WheelView } from "@/components/overlay/wheel-view";
 import { LIVE_POLL_MS } from "@/utils/constants";
+import { demoOverlayTheme, demoWheelSlots } from "@/utils/demo-data";
 import { publicTrpc } from "@/utils/trpc";
 
 /**
@@ -16,16 +19,35 @@ import { publicTrpc } from "@/utils/trpc";
  */
 export default function WheelOverlayPage() {
 	const token = useOverlayToken();
+	const { ready, demo } = useOverlayDisplayOptions();
 	const { data: wheel, error } = useQuery({
 		...publicTrpc.wheel.getPublic.queryOptions({ token: token ?? "" }),
-		enabled: token !== null,
+		enabled: ready && !demo && token !== null,
 		refetchInterval: LIVE_POLL_MS,
 		refetchIntervalInBackground: true,
 	});
+	const sound = usePlayableOverlaySound(wheel?.sound, token, ready && !demo);
+
+	if (!ready) return null;
+	if (demo) {
+		return (
+			<div
+				className="@container fixed inset-0 overflow-hidden bg-transparent"
+				data-testid="overlay-demo-wheel"
+			>
+				<WheelView slots={demoWheelSlots()} theme={demoOverlayTheme()} pending={null} />
+			</div>
+		);
+	}
 
 	return (
 		<OverlayShell token={token} error={error}>
-			<WheelView slots={wheel?.slots} theme={wheel?.theme} pending={wheel?.pending ?? null} />
+			<WheelView
+				slots={wheel?.slots}
+				theme={wheel?.theme}
+				pending={wheel?.pending ?? null}
+				sound={sound}
+			/>
 		</OverlayShell>
 	);
 }

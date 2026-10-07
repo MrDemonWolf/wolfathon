@@ -1,19 +1,31 @@
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
 import { protectedProcedure, router } from "../index";
 import { resetRound } from "../giveaway";
 import { type Goal, MAX_GOALS, MAX_REWARD_LENGTH, MAX_TARGET, validateImport } from "../state";
-import { newOverlayToken } from "../settings";
+import {
+	MAX_OVERLAY_SOUND_BASE64_LENGTH,
+	MAX_OVERLAY_SOUND_BYTES,
+	OVERLAY_SOUND_MIME_TYPES,
+	REWARD_SOUND_PRESET_IDS,
+	TIMER_SOUND_PRESET_IDS,
+	TIMER_WARNING_SOUND_PRESET_IDS,
+	newOverlayToken,
+} from "../settings";
 import {
 	mutateGiveaway,
+	mutateSettings,
 	mutateState,
 	mutateTimer,
 	mutateWheel,
+	deleteOverlaySound,
+	readOverlaySound,
 	readSettings,
 	readState,
 	revMatches,
 	staleRevError,
-	writeSettings,
+	writeOverlaySound,
 } from "../store";
 import { type OverlayTheme, type ThemeError, validateOverlayTheme } from "../theme";
 import { reset as resetTimerState } from "../timer";
@@ -24,6 +36,21 @@ import { twitchRouter } from "./twitch";
 import { wheelRouter } from "./wheel";
 
 const rewardSchema = z.string().trim().min(1, "Reward must not be empty.").max(MAX_REWARD_LENGTH);
+const overlaySoundBase64 = z
+	.string()
+	.min(4)
+	.max(MAX_OVERLAY_SOUND_BASE64_LENGTH)
+	.regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/);
+
+function safeOverlaySoundFileName(fileName: string): string {
+	return Array.from(fileName)
+		.filter((char) => {
+			const code = char.charCodeAt(0);
+			return code >= 0x20 && (code < 0x7f || code > 0x9f);
+		})
+		.join("")
+		.slice(0, 100);
+}
 
 /** One goal as accepted by `state.replace` — ids/flags are optional and re-normalized. */
 const goalSchema = z.object({
@@ -163,9 +190,109 @@ export const protectedRouter = router({
 
 	settings: router({
 		get: protectedProcedure.query(async ({ ctx }) => readSettings(ctx.db)),
+		getSoundAsset: protectedProcedure
+			.input(z.object({ id: z.string().uuid() }))
+			.query(async ({ ctx, input }) => {
+				const settings = await readSettings(ctx.db);
+				if (settings.overlaySounds.customSound?.id !== input.id) return null;
+				const asset = await readOverlaySound(ctx.db, input.id);
+				return asset?.id === input.id
+					? { id: asset.id, mimeType: asset.mimeType, base64: asset.base64 }
+					: null;
+			}),
+		updateOverlaySounds: protectedProcedure
+			.input(
+				z
+					.object({
+						wheelTickEnabled: z.boolean().optional(),
+						wheelPickEnabled: z.boolean().optional(),
+						rewardUnlockEnabled: z.boolean().optional(),
+						allRewardsEnabled: z.boolean().optional(),
+						timerEndEnabled: z.boolean().optional(),
+						timerWarningEnabled: z.boolean().optional(),
+						wheelPickPreset: z.enum(REWARD_SOUND_PRESET_IDS).optional(),
+						rewardPreset: z.enum(REWARD_SOUND_PRESET_IDS).optional(),
+						allRewardsPreset: z.enum(REWARD_SOUND_PRESET_IDS).optional(),
+						timerWarningPreset: z.enum(TIMER_WARNING_SOUND_PRESET_IDS).optional(),
+						timerPreset: z.enum(TIMER_SOUND_PRESET_IDS).optional(),
+					})
+					.refine(
+						(input) =>
+							input.wheelTickEnabled !== undefined ||
+							input.wheelPickEnabled !== undefined ||
+							input.rewardUnlockEnabled !== undefined ||
+							input.allRewardsEnabled !== undefined ||
+							input.timerEndEnabled !== undefined ||
+							input.timerWarningEnabled !== undefined ||
+							input.wheelPickPreset !== undefined ||
+							input.rewardPreset !== undefined ||
+							input.allRewardsPreset !== undefined ||
+							input.timerWarningPreset !== undefined ||
+							input.timerPreset !== undefined,
+					),
+			)
+			.mutation(async ({ ctx, input }) =>
+				mutateSettings(ctx.db, (settings) => ({
+					...settings,
+					overlaySounds: { ...settings.overlaySounds, ...input },
+				})),
+			),
+		uploadOverlaySound: protectedProcedure
+			.input(
+				z.object({
+					fileName: z.string().trim().min(1).max(100),
+					mimeType: z.enum(OVERLAY_SOUND_MIME_TYPES),
+					base64: overlaySoundBase64,
+				}),
+			)
+			.mutation(async ({ ctx, input }) => {
+				const padding = input.base64.endsWith("==") ? 2 : input.base64.endsWith("=") ? 1 : 0;
+				const sizeBytes = (input.base64.length / 4) * 3 - padding;
+				if (sizeBytes > MAX_OVERLAY_SOUND_BYTES) {
+					throw new TRPCError({
+						code: "BAD_REQUEST",
+						message: "Sound files must be 256 KiB or smaller.",
+					});
+				}
+				const id = crypto.randomUUID();
+				const asset = { ...input, id, sizeBytes };
+				await writeOverlaySound(ctx.db, asset);
+				let previousSoundId: string | undefined;
+				const settings = await mutateSettings(ctx.db, (current) => {
+					previousSoundId = current.overlaySounds.customSound?.id;
+					return {
+						...current,
+						overlaySounds: {
+							...current.overlaySounds,
+							customSound: {
+								id,
+								fileName: safeOverlaySoundFileName(input.fileName),
+								mimeType: input.mimeType,
+								sizeBytes,
+							},
+						},
+					};
+				});
+				if (previousSoundId && previousSoundId !== id) {
+					await deleteOverlaySound(ctx.db, previousSoundId);
+				}
+				return settings;
+			}),
+		removeOverlaySound: protectedProcedure.mutation(async ({ ctx }) => {
+			let previousSoundId: string | undefined;
+			const settings = await mutateSettings(ctx.db, (current) => {
+				previousSoundId = current.overlaySounds.customSound?.id;
+				return {
+					...current,
+					overlaySounds: { ...current.overlaySounds, customSound: null },
+				};
+			});
+			if (previousSoundId) await deleteOverlaySound(ctx.db, previousSoundId);
+			return settings;
+		}),
 		/** Rotate the overlay token — instantly breaks old URLs (re-paste in OBS). */
 		rotateOverlayToken: protectedProcedure.mutation(async ({ ctx }) =>
-			writeSettings(ctx.db, { overlayToken: newOverlayToken() }),
+			mutateSettings(ctx.db, (settings) => ({ ...settings, overlayToken: newOverlayToken() })),
 		),
 	}),
 
@@ -189,7 +316,16 @@ export const protectedRouter = router({
 			})),
 			mutateTimer(ctx.db, (timer) => ({ ...timer, state: resetTimerState(timer.config) })),
 			mutateWheel(ctx.db, (wheel) => ({ ...wheel, history: [] })),
-			mutateGiveaway(ctx.db, (giveaway) => resetRound(giveaway)),
+			mutateGiveaway(ctx.db, (giveaway) => {
+				if (giveaway.pendingRaffleDraw) {
+					throw new TRPCError({
+						code: "CONFLICT",
+						message:
+							"The raffle hash is published. Wait for the result to reveal before resetting the round.",
+					});
+				}
+				return resetRound(giveaway);
+			}),
 		]);
 		return { ok: true as const };
 	}),

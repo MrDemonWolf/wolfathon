@@ -12,6 +12,7 @@
 
 import { secureRandom } from "./random";
 import { clampInt, firstToken } from "./util";
+import { wheelCommitmentHash, wheelDraw } from "./wheel";
 
 export type WinnerSource = "gift" | "raffle";
 
@@ -83,6 +84,56 @@ export type PendingClaim = {
 	timedOut?: boolean;
 };
 
+export type RaffleProof = {
+	algorithm: "sha256-commit-reveal-v1";
+	commitmentHash: string;
+	serverSeed: string;
+	drawHash: string;
+	drawCounter: number;
+	/** Ordered Twitch logins eligible for this draw. */
+	pool: string[];
+	targetIndex: number;
+};
+
+export type PendingRaffleDraw = {
+	drawId: string;
+	kind: "draw" | "reroll";
+	targetWinnerId?: string;
+	commitmentHash: string;
+	serverSeed: string;
+	pool: string[];
+	/** Chat entries received after commitment; they join the next draw only. */
+	queuedEntrants: Entrant[];
+	createdAt: number;
+	revealAt: number;
+};
+
+export type RaffleDrawRecord = {
+	drawId: string;
+	kind: "draw" | "reroll";
+	winnerLogin: string;
+	winnerName: string;
+	drawnAt: number;
+	proof: RaffleProof;
+};
+
+/** Lightweight history row used in the live dashboard polling response. */
+export type RaffleDrawSummary = Omit<RaffleDrawRecord, "proof"> & {
+	commitmentHash: string;
+	poolSize: number;
+	targetIndex: number;
+};
+
+export type GiveawayControlDoc = Omit<GiveawayDoc, "pendingRaffleDraw" | "raffleHistory"> & {
+	pendingRaffleDraw:
+		| (Omit<PendingRaffleDraw, "serverSeed" | "pool" | "queuedEntrants"> & {
+				poolSize: number;
+				queuedCount: number;
+		  })
+		| null;
+	raffleHistory: RaffleDrawSummary[];
+};
+
 export type GiveawayDoc = {
 	config: GiveawayConfig;
 	/** Epoch ms the operator started the round; null until then. Gifts only count after this. */
@@ -92,6 +143,10 @@ export type GiveawayDoc = {
 	winners: Winner[];
 	/** A drawn raffle winner waiting to type `!claim` in chat (null = none). */
 	pendingClaim: PendingClaim | null;
+	/** Private commitment awaiting its reveal; strip the seed from control reads. */
+	pendingRaffleDraw: PendingRaffleDraw | null;
+	/** Latest auditable raffle results, including rerolled outcomes. */
+	raffleHistory: RaffleDrawRecord[];
 };
 
 /** A normalized giveaway-relevant event parsed from an EventSub payload. */
@@ -106,6 +161,10 @@ export const MAX_COMMAND_LENGTH = 32;
 export const MAX_TOS_URL_LENGTH = 300;
 /** How long a drawn raffle winner has to type `!claim` before a redraw is offered. */
 export const CLAIM_WINDOW_MS = 5 * 60_000;
+/** Keep the hash visible before revealing a raffle result, matching the wheel flow. */
+export const RAFFLE_PROOF_REVEAL_DELAY_MS = 4_000;
+/** Pool snapshots are sizable, so retain a bounded set of complete proofs. */
+export const RAFFLE_PROOF_HISTORY_LIMIT = 5;
 
 export function defaultGiveawayConfig(): GiveawayConfig {
 	return {
@@ -126,6 +185,52 @@ export function defaultGiveawayDoc(): GiveawayDoc {
 		entrants: [],
 		winners: [],
 		pendingClaim: null,
+		pendingRaffleDraw: null,
+		raffleHistory: [],
+	};
+}
+
+/** Backfill fields on docs created before commit/reveal support. */
+export function withGiveawayDefaults(doc: GiveawayDoc): GiveawayDoc {
+	return {
+		...doc,
+		pendingRaffleDraw: doc.pendingRaffleDraw
+			? {
+					...doc.pendingRaffleDraw,
+					queuedEntrants: Array.isArray(doc.pendingRaffleDraw.queuedEntrants)
+						? doc.pendingRaffleDraw.queuedEntrants
+						: [],
+				}
+			: null,
+		raffleHistory: Array.isArray(doc.raffleHistory) ? doc.raffleHistory : [],
+	};
+}
+
+/** Operator polling projection: keep the live seed and full history out of it. */
+export function toGiveawayControl(doc: GiveawayDoc): GiveawayControlDoc {
+	const { pendingRaffleDraw, raffleHistory, ...rest } = doc;
+	return {
+		...rest,
+		pendingRaffleDraw: pendingRaffleDraw
+			? {
+					drawId: pendingRaffleDraw.drawId,
+					kind: pendingRaffleDraw.kind,
+					...(pendingRaffleDraw.targetWinnerId
+						? { targetWinnerId: pendingRaffleDraw.targetWinnerId }
+						: {}),
+					commitmentHash: pendingRaffleDraw.commitmentHash,
+					createdAt: pendingRaffleDraw.createdAt,
+					revealAt: pendingRaffleDraw.revealAt,
+					poolSize: pendingRaffleDraw.pool.length,
+					queuedCount: pendingRaffleDraw.queuedEntrants.length,
+				}
+			: null,
+		raffleHistory: raffleHistory.map(({ proof, ...record }) => ({
+			...record,
+			commitmentHash: proof.commitmentHash,
+			poolSize: proof.pool.length,
+			targetIndex: proof.targetIndex,
+		})),
 	};
 }
 
@@ -193,6 +298,27 @@ export function applyGiveawayEvent(doc: GiveawayDoc, ev: GiveawayEvent, now: num
 	}
 	// entry
 	if (!doc.config.open) return doc;
+	// Keep the committed pool fixed, while preserving chat entries for the next
+	// draw so a viewer doesn't lose their entry during the reveal window.
+	if (doc.pendingRaffleDraw) {
+		const pending = doc.pendingRaffleDraw;
+		if (doc.entrants.length + pending.queuedEntrants.length >= MAX_ENTRANTS) return doc;
+		if (
+			doc.entrants.some((entrant) => entrant.login === ev.login) ||
+			pending.queuedEntrants.some((entrant) => entrant.login === ev.login)
+		)
+			return doc;
+		return {
+			...doc,
+			pendingRaffleDraw: {
+				...pending,
+				queuedEntrants: [
+					...pending.queuedEntrants,
+					{ login: ev.login, name: ev.name, enteredAt: now },
+				],
+			},
+		};
+	}
 	if (doc.entrants.length >= MAX_ENTRANTS) return doc;
 	if (doc.entrants.some((e) => e.login === ev.login)) return doc; // dedup by login
 	return {
@@ -202,7 +328,7 @@ export function applyGiveawayEvent(doc: GiveawayDoc, ev: GiveawayEvent, now: num
 }
 
 /** Gifters who reached the threshold, in the order they got there ("first to gift N+"). */
-export function qualifyingGifters(doc: GiveawayDoc): Gifter[] {
+export function qualifyingGifters(doc: Pick<GiveawayDoc, "gifters">): Gifter[] {
 	return doc.gifters
 		.filter((g) => g.qualifiedAt != null)
 		.sort((a, b) => (a.qualifiedAt ?? 0) - (b.qualifiedAt ?? 0));
@@ -255,9 +381,121 @@ function armPendingClaim(doc: GiveawayDoc, pick: Entrant, now: number): Giveaway
 	};
 }
 
+/** Stable, ordered eligible logins for a normal draw or a reroll. */
+export function eligibleRaffleLogins(doc: GiveawayDoc, rerollWinnerId?: string): string[] {
+	const rerollTarget = rerollWinnerId
+		? doc.winners.find((winner) => winner.id === rerollWinnerId && winner.source === "raffle")
+		: undefined;
+	const taken = new Set(
+		doc.winners.filter((winner) => winner.id !== rerollTarget?.id).map((winner) => winner.login),
+	);
+	if (rerollTarget) taken.add(rerollTarget.login);
+	return doc.entrants
+		.filter((entrant) => !taken.has(entrant.login))
+		.map((entrant) => entrant.login);
+}
+
+/** Generate a 256-bit server seed using the platform CSPRNG. */
+export function newRaffleServerSeed(): string {
+	const bytes = crypto.getRandomValues(new Uint8Array(32));
+	return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/** Commit to the secret seed, draw id, and exact ordered raffle login pool. */
+export function raffleCommitmentHash(
+	serverSeed: string,
+	drawId: string,
+	pool: string[],
+): Promise<string> {
+	return wheelCommitmentHash(
+		serverSeed,
+		drawId,
+		pool.map((login) => ({ label: login, weight: 1 })),
+	);
+}
+
+/** Independently verify the published hash, derived random index, and winner. */
+export async function verifyRaffleDrawProof(
+	drawId: string,
+	winnerLogin: string,
+	proof: RaffleProof,
+): Promise<boolean> {
+	if (proof.algorithm !== "sha256-commit-reveal-v1" || proof.pool.length === 0) return false;
+	if (proof.targetIndex < 0 || proof.targetIndex >= proof.pool.length) return false;
+	if (proof.pool[proof.targetIndex] !== winnerLogin) return false;
+	const commitmentHash = await raffleCommitmentHash(proof.serverSeed, drawId, proof.pool);
+	if (commitmentHash !== proof.commitmentHash) return false;
+	const draw = await wheelDraw(proof.serverSeed, drawId, proof.pool.length);
+	return (
+		draw.bucket === proof.targetIndex &&
+		draw.drawHash === proof.drawHash &&
+		draw.drawCounter === proof.drawCounter
+	);
+}
+
+/** Resolve the currently committed pool using an unbiased bucket from wheelDraw. */
+export function resolveCommittedRaffleDraw(
+	doc: GiveawayDoc,
+	options: { drawId: string; drawHash: string; drawCounter: number; bucket: number; now: number },
+): { doc: GiveawayDoc; winner: Entrant; record: RaffleDrawRecord } {
+	const commitment = doc.pendingRaffleDraw;
+	if (!commitment || commitment.drawId !== options.drawId) {
+		throw new Error("The raffle draw commitment is no longer available.");
+	}
+	if (
+		JSON.stringify(eligibleRaffleLogins(doc, commitment.targetWinnerId)) !==
+		JSON.stringify(commitment.pool)
+	) {
+		throw new Error("The eligible raffle pool changed after its hash was published.");
+	}
+	const winnerLogin = commitment.pool[options.bucket];
+	if (winnerLogin === undefined)
+		throw new Error("The committed raffle draw selected an invalid index.");
+	const winner = doc.entrants.find((entrant) => entrant.login === winnerLogin);
+	if (!winner) throw new Error("The committed raffle winner is no longer in the pool.");
+	let base = doc;
+	if (commitment.kind === "reroll") {
+		if (!commitment.targetWinnerId) throw new Error("The reroll target is missing.");
+		const target = doc.winners.find((item) => item.id === commitment.targetWinnerId);
+		if (!target || target.source !== "raffle")
+			throw new Error("The reroll target is no longer available.");
+		base = removeWinner(doc, target.id);
+	}
+	const withWinner = addWinner(base, { ...winner, source: "raffle" }, options.now);
+	if (withWinner.winners === base.winners) throw new Error("The selected entrant has already won.");
+	const next = armPendingClaim(withWinner, winner, options.now);
+	const queuedEntrants = commitment.queuedEntrants ?? [];
+	const record: RaffleDrawRecord = {
+		drawId: commitment.drawId,
+		kind: commitment.kind,
+		winnerLogin: winner.login,
+		winnerName: winner.name,
+		drawnAt: options.now,
+		proof: {
+			algorithm: "sha256-commit-reveal-v1",
+			commitmentHash: commitment.commitmentHash,
+			serverSeed: commitment.serverSeed,
+			drawHash: options.drawHash,
+			drawCounter: options.drawCounter,
+			pool: [...commitment.pool],
+			targetIndex: options.bucket,
+		},
+	};
+	return {
+		doc: {
+			...next,
+			pendingRaffleDraw: null,
+			raffleHistory: [record, ...(doc.raffleHistory ?? [])].slice(0, RAFFLE_PROOF_HISTORY_LIMIT),
+			entrants: [...next.entrants, ...queuedEntrants].slice(0, MAX_ENTRANTS),
+		},
+		winner,
+		record,
+	};
+}
+
 /** Pick one entrant uniformly at random from a pool (null if empty). `rand` injected for tests. */
 function pickEntrant(pool: Entrant[], rand: () => number): Entrant | null {
-	return pool.length === 0 ? null : pool[Math.floor(rand() * pool.length)]!;
+	return pool.length === 0 ? null : (pool[Math.floor(rand() * pool.length)] ?? null);
 }
 
 /**
@@ -359,6 +597,7 @@ export function removeWinner(doc: GiveawayDoc, id: string): GiveawayDoc {
  * reopen `!enter` for a fresh wave while the gift winners already drawn stand.
  */
 export function resetPool(doc: GiveawayDoc): GiveawayDoc {
+	if (doc.pendingRaffleDraw) return doc;
 	return { ...doc, entrants: [], pendingClaim: null };
 }
 
@@ -368,6 +607,7 @@ export function resetPool(doc: GiveawayDoc): GiveawayDoc {
  * wait for Start).
  */
 export function resetRound(doc: GiveawayDoc): GiveawayDoc {
+	if (doc.pendingRaffleDraw) return doc;
 	return {
 		...doc,
 		startedAt: null,

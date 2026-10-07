@@ -151,11 +151,36 @@ in a browser without wiring up OBS first. The rewards source additionally has a
 **Mirror** toggle that flips the card to hug the right edge of its scene
 (`&side=right` in the URL) for right-anchored layouts.
 
-| Source  | URL                    | Size (W×H)  | Shows                                                        |
-| ------- | ---------------------- | ----------- | ------------------------------------------------------------ |
-| Timer   | `/overlay/timer?t=…`   | `1310×200`  | Compact countdown bar (D/H/M/S); emotes flood it on each add |
-| Rewards | `/overlay/rewards?t=…` | `760×540`   | Current reward name + unlock celebration                     |
-| Wheel   | `/overlay/wheel?t=…`   | `1080×1080` | Wheel of dares; hidden until you spin, then reveals the dare |
+Use **Preview all** in Settings → Overlays to see the timer, rewards, and wheel
+with sample data. Each source also has a **Demo** link; add `?demo=1` to any
+overlay path for a token-free sample view. Demo mode never reads or changes live
+stream data. The gallery includes standard and compact timer/rewards layouts
+and a button to spin the sample wheel.
+
+The timer and rewards cards also have a **Compact mode** toggle. It adds
+`&minimal=1` to that source URL; use the compact size shown in Settings →
+Overlays when adding or resizing the OBS Browser source. The rewards version
+shows the current reward and unlock celebration without the progress bar or
+upcoming rewards. The timer version uses a narrower bar and hides its status
+and title labels.
+
+| Source  | URL                    | Size (W×H)                      | Shows                                                        |
+| ------- | ---------------------- | ------------------------------- | ------------------------------------------------------------ |
+| Timer   | `/overlay/timer?t=…`   | `1310×200` (compact `1000×160`) | Countdown bar (D/H/M/S); emotes flood it on each add         |
+| Rewards | `/overlay/rewards?t=…` | `760×540` (compact `760×180`)   | Current reward name + unlock celebration                     |
+| Wheel   | `/overlay/wheel?t=…`   | `1080×1080`                     | Wheel of dares; hidden until you spin, then reveals the dare |
+
+**Overlay sounds** in Settings → Overlays can play wheel clicks during a spin,
+when a dare is picked, when a reward unlocks, when all rewards are unlocked, as
+the timer enters its final 30 seconds, and when it ends. Each moment has its own
+toggle and preview; selecting a built-in style previews it immediately. The wheel
+starts silently and its clicks stay built in. The timer's final-30-second alarm is
+separate from its Game over ending cue; a cinematic blast is also available. Sounds are off until enabled. Built-in cues are
+synthesized in the browser, with no third-party recordings or music bundled. One
+uploaded sound (MP3, WAV, OGG, WebM, or MP4; up to 256 KiB) can replace the
+one-shot cues. Only upload audio you have rights to use. For OBS, enable
+browser-source audio capture/routing for the source if you want viewers to hear
+the effect.
 
 Each overlay is its own source — drag them where you want in OBS. Each renders
 at the fixed native size above and fills its source, so to fit a different scene
@@ -289,9 +314,17 @@ hidden goal never reaches the browser at all.
 The control panel's **Wheel** tab manages a spinner of chat dares. Each slot
 has a label, a **weight** (a higher weight = a bigger slice and better odds),
 an optional colour, and an enable toggle; drag the handle to reorder. **Spin
-(random)** picks a weighted-random enabled slot server-side, and each slot has
-a **Spin to this** for a hand-picked result. The wheel seeds with a default set
-of dares on first run, and the last 25 spins show under **Recent spins**.
+(random)** picks a weighted-random enabled slot server-side. Each enabled slot
+shows its current chance based on the total weight of enabled dares; disabled
+slots are excluded from the odds and cannot be targeted by **Spin to this**.
+The wheel seeds with a default set of dares on first run, and the last 25 spins
+show under **Recent spins**.
+
+Random spins use a SHA-256 commit/reveal proof. The proof stays in the control
+panel's **Recent spins** history; the on-stream wheel shows only the spin and
+picked dare. Open **SHA-256 proof** beside a recent result and choose **Verify
+result** to check that the revealed data matches the winner. Specific-slot spins
+are operator-selected and do not include a random proof.
 
 Add the **Wheel** OBS source (square, `1080×1080`) from **Settings →
 Overlays**. By default the overlay stays hidden until you spin: it whirls a
@@ -422,7 +455,13 @@ renders broken.
    bun install
    ```
 
-2. Copy the environment templates and fill them in:
+2. Install Playwright's Chromium browser for E2E tests:
+
+   ```bash
+   bunx playwright install chromium
+   ```
+
+3. Copy the environment templates and fill them in:
 
    ```bash
    cp apps/web/.env.example apps/web/.env
@@ -430,13 +469,13 @@ renders broken.
    cp packages/infra/.env.example packages/infra/.env
    ```
 
-3. Generate the database migration:
+4. Generate the database migration:
 
    ```bash
    bun run db:generate
    ```
 
-4. Start development:
+5. Start development:
 
    ```bash
    bun run dev
@@ -456,6 +495,8 @@ renders broken.
 - `bun run build` - Build all applications.
 - `bun run check-types` - Type-check across the monorepo.
 - `bun run test` - Run the domain test suite (`packages/api/src`).
+- `bun run test:e2e` - Run the Playwright browser tests (starts the local web app).
+- `bun run test:e2e:ui` - Open Playwright UI mode for debugging.
 - `bun run check` - Lint with ESLint and check formatting with Prettier.
 - `bun run format` - Format the repo with Prettier.
 - `bun run db:generate` - Generate the Drizzle migration from the schema.
