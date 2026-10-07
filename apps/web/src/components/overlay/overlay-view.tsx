@@ -105,6 +105,9 @@ export function OverlayView({
 
 		const wasAllUnlocked = allRewardsWereUnlocked.current;
 		const fresh = data.goals.find((g) => g.unlocked && !seen.current!.has(g.id));
+		data.goals.forEach((goal) => {
+			if (!goal.unlocked) seen.current!.delete(goal.id);
+		});
 		unlockedIds.forEach((id) => seen.current!.add(id));
 		allRewardsWereUnlocked.current = allUnlocked;
 		if (!fresh) return;

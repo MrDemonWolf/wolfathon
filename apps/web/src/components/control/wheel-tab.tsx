@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { TRPCClientError } from "@trpc/client";
 import type { WheelSlot, WheelSpin } from "@wolfathon/api/wheel";
 import {
 	MAX_LABEL_LEN,
@@ -102,6 +103,7 @@ export function WheelTab() {
 	const spinUnavailable = spinLocked || serverSpinLocked;
 	const spinUnlockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const revealRequested = useRef<string | null>(null);
+	const revealRetryAt = useRef<{ spinId: string; at: number } | null>(null);
 	const [revealFailed, setRevealFailed] = useState(false);
 	useEffect(
 		() => () => {
@@ -110,6 +112,7 @@ export function WheelTab() {
 		[],
 	);
 	const finishSpin = (r: { label: string | null }) => {
+		revealRetryAt.current = null;
 		if (r.label) toast.success(`Landed on: ${r.label}`);
 		setSpinLocked(true);
 		if (spinUnlockTimer.current) clearTimeout(spinUnlockTimer.current);
@@ -137,6 +140,16 @@ export function WheelTab() {
 		controlTrpc.wheel.revealRandom.mutationOptions({
 			onSuccess: finishSpin,
 			onError: (error) => {
+				if (
+					error instanceof TRPCClientError &&
+					error.data?.code === "CONFLICT" &&
+					error.message === "The spin hash is still being published."
+				) {
+					const spinId = revealRequested.current;
+					if (spinId) revealRetryAt.current = { spinId, at: Date.now() + 1_000 };
+					revealRequested.current = null;
+					return;
+				}
 				setRevealFailed(true);
 				onError(error);
 			},
@@ -147,6 +160,7 @@ export function WheelTab() {
 		const commitment = pendingCommitment;
 		if (!commitment) {
 			revealRequested.current = null;
+			revealRetryAt.current = null;
 			setRevealFailed(false);
 			return;
 		}
@@ -156,7 +170,13 @@ export function WheelTab() {
 				revealRequested.current = commitment.spinId;
 				revealRandomSpin({ spinId: commitment.spinId });
 			},
-			Math.max(0, commitment.revealAt - Date.now()),
+			Math.max(
+				0,
+				commitment.revealAt - Date.now(),
+				revealRetryAt.current?.spinId === commitment.spinId
+					? revealRetryAt.current.at - Date.now()
+					: 0,
+			),
 		);
 		return () => clearTimeout(timeout);
 	}, [pendingCommitment, revealFailed, revealPending, revealRandomSpin]);
@@ -176,6 +196,7 @@ export function WheelTab() {
 		const spinId = data?.pendingCommitment?.spinId;
 		if (!spinId) return;
 		revealRequested.current = spinId;
+		revealRetryAt.current = null;
 		setRevealFailed(false);
 		revealRandomSpin({ spinId });
 	};

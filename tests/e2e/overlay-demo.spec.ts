@@ -213,10 +213,11 @@ test.describe("sample overlay previews", () => {
 			.toBeGreaterThan(beforeTimerPreview.oscillators);
 		const beforeTimerEnd = await getAudioStarts(page);
 		await timerStages.getByRole("button", { name: "Running" }).click();
+		await expect(addedTimeBadges).toHaveCount(0);
 		await timerStages.getByRole("button", { name: "Ended" }).click();
 		await expect
 			.poll(async () => (await getAudioStarts(page)).oscillators)
-			.toBeGreaterThanOrEqual(beforeTimerEnd.oscillators + 2);
+			.toBeGreaterThanOrEqual(beforeTimerEnd.oscillators + 1);
 
 		const rewardStages = page.getByRole("group", { name: "Rewards example stage" });
 		await rewardStages.getByRole("button", { name: "Almost there" }).click();
@@ -227,6 +228,13 @@ test.describe("sample overlay previews", () => {
 		await expect
 			.poll(async () => (await getAudioStarts(page)).oscillators)
 			.toBeGreaterThan(beforeAllRewards.oscillators + 8);
+		await rewardStages.getByRole("button", { name: "Progress" }).click();
+		await rewardStages.getByRole("button", { name: "Almost there" }).click();
+		const beforeRepeatUnlock = await getAudioStarts(page);
+		await rewardStages.getByRole("button", { name: "Just unlocked" }).click();
+		await expect
+			.poll(async () => (await getAudioStarts(page)).oscillators)
+			.toBeGreaterThan(beforeRepeatUnlock.oscillators);
 
 		const beforeSpin = await getAudioStarts(page);
 		await page.getByRole("button", { name: "Spin sample wheel" }).click();
@@ -424,6 +432,7 @@ test.describe("sample overlay previews", () => {
 				if ((await toggle.isChecked().catch(() => false)) !== original) {
 					await toggle.evaluate((element) => element.scrollIntoView({ block: "center" }));
 					await toggle.click();
+					await expect(toggle).toHaveAttribute("aria-checked", String(original));
 				}
 			}
 		}

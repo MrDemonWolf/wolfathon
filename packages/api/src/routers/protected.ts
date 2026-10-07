@@ -255,21 +255,24 @@ export const protectedRouter = router({
 					});
 				}
 				const id = crypto.randomUUID();
-				const previousSoundId = (await readSettings(ctx.db)).overlaySounds.customSound?.id;
 				const asset = { ...input, id, sizeBytes };
 				await writeOverlaySound(ctx.db, asset);
-				const settings = await mutateSettings(ctx.db, (current) => ({
-					...current,
-					overlaySounds: {
-						...current.overlaySounds,
-						customSound: {
-							id,
-							fileName: safeOverlaySoundFileName(input.fileName),
-							mimeType: input.mimeType,
-							sizeBytes,
+				let previousSoundId: string | undefined;
+				const settings = await mutateSettings(ctx.db, (current) => {
+					previousSoundId = current.overlaySounds.customSound?.id;
+					return {
+						...current,
+						overlaySounds: {
+							...current.overlaySounds,
+							customSound: {
+								id,
+								fileName: safeOverlaySoundFileName(input.fileName),
+								mimeType: input.mimeType,
+								sizeBytes,
+							},
 						},
-					},
-				}));
+					};
+				});
 				if (previousSoundId && previousSoundId !== id) {
 					await deleteOverlaySound(ctx.db, previousSoundId);
 				}

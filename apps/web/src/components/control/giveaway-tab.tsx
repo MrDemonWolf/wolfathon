@@ -24,6 +24,7 @@ import { Button } from "@wolfathon/ui/components/button";
 import { Checkbox } from "@wolfathon/ui/components/checkbox";
 import { Input } from "@wolfathon/ui/components/input";
 import { Label } from "@wolfathon/ui/components/label";
+import { TRPCClientError } from "@trpc/client";
 import { cn } from "@wolfathon/ui/lib/utils";
 import { useCopyToClipboard } from "@wolfathon/ui/hooks/use-copy-to-clipboard";
 import {
@@ -196,6 +197,7 @@ export function GiveawayTab() {
 		}),
 	);
 	const revealRequested = useRef<string | null>(null);
+	const revealRetryAt = useRef<{ drawId: string; at: number } | null>(null);
 	const [revealFailed, setRevealFailed] = useState(false);
 	const [proofHistoryOpen, setProofHistoryOpen] = useState(false);
 	const pendingRaffleDraw = data?.pendingRaffleDraw;
@@ -241,11 +243,22 @@ export function GiveawayTab() {
 						? `Rerolled: ${record.winnerName}`
 						: `Raffle winner: ${record.winnerName}`,
 				);
+				revealRetryAt.current = null;
 				setRevealFailed(false);
 				invalidate();
 				if (proofHistoryOpen) void proofHistory.refetch();
 			},
 			onError: (error) => {
+				if (
+					error instanceof TRPCClientError &&
+					error.data?.code === "CONFLICT" &&
+					error.message === "The raffle hash is still being published."
+				) {
+					const drawId = revealRequested.current;
+					if (drawId) revealRetryAt.current = { drawId, at: Date.now() + 1_000 };
+					revealRequested.current = null;
+					return;
+				}
 				setRevealFailed(true);
 				onError(error);
 			},
@@ -254,6 +267,7 @@ export function GiveawayTab() {
 	useEffect(() => {
 		if (!pendingRaffleDraw) {
 			revealRequested.current = null;
+			revealRetryAt.current = null;
 			setRevealFailed(false);
 			return;
 		}
@@ -264,7 +278,13 @@ export function GiveawayTab() {
 				revealRequested.current = pendingRaffleDraw.drawId;
 				revealRaffleDraw({ drawId: pendingRaffleDraw.drawId });
 			},
-			Math.max(0, pendingRaffleDraw.revealAt - Date.now()),
+			Math.max(
+				0,
+				pendingRaffleDraw.revealAt - Date.now(),
+				revealRetryAt.current?.drawId === pendingRaffleDraw.drawId
+					? revealRetryAt.current.at - Date.now()
+					: 0,
+			),
 		);
 		return () => clearTimeout(timeout);
 	}, [pendingRaffleDraw, revealFailed, revealPending, revealRaffleDraw]);

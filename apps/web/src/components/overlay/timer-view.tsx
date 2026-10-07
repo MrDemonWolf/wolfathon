@@ -44,10 +44,13 @@ export function TimerView({
 	data,
 	minimal = false,
 	sound,
+	demoStage,
 }: {
 	data: PublicTimer | undefined;
 	minimal?: boolean;
 	sound?: PlayableOverlaySound | null;
+	/** Demo-only stage marker so changing examples resets transition detection. */
+	demoStage?: string;
 }) {
 	const offsetRef = useRef(0); // serverNow - browserNow, captured per fetch
 	const targetRef = useRef<number | null>(null);
@@ -55,12 +58,23 @@ export function TimerView({
 	const previousTimerRef = useRef<{ remaining: number; running: boolean } | null>(null);
 	const timerCycleEndRef = useRef<number | null>(null);
 	const endCuePlayedRef = useRef(false);
+	const previousDemoStageRef = useRef<string | null>(null);
 	const [now, setNow] = useState(() => Date.now());
 	const [flash, setFlash] = useState<{ id: number; minutes: number; label: string } | null>(null);
 
 	// Resync the clock offset and detect added time on each fresh payload.
 	useEffect(() => {
 		if (!data) return;
+		const newDemoStage = demoStage !== undefined && previousDemoStageRef.current !== demoStage;
+		if (demoStage !== undefined) previousDemoStageRef.current = demoStage;
+		if (newDemoStage && demoStage !== "time-added") {
+			targetRef.current = null;
+			lastEventAtRef.current = data.lastEvent?.at ?? null;
+			previousTimerRef.current = null;
+			timerCycleEndRef.current = null;
+			endCuePlayedRef.current = false;
+			setFlash(null);
+		}
 		offsetRef.current = data.serverNow - Date.now();
 		const target = data.remainingMs;
 		// Don't flash on the first payload — it's the baseline, not a fresh add.
@@ -81,7 +95,7 @@ export function TimerView({
 			});
 		}
 		targetRef.current = target;
-	}, [data]);
+	}, [data, demoStage]);
 
 	// Local tick.
 	useEffect(() => {

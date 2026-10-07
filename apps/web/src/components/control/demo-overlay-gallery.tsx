@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { OverlayView } from "@/components/overlay/overlay-view";
 import {
+	playOverlaySound,
 	playTimerEndPreviewCue,
 	playTimerPreviewCue,
 	type PlayableOverlaySound,
@@ -132,6 +133,9 @@ export function DemoOverlayGallery() {
 						}))}
 						onChange={(stage) => {
 							if (stage === "time-added") playTimerPreviewCue();
+							if (stage === "last-30-seconds")
+								playOverlaySound(SAMPLE_PREVIEW_SOUND, "timer-warning");
+							if (stage === "ended") playOverlaySound(SAMPLE_PREVIEW_SOUND, "timer");
 							setTimerStage(stage);
 						}}
 						previewLabel="Preview timer ending"
@@ -139,10 +143,10 @@ export function DemoOverlayGallery() {
 					/>
 					<div className="grid gap-4 lg:grid-cols-2">
 						<PreviewFrame label="Timer • standard" aspectClass="aspect-[131/20]">
-							<TimerView data={timer} sound={SAMPLE_PREVIEW_SOUND} />
+							<TimerView data={timer} demoStage={timerStage} sound={SAMPLE_PREVIEW_SOUND} />
 						</PreviewFrame>
 						<PreviewFrame label="Timer • compact" aspectClass="aspect-[25/4]">
-							<TimerView data={timer} minimal sound={SAMPLE_PREVIEW_SOUND} />
+							<TimerView data={timer} demoStage={timerStage} minimal />
 						</PreviewFrame>
 					</div>
 				</section>
@@ -162,7 +166,7 @@ export function DemoOverlayGallery() {
 							<OverlayView data={rewards} sound={SAMPLE_PREVIEW_SOUND} />
 						</PreviewFrame>
 						<PreviewFrame label="Rewards • compact" aspectClass="aspect-[38/9]">
-							<OverlayView data={rewards} minimal sound={SAMPLE_PREVIEW_SOUND} />
+							<OverlayView data={rewards} minimal />
 						</PreviewFrame>
 					</div>
 				</section>

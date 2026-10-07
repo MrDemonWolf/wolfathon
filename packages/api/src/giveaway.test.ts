@@ -319,6 +319,13 @@ test("raffle commit-reveal records a verifiable winner and exact eligible pool",
 	expect(await verifyRaffleDrawProof(drawId, resolved.winner.login, resolved.record.proof)).toBe(
 		true,
 	);
+	const otherIndex = (resolved.record.proof.targetIndex + 1) % pool.length;
+	expect(
+		await verifyRaffleDrawProof(drawId, pool[otherIndex]!, {
+			...resolved.record.proof,
+			targetIndex: otherIndex,
+		}),
+	).toBe(false);
 	expect(
 		await verifyRaffleDrawProof(drawId, resolved.winner.login, {
 			...resolved.record.proof,

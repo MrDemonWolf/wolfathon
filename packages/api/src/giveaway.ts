@@ -426,7 +426,11 @@ export async function verifyRaffleDrawProof(
 	const commitmentHash = await raffleCommitmentHash(proof.serverSeed, drawId, proof.pool);
 	if (commitmentHash !== proof.commitmentHash) return false;
 	const draw = await wheelDraw(proof.serverSeed, drawId, proof.pool.length);
-	return draw.drawHash === proof.drawHash && draw.drawCounter === proof.drawCounter;
+	return (
+		draw.bucket === proof.targetIndex &&
+		draw.drawHash === proof.drawHash &&
+		draw.drawCounter === proof.drawCounter
+	);
 }
 
 /** Resolve the currently committed pool using an unbiased bucket from wheelDraw. */
